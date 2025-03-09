@@ -53,3 +53,7 @@ build/
 
 # Mac OS X directory attribute files
 .DS_Store
+
+# Ignore SSH related files
+github
+github.pub
