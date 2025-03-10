@@ -67,13 +67,13 @@ function update ()
     if (cursors.left.isDown)
     {
         player.setVelocityX(-160);
-
+        player.flipX = true
         player.anims.play('left', true);
     }
     else if (cursors.right.isDown)
     {
         player.setVelocityX(160);
-
+        player.flipX = false
         player.anims.play('right', true);
     }
     else
