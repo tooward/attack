@@ -75,11 +75,11 @@ function create() {
 function update() {
     if (cursors.left.isDown ) {
         player.setVelocityX(-160);
-        player.flipX = true;
+        player.flipX = true
         player.anims.play('left', true);
     } else if (cursors.right.isDown) {
         player.setVelocityX(160);
-        player.flipX = false;
+        player.flipX = false
         player.anims.play('right', true);
     } else {
         player.setVelocityX(0);
@@ -97,6 +97,4 @@ function update() {
             canJump = true; // Enable jumping again after 500ms
         });
     }
-    
-    
 }
