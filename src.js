@@ -21,12 +21,15 @@ var player;
 var platforms;
 var cursors;
 var game = new Phaser.Game(config);
+var explosions;
 
 function preload() {
     this.load.image('ground', 'assets/platform.png');
     this.load.spritesheet('dude-run', 'assets/_Run.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-idle', 'assets/_Idle.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-jump', 'assets/_Jump.png', { frameWidth: 120, frameHeight: 80 });
+    this.load.spritesheet('explosion', 'assets/explosion.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.audio('explosion-sound', 'assets/explosion.wav');
 }
 
 function create() {
