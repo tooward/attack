@@ -35,17 +35,33 @@ function preload() {
     this.load.spritesheet('dude-jump', 'assets/_Jump.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-die', 'assets/_Death.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('explosion', 'assets/explosion.png', { frameWidth: 64, frameHeight: 64 });
-//    console.log(this.textures.get('explosion').getSourceImage());
+    this.load.tilemapTiledJSON('map', 'assets/map.json');
+    this.load.image('pu', 'assets/Tileset.png');
+    this.load.image('tree', 'assets/Decors.png');
+    this.load.image('tiles', 'assets/tiles.png');
     this.load.audio('explosion-sound', 'assets/sounds/explosion.wav');
     this.load.spritesheet('dude-roll', 'assets/_Roll.png', { frameWidth: 120, frameHeight: 80 });
 }
 
 function create() {
     // Create the ground
-    platforms = this.physics.add.staticGroup();
-    platforms.create(400, 568, 'ground').setScale(3).refreshBody();
+    // platforms = this.physics.add.staticGroup();
+    // platforms.create(400, 568, 'ground').setScale(3).refreshBody();
 
-    // Create the explosions group
+     // Create the tilemap
+     const map = this.make.tilemap({ key: 'map' });
+     const tileset = map.addTilesetImage('pu', 'tiles');
+     // Create the layer named "Platforms" (or whatever you named it in Tiled)
+     const platformsLayer = map.createLayer('Platforms', tileset, 0, 0);
+     
+     // Set collisions if you have set a property in Tiled (e.g., collides: true)
+     platformsLayer.setCollisionByProperty({ collides: true });
+   
+     // Replace existing platforms group with the tilemap layer collision:
+     // this.physics.add.collider(player, platforms);
+     this.physics.add.collider(player, platformsLayer);
+
+         // Create the explosions group
     explosions = this.physics.add.group({ 
         defaultKey: 'explosion', 
         maxSize: 10,
