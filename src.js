@@ -26,6 +26,7 @@ var lastDirection = 1; // 1 for right, -1 for left (tracks last movement directi
 var isRolling = false; // Add this flag to track if the player is rolling
 var canRoll = true; // New: Tracks if rolling is allowed
 var explosions;
+var explosionTimer;
 
 function preload() {
     this.load.image('ground', 'assets/platform.png');
@@ -34,7 +35,7 @@ function preload() {
     this.load.spritesheet('dude-jump', 'assets/_Jump.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-die', 'assets/_Death.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('explosion', 'assets/explosion.png', { frameWidth: 32, frameHeight: 32 });
-    this.load.audio('explosion-sound', 'assets/explosion.wav');
+    this.load.audio('explosion-sound', 'assets/sounds/explosion.wav');
     this.load.spritesheet('dude-roll', 'assets/_Roll.png', { frameWidth: 120, frameHeight: 80 });
 }
 
@@ -44,11 +45,16 @@ function create() {
     platforms.create(400, 568, 'ground').setScale(2).refreshBody();
 
     // Create the explosions group
-    explosions = this.physics.add.group({ defaultKey: 'explosion', maxSize: 10 });
+    explosions = this.physics.add.group({ 
+        defaultKey: 'explosion', 
+        maxSize: 10, 
+        allowGravity: false // Prevent explosions from falling
+    });
 
     // Create the player sprite
     player = this.physics.add.sprite(300, 350, 'dude-idle');
     player.setCollideWorldBounds(true);
+    player.dead = false; // Initialize dead flag
 
     // Create animations
     this.anims.create({
@@ -87,7 +93,7 @@ function create() {
     this.anims.create({
         key: 'die',
         frames: this.anims.generateFrameNumbers('dude-die', { start: 0, end: 9 }),
-        frameRate: 10
+        frameRate: 20
     });
 
     // create the explosion animation
@@ -101,20 +107,23 @@ function create() {
 
     // Enable physics collisions
     this.physics.add.collider(player, platforms);
-//    this.physics.add.collider(explosions, platforms);
 
     // When the player collides with an explosion, change tint and play die animation
     this.physics.add.overlap(player, explosions, (player, explosion) => {
-        // Make the explosion play its animation and sound
-        explosion.play('explode');
-        this.sound.play('explosion-sound');
-        // Tint the player red and play the die animation
-        player.setTint(0xff0000);
-        player.anims.play('die', true);
+        if (!player.dead) {  
+            player.dead = true; // Prevent further collisions
+            // Make the explosion play its animation and sound
+            this.sound.play('explosion-sound');
+            player.anims.play('die', true);
+            // Stop spawning explosions when player dies
+            if (this.explosionTimer) {
+                this.explosionTimer.remove(false);
+            }
+        }
     });
 
     // Spawn explosions periodically from the ground (y=568 matches ground level)
-    this.time.addEvent({
+    this.explosionTimer = this.time.addEvent({
         delay: 3000, // every 3 seconds, adjust as needed
         callback: spawnExplosion,
         callbackScope: this,
@@ -154,7 +163,11 @@ function create() {
 }
 
 function update() {
-    if (cursors.left.isDown) {
+    if (player.dead) {
+        // Skip movement updates if the player is dead
+        return;
+    }
+    else if (cursors.left.isDown) {
         // Move left
         if (cursors.down.isDown) {
             // Roll
