@@ -34,7 +34,8 @@ function preload() {
     this.load.spritesheet('dude-idle', 'assets/_Idle.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-jump', 'assets/_Jump.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-die', 'assets/_Death.png', { frameWidth: 120, frameHeight: 80 });
-    this.load.spritesheet('explosion', 'assets/explosion.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.spritesheet('explosion', 'assets/explosion.png', { frameWidth: 64, frameHeight: 64 });
+//    console.log(this.textures.get('explosion').getSourceImage());
     this.load.audio('explosion-sound', 'assets/sounds/explosion.wav');
     this.load.spritesheet('dude-roll', 'assets/_Roll.png', { frameWidth: 120, frameHeight: 80 });
 }
@@ -42,12 +43,12 @@ function preload() {
 function create() {
     // Create the ground
     platforms = this.physics.add.staticGroup();
-    platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+    platforms.create(400, 568, 'ground').setScale(3).refreshBody();
 
     // Create the explosions group
     explosions = this.physics.add.group({ 
         defaultKey: 'explosion', 
-        maxSize: 10, 
+        maxSize: 10,
         allowGravity: false // Prevent explosions from falling
     });
 
@@ -96,14 +97,37 @@ function create() {
         frameRate: 20
     });
 
+    this.physics.add.overlap(player, explosions, (player, explosion) => {
+        if (!player.dead) {  
+            player.dead = true; // Prevent further collisions
+            player.setVelocity(0, 0); // Stop all movement immediately
+            // Make the explosion play its animation and sound
+            this.sound.play('explosion-sound');
+            player.anims.play('die', true);
+            // Stop spawning explosions when player dies
+            if (this.explosionTimer) {
+                this.explosionTimer.remove(false);
+            }
+        }
+    });
     // create the explosion animation
     this.anims.create({
         key: 'explode',
-        frames: this.anims.generateFrameNumbers('explosion', { start: 0, end: 9 }),
+        frames: this.anims.generateFrameNumbers('explosion', { start: 0, end: 7 }),
         frameRate: 20,
         repeat: 0,
         hideOnComplete: true
     });
+
+    const explosionAnim = this.anims.get('explode');
+    if (explosionAnim) {
+        console.log("DEBUG: 'explode' animation details:", explosionAnim);
+        explosionAnim.frames.forEach((frame, index) => {
+            console.log(`Frame ${index}: key = ${frame.textureKey}, frame = ${frame.frame}`);
+        });
+    } else {
+        console.error("DEBUG: 'explode' animation was not created properly!");
+    }
 
     // Enable physics collisions
     this.physics.add.collider(player, platforms);
@@ -133,33 +157,40 @@ function create() {
     function spawnExplosion() {
         // Get the top of the first ground platform from the group
         let groundBounds = platforms.getChildren()[0].getBounds();
+
         // Choose a random x position along the width
         let xPos = Phaser.Math.Between(100, groundBounds.right - 100);
-        xPos = 100;
+//        console.log("DEBUG in spawnExplosion: xPos = " + xPos);
 
         // Spawn the explosion at ground level
         let explosion = explosions.get(xPos, 0);
         if (explosion) {
             let explosionBounds = explosion.getBounds();
-            // Adjust y so that the bottom of the explosion is at groundBounds.top.
-            // For a centered origin, bottom of sprite is (y + height/2)
             let adjustedY = groundBounds.top - (explosionBounds.height / 2);
+            console.log("DEBUG in spawnExplosion: groundBounds = " + groundBounds.top);
+            console.log("DEBUG in spawnExplosion: adjustedY = " + adjustedY);
+
+            // Re-enable the explosion sprite (this resets its texture and active state).
             explosion.setPosition(xPos, adjustedY);
-            // Update the physics body's position to match the sprite.
-            explosion.body.reset(xPos, adjustedY);
-            explosion.body.enable = true;
-            explosion.setActive(true);
-            explosion.setVisible(true);
-            explosion.play('explode');
-            // Disable the explosion once its animation is complete.
-            explosion.on('animationcomplete', () => {
+            explosion.enableBody(false, xPos, adjustedY, true, true);
+    
+            // Play the explosion animation.
+            explosion.anims.play('explode');
+            
+            // Once the explosion animation is complete, disable and hide the sprite.
+            explosion.once('animationcomplete', () => {
                 explosion.disableBody(true, true);
-            }, this);
+            });
         }
     }
-
     // Setup keyboard input
-    cursors = this.input.keyboard.createCursorKeys();
+    //cursors = this.input.keyboard.createCursorKeys();
+    cursors = this.input.keyboard.addKeys({
+        up: Phaser.Input.Keyboard.KeyCodes.W,
+        left: Phaser.Input.Keyboard.KeyCodes.A,
+        down: Phaser.Input.Keyboard.KeyCodes.S,
+        right: Phaser.Input.Keyboard.KeyCodes.D
+    });
 }
 
 function update() {
@@ -174,7 +205,7 @@ function update() {
             player.setVelocityX(-160);
             player.flipX = true
             player.anims.play('roll', true);     
-            isRolling = true; // Set the flag to true when rolling starts  
+            isRolling = true; // Set the flag to true when rolling starts
                  
             // Reset the flag when the roll animation completes
             player.on('animationcomplete-roll', () => {
@@ -218,16 +249,16 @@ function update() {
             player.anims.play('right', true);
         }
     }
-    else if (cursors.up.isDown && player.body.touching.down) {
+    else if (cursors.up.isDown && player.body.touching.down && canJump) {
         // Jumping with delay        
         player.setVelocityY(-100);
         player.anims.play('jump', true);
         canJump = false; // Prevent further jumps
 
         // Add delay before allowing another jump
-        // this.time.delayedCall(1000, () => {
-        //     canJump = true; // Enable jumping again after 500ms
-        // });
+         this.time.delayedCall(1000, () => {
+             canJump = true; // Enable jumping again after 1000ms
+         });
     }
     else {
         // otherwise idle
