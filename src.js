@@ -7,7 +7,7 @@ var config = {
         default: 'arcade',
         arcade: {
             gravity: { y: 300 },
-            debug: false
+            debug: true  // enable debug mode for collision visualization
         }
     },
     scene: {
@@ -29,49 +29,70 @@ var explosions;
 var explosionTimer;
 
 function preload() {
-    this.load.image('ground', 'assets/platform.png');
+    // Load maps and tiles
+    this.load.image('ground', 'assets/maps/Tileset.png');
+    this.load.tilemapTiledJSON('map', 'assets/maps/map.tmj');
+
+    // Load player sprites
     this.load.spritesheet('dude-run', 'assets/_Run.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-idle', 'assets/_Idle.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-jump', 'assets/_Jump.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('dude-die', 'assets/_Death.png', { frameWidth: 120, frameHeight: 80 });
     this.load.spritesheet('explosion', 'assets/explosion.png', { frameWidth: 64, frameHeight: 64 });
-    this.load.tilemapTiledJSON('map', 'assets/map.json');
-    this.load.image('pu', 'assets/Tileset.png');
-    this.load.image('tree', 'assets/Decors.png');
-    this.load.image('tiles', 'assets/tiles.png');
+
     this.load.audio('explosion-sound', 'assets/sounds/explosion.wav');
     this.load.spritesheet('dude-roll', 'assets/_Roll.png', { frameWidth: 120, frameHeight: 80 });
 }
 
 function create() {
-    // Create the ground
-    // platforms = this.physics.add.staticGroup();
-    // platforms.create(400, 568, 'ground').setScale(3).refreshBody();
-
-     // Create the tilemap
-     const map = this.make.tilemap({ key: 'map' });
-     const tileset = map.addTilesetImage('pu', 'tiles');
-     // Create the layer named "Platforms" (or whatever you named it in Tiled)
-     const platformsLayer = map.createLayer('Platforms', tileset, 0, 0);
+    // Create the tilemap
+    const map = this.make.tilemap({ key: 'map' });
+    const tileset = map.addTilesetImage('ground', 'ground');
+    // Create layer; the offset from Tiled is automatically applied if present.
+    const platforms = map.createStaticLayer('ground', tileset, 0, 0);
+    // Optionally override the layer's position:
+    platforms.setPosition(0, 0);  // Adjust x and y as needed
+    // Apply collision based on tile property; if not automatically set, force it:
+    // platforms.forEachTile(tile => {
+    //     if (tile.index > 0 && tile.properties && tile.properties.collides === true) {
+    //         console.log("DEBUG: Tile GID " + tile.index + " HAS a 'collides' property.");
+    //         tile.setCollision(true);
+    //     }
+    //     else {
+    //         console.log("DEBUG: Tile GID " + tile.index + " does not have a 'collides' property.");
+    //     }
+    // });
+    // Optionally still call setCollisionByProperty
+    platforms.setCollisionByProperty({ collides: true });
      
-     // Set collisions if you have set a property in Tiled (e.g., collides: true)
-     platformsLayer.setCollisionByProperty({ collides: true });
-   
-     // Replace existing platforms group with the tilemap layer collision:
-     // this.physics.add.collider(player, platforms);
-     this.physics.add.collider(player, platformsLayer);
+    // Debugging: log colliding tiles count
+    console.log("Number of tiles in the layer:", platforms.layer.data.length);
+    let collidingTiles = platforms.filterTiles(tile => tile.collides);
+    console.log("Number of colliding tiles:", collidingTiles.length);
+    console.log(map.tilesets);
+    platforms.renderDebug(this.add.graphics());
 
-         // Create the explosions group
-    explosions = this.physics.add.group({ 
-        defaultKey: 'explosion', 
-        maxSize: 10,
-        allowGravity: false // Prevent explosions from falling
-    });
+    // Debug: Log properties for all non-empty tiles in the layer
+    // platforms.forEachTile(tile => {
+    //     if (tile.index > 0) {
+    //         console.log(`Tile GID: ${tile.index}`, tile.properties, 'Collides:', tile.collides);
+    //     }
+    // });
 
     // Create the player sprite
     player = this.physics.add.sprite(300, 350, 'dude-idle');
     player.setCollideWorldBounds(true);
     player.dead = false; // Initialize dead flag
+   
+     // Replace existing platforms group with the tilemap layer collision:
+     this.physics.add.collider(player, platforms);
+
+    // Create the explosions group
+    explosions = this.physics.add.group({
+        defaultKey: 'explosion',
+        maxSize: 10,
+        allowGravity: false // Prevent explosions from falling
+    });
 
     // Create animations
     this.anims.create({
@@ -172,19 +193,18 @@ function create() {
     
     function spawnExplosion() {
         // Get the top of the first ground platform from the group
-        let groundBounds = platforms.getChildren()[0].getBounds();
+        let groundBounds = platforms.getBounds();
 
         // Choose a random x position along the width
-        let xPos = Phaser.Math.Between(100, groundBounds.right - 100);
-//        console.log("DEBUG in spawnExplosion: xPos = " + xPos);
+        let xPos = Phaser.Math.Between(groundBounds.x + 100, groundBounds.right - 100);
 
         // Spawn the explosion at ground level
         let explosion = explosions.get(xPos, 0);
         if (explosion) {
             let explosionBounds = explosion.getBounds();
             let adjustedY = groundBounds.top - (explosionBounds.height / 2);
-            console.log("DEBUG in spawnExplosion: groundBounds = " + groundBounds.top);
-            console.log("DEBUG in spawnExplosion: adjustedY = " + adjustedY);
+            // console.log("DEBUG in spawnExplosion: groundBounds = " + groundBounds.top);
+            // console.log("DEBUG in spawnExplosion: adjustedY = " + adjustedY);
 
             // Re-enable the explosion sprite (this resets its texture and active state).
             explosion.setPosition(xPos, adjustedY);
@@ -199,6 +219,15 @@ function create() {
             });
         }
     }
+
+        // Spawn explosions periodically...
+        this.explosionTimer = this.time.addEvent({
+            delay: 3000,
+            callback: spawnExplosion,
+            callbackScope: this,
+            loop: true
+        });
+
     // Setup keyboard input
     //cursors = this.input.keyboard.createCursorKeys();
     cursors = this.input.keyboard.addKeys({
