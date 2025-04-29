@@ -6,26 +6,27 @@ export default class MenuScene extends Scene {
     }
 
     create() {
-        const { width, height } = this.sys.game.config;
+        const width = this.sys.game.config.width as number;
+        const height = this.sys.game.config.height as number;
         
         // Title text
         this.add.text(width / 2, height / 3, 'ATTACK GAME', {
             fontSize: '64px',
-            fill: '#fff',
+            color: '#fff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
         
         // Start game button
         const startButton = this.add.text(width / 2, height / 2, 'Start Game', {
             fontSize: '32px',
-            fill: '#fff',
+            color: '#fff',
             padding: { x: 20, y: 10 },
             backgroundColor: '#000'
         })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true })
-        .on('pointerover', () => startButton.setStyle({ fill: '#ff0' }))
-        .on('pointerout', () => startButton.setStyle({ fill: '#fff' }))
+        .on('pointerover', () => startButton.setStyle({ color: '#ff0' }))
+        .on('pointerout', () => startButton.setStyle({ color: '#fff' }))
         .on('pointerdown', () => this.startGame());
 
         // Optional: Add options button, credits, etc.

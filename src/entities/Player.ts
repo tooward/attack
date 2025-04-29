@@ -1,23 +1,38 @@
-import { Scene, Physics, GameObjects } from 'phaser';
+import { Scene, Physics, GameObjects, Input, Animations, Types } from 'phaser';
 
 export default class Player {
+    scene: Scene;
+    sprite: Physics.Arcade.Sprite;
+    dead: boolean;
+    canJump: boolean;
+    isFighting: boolean;
+    lastDirection: number; // 1 for right, -1 for left
+    maxHealth: number;
+    health: number;
+    maxStamina: number;
+    stamina: number;
+    staminaRegenRate: number;
+    staminaDrainRate: number;
+    attackPower: number;
+    cursors: Types.Input.Keyboard.CursorKeys;
+
     /**
      * Static method to preload all player assets
      * @param {Scene} scene - The scene to use for loading
      */
-    static preload(scene) {
+    static preload(scene: Scene): void {
         // Load player spritesheets
         scene.load.spritesheet('dude-run', 'assets/player/RUN.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-idle', 'assets/player/IDLE.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-jump', 'assets/player/JUMP.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-die', 'assets/player/DEATH.png', { frameWidth: 96, frameHeight: 96 });
     }
-    
+
     /**
      * Static method to create animations
      * @param {Scene} scene - The scene to create animations in
      */
-    static createAnims(scene) {
+    static createAnims(scene: Scene): void {
         // Create player animations
         scene.anims.create({
             key: 'left',
@@ -54,23 +69,26 @@ export default class Player {
         });
     }
 
-    constructor(scene, x, y) {
+    constructor(scene: Scene, x: number, y: number) {
         this.scene = scene;
-        
+
         // Create the player sprite
         this.sprite = scene.physics.add.sprite(x, y, 'dude-idle');
-        
+
         // Set up physics body
-        this.sprite.body.setSize(96, 96);
-        this.sprite.body.setOffset(30, 10);
-        this.sprite.setCollideWorldBounds(true);
-        
+        if (this.sprite.body) {
+            const body = this.sprite.body as Physics.Arcade.Body;
+            body.setSize(96, 96);
+            body.setOffset(30, 10);
+            body.setCollideWorldBounds(true);
+        }
+
         // Player state
         this.dead = false;
         this.canJump = true;
         this.isFighting = false;
         this.lastDirection = 1; // 1 for right, -1 for left
-        
+
         // Player stats
         this.maxHealth = 100;
         this.health = 100;
@@ -79,33 +97,41 @@ export default class Player {
         this.staminaRegenRate = 10;  // per second
         this.staminaDrainRate = 20;  // per second during fighting
         this.attackPower = 1.0;
-        
+
         // Set up player input
-        this.cursors = scene.input.keyboard.createCursorKeys();        
+        if (scene.input.keyboard) {
+            this.cursors = scene.input.keyboard.createCursorKeys();
+        } else {
+            console.error("Keyboard input not available.");
+            this.cursors = {} as Types.Input.Keyboard.CursorKeys;
+        }
     }
-    
-    update(time, delta) {
-        if (this.dead) return;
-        
+
+    update(time: number, delta: number): void {
+        if (this.dead || !this.sprite.body) return;
+
         const seconds = delta / 1000;
         this.handleMovement();
         this.handleStamina(seconds);
     }
-    
-    handleMovement() {
+
+    handleMovement(): void {
+        const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+        if (!body) return;
+
         // Only allow horizontal movement if on the floor
-        if (this.sprite.body.onFloor()) {
-            if (this.cursors.left.isDown) {
+        if (body.onFloor()) {
+            if (this.cursors.left?.isDown) {
                 // Move left
                 this.lastDirection = -1;
                 this.moveLeft();
             } 
-            else if (this.cursors.right.isDown) {
+            else if (this.cursors.right?.isDown) {
                 // Move right
                 this.lastDirection = 1;
                 this.moveRight();
             }
-            else if (this.cursors.space.isDown) {
+            else if (this.cursors.space?.isDown) {
                 this.attack();
             }
             else {
@@ -113,10 +139,10 @@ export default class Player {
             }
         } else {
             // Allow changing direction mid-air but don't apply velocity
-            if (this.cursors.left.isDown) {
+            if (this.cursors.left?.isDown) {
                 this.lastDirection = -1;
                 this.sprite.flipX = true; // Keep sprite facing the correct way
-            } else if (this.cursors.right.isDown) {
+            } else if (this.cursors.right?.isDown) {
                 this.lastDirection = 1;
                 this.sprite.flipX = false; // Keep sprite facing the correct way
             }
@@ -128,49 +154,53 @@ export default class Player {
         }
 
         // Jumping is handled separately and allowed mid-air or on floor
-        if (this.cursors.up.isDown && this.sprite.body.onFloor() && this.canJump) {
+        if (this.cursors.up?.isDown && body.onFloor() && this.canJump) {
             this.jump();
         }
     }
-    
-    moveLeft() {
+
+    moveLeft(): void {
+        if (!this.sprite.body) return;
         this.sprite.setVelocityX(-160);
         this.sprite.flipX = true;
         this.sprite.anims.play('left', true);
     }
-    
-    moveRight() {
+
+    moveRight(): void {
+        if (!this.sprite.body) return;
         this.sprite.setVelocityX(160);
         this.sprite.flipX = false;
         this.sprite.anims.play('right', true);
     }
-    
-    jump() {
+
+    jump(): void {
+        if (!this.sprite.body) return;
         this.sprite.setVelocityY(-400);
         this.sprite.anims.play('jump', true);
         this.canJump = false;
-        
+
         // Add delay before allowing another jump
         this.scene.time.delayedCall(1000, () => {
             this.canJump = true;
         });
     }
-    
-    attack() {
+
+    attack(): void {
         this.isFighting = true;
-        
+
         // Reset after a delay
         this.scene.time.delayedCall(1000, () => {
             this.isFighting = false;
         });
     }
-    
-    idle() {
+
+    idle(): void {
+        if (!this.sprite.body) return;
         this.sprite.setVelocityX(0);
         this.sprite.anims.play('idle', true);
     }
-    
-    handleStamina(seconds) {
+
+    handleStamina(seconds: number): void {
         // Handle stamina drain if fighting
         if (this.isFighting) {
             this.stamina -= this.staminaDrainRate * seconds;
@@ -182,37 +212,41 @@ export default class Player {
                 if (this.stamina > this.maxStamina) this.stamina = this.maxStamina;
             }
         }
-        
+
         // Adjust attack power based on stamina
         this.attackPower = this.stamina < 20 ? 0.5 : 1.0;
     }
-    
-    takeDamage(amount) {
+
+    takeDamage(amount: number): void {
         this.health -= amount;
-        
+
         if (this.health <= 0) {
             this.health = 0;
             this.die();
         }
-        
+
         // Signal that player health changed
         this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
     }
-    
-    die() {
+
+    die(): void {
         if (this.dead) return;
-        
+
         this.dead = true;
-        this.sprite.setVelocity(0, -200);
+        if (this.sprite.body) {
+            this.sprite.setVelocity(0, -200);
+        }
         this.sprite.anims.play('die', true);
-        
+
         // Emit death event for the game to handle
         this.scene.events.emit('player-died');
     }
-    
-    reset(x, y) {
+
+    reset(x: number, y: number): void {
         this.sprite.setPosition(x, y);
-        this.sprite.setVelocity(0, 0);
+        if (this.sprite.body) {
+            this.sprite.setVelocity(0, 0);
+        }
         this.dead = false;
         this.health = this.maxHealth;
         this.stamina = this.maxStamina;

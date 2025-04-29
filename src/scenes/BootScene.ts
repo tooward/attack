@@ -52,13 +52,13 @@ export default class BootScene extends Scene {
             text: 'Loading...',
             style: {
                 font: '20px monospace',
-                fill: '#ffffff'
+                color: '#ffffff'
             }
         });
         loadingText.setOrigin(0.5, 0.5);
         
         // Update the loading bar as assets are loaded
-        this.load.on('progress', (value) => {
+        this.load.on('progress', (value: number) => {
             progressBar.clear();
             progressBar.fillStyle(0xffffff, 1);
             progressBar.fillRect(width / 2 - 150, height / 2 - 15, 300 * value, 30);

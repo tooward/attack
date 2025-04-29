@@ -4,6 +4,12 @@ import Explosion from '../entities/Explosion.js';
 import Bot from '../entities/Bot.js';
 
 export default class GameScene extends Scene {
+    player!: Player;
+    platforms!: Phaser.Tilemaps.TilemapLayer;
+    bot!: Bot;
+    explosions!: Explosion;
+    explosionDebugText!: Phaser.GameObjects.Text;
+
     constructor() {
         super({ key: 'GameScene' });
     }
@@ -33,7 +39,7 @@ export default class GameScene extends Scene {
         // Debug text for explosion info
         this.explosionDebugText = this.add.text(16, 16, 'Explosion Debug:', { 
             fontSize: '18px', 
-            fill: '#fff',
+            color: '#fff',
             backgroundColor: '#000a',
             padding: { x: 5, y: 5 }
         }).setVisible(false); // Hidden by default
@@ -45,12 +51,12 @@ export default class GameScene extends Scene {
         this.debugCollisions();
         
         // Debug toggle key (D)
-        this.input.keyboard.on('keydown-D', () => {
+        this.input.keyboard?.on('keydown-D', () => {
             this.explosionDebugText.setVisible(!this.explosionDebugText.visible);
         });
     }
     
-    update(time, delta) {
+    update(time: number, delta: number) {
         // Update player
         this.player.update(time, delta);
         
@@ -60,7 +66,9 @@ export default class GameScene extends Scene {
         // Update explosion debug text if visible
         if (this.explosionDebugText.visible) {
             const activeCount = this.explosions.group.getChildren().filter(exp => exp.active).length;
-            const explodedCount = this.explosions.group.getChildren().filter(exp => exp.hasExploded).length;
+            const explodedCount = this.explosions.group.getChildren().filter(
+                exp => (exp as Phaser.GameObjects.Sprite).getData('hasExploded')
+            ).length;
             
             this.explosionDebugText.setText(
                 `Explosions: ${activeCount} active, ${explodedCount} exploded\n` + 
@@ -74,14 +82,15 @@ export default class GameScene extends Scene {
         // Create the tilemap
         const map = this.make.tilemap({ key: 'map' });
         const tileset = map.addTilesetImage('ground', 'ground');
-        
-        // Create layer
-        this.platforms = map.createLayer('ground', tileset, 0, 0);
+        if (!tileset) throw new Error('Tileset not found');
+        const platformLayer = map.createLayer('ground', tileset, 0, 0);
+        if (!platformLayer) throw new Error('Layer not found');
+        this.platforms = platformLayer;
         this.platforms.setCollisionByExclusion([-1]); // Collide with all tiles
         
         // Debug tilemap
         console.log("Number of tiles in the layer:", this.platforms.layer.data.length);
-        const collidingTiles = this.platforms.filterTiles(tile => tile.collides);
+        const collidingTiles = this.platforms.filterTiles((tile: Phaser.Tilemaps.Tile) => tile.collides);
         console.log("Number of colliding tiles:", collidingTiles.length);
     }
     
@@ -93,10 +102,10 @@ export default class GameScene extends Scene {
         
         // Show game over text
         this.add.text(
-            this.sys.game.config.width / 2, 
-            this.sys.game.config.height / 2, 
+            (this.sys.game.config.width as number) / 2, 
+            (this.sys.game.config.height as number) / 2, 
             'GAME OVER', 
-            { fontSize: '64px', fill: '#ff0000', fontStyle: 'bold' }
+            { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }
         ).setOrigin(0.5);
         
         // Wait and then show game over

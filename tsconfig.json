@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2016", // Or a later version like ES2017, ES2020 depending on your target environment
+    "module": "ESNext", // Use ES modules
+    "moduleResolution": "node",
+    "lib": ["ESNext", "DOM"], // Include necessary libraries
+    "outDir": "./dist", // Output directory for compiled JS files
+    "rootDir": "./src", // Source directory for TS files
+    "strict": true, // Enable all strict type-checking options
+    "esModuleInterop": true, // Enables emit interoperability between CommonJS and ES Modules
+    "skipLibCheck": true, // Skip type checking of declaration files
+    "forceConsistentCasingInFileNames": true, // Disallow inconsistently-cased references to the same file.
+    "sourceMap": true, // Generate source maps for debugging
+    "baseUrl": ".", // Base directory for module resolution
+    "paths": {
+      "@/*": ["src/*"] // Example path alias
+    }
+  },
+  "include": ["src/**/*"], // Include all files in the src directory
+  "exclude": ["node_modules", "dist"] // Exclude node_modules and the output directory
+}
