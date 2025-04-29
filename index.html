@@ -2,13 +2,33 @@
 <html lang="en"> 
 <head> 
     <meta charset="UTF-8" />
-    <title>attack v1 - just move</title>
-    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
-    <script src="src.js"></script>
+    <title>Attack Game</title>
+    <!-- Add import map to map bare module imports to specific paths -->
+    <script type="importmap">
+    {
+      "imports": {
+        "phaser": "/node_modules/phaser/dist/phaser.esm.js"
+      }
+    }
+    </script>
     <style type="text/css">
         body {
             margin: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 100vh;
         }
     </style>
 </head>
 <body>
+    <!-- Load the game using ES modules -->
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
