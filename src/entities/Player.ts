@@ -1,20 +1,20 @@
-import { Scene, Physics, GameObjects, Input, Animations, Types } from 'phaser';
+import { Scene, Physics, GameObjects, Input, Animations, Types, Math as PhaserMath } from 'phaser';
+import Character from './Character';
+import Bot from './Bot';
 
-export default class Player {
-    scene: Scene;
-    sprite: Physics.Arcade.Sprite;
-    dead: boolean;
+export default class Player extends Character {
     canJump: boolean;
     isFighting: boolean;
-    lastDirection: number; // 1 for right, -1 for left
-    maxHealth: number;
-    health: number;
     maxStamina: number;
     stamina: number;
     staminaRegenRate: number;
     staminaDrainRate: number;
     attackPower: number;
     cursors: Types.Input.Keyboard.CursorKeys;
+    attackKey: Input.Keyboard.Key | null;
+    attackCooldown: boolean;
+    attackRange: number;
+    attackDamage: number;
 
     /**
      * Static method to preload all player assets
@@ -26,6 +26,7 @@ export default class Player {
         scene.load.spritesheet('dude-idle', 'assets/player/IDLE.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-jump', 'assets/player/JUMP.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-die', 'assets/player/DEATH.png', { frameWidth: 96, frameHeight: 96 });
+        scene.load.spritesheet('dude-attack', 'assets/player/ATTACK1.png', { frameWidth: 96, frameHeight: 96 });
     }
 
     /**
@@ -67,56 +68,69 @@ export default class Player {
             frameRate: 20,
             repeat: 0
         });
+
+        scene.anims.create({
+            key: 'attack',
+            frames: scene.anims.generateFrameNumbers('dude-attack', { start: 0, end: 6 }),
+            frameRate: 20,
+            repeat: 0
+        });
     }
 
     constructor(scene: Scene, x: number, y: number) {
-        this.scene = scene;
+        // Call the parent constructor with player-specific configuration
+        super(scene, x, y, 'dude-idle', {
+            bodyWidth: 96,
+            bodyHeight: 96,
+            bodyOffsetX: 30,
+            bodyOffsetY: 10,
+            moveSpeed: 160
+        });
 
-        // Create the player sprite
-        this.sprite = scene.physics.add.sprite(x, y, 'dude-idle');
-
-        // Set up physics body
+        // Set up physics body with player-specific properties
         if (this.sprite.body) {
             const body = this.sprite.body as Physics.Arcade.Body;
-            body.setSize(96, 96);
-            body.setOffset(30, 10);
-            body.setCollideWorldBounds(true);
-            
-            // Custom gravity and physics properties for jump feel
-            body.setGravityY(600); // Higher value = faster fall
-            body.setDragX(300);    // Horizontal drag to slow down player when not moving
+            body.setDragX(300); // Horizontal drag to slow down player when not moving
         }
 
-        // Player state
-        this.dead = false;
+        // Player-specific state
         this.canJump = true;
         this.isFighting = false;
-        this.lastDirection = 1; // 1 for right, -1 for left
-
-        // Player stats
-        this.maxHealth = 100;
-        this.health = 100;
         this.maxStamina = 100;
         this.stamina = 100;
         this.staminaRegenRate = 10;  // per second
         this.staminaDrainRate = 20;  // per second during fighting
         this.attackPower = 1.0;
+        this.attackCooldown = false;
+        this.attackRange = 50; // Melee attack range
+        this.attackDamage = 20; // Base damage for attacks
 
         // Set up player input
         if (scene.input.keyboard) {
             this.cursors = scene.input.keyboard.createCursorKeys();
+            this.attackKey = scene.input.keyboard.addKey('H');
         } else {
             console.error("Keyboard input not available.");
             this.cursors = {} as Types.Input.Keyboard.CursorKeys;
+            this.attackKey = null;
         }
     }
 
     update(time: number, delta: number): void {
+        // Call base class update first to handle common checks
+        super.update(time, delta);
+        
+        // If already determined to be dead or no body, return early
         if (this.dead || !this.sprite.body) return;
 
         const seconds = delta / 1000;
         this.handleMovement();
         this.handleStamina(seconds);
+        
+        // Check attack key input separately from movement
+        if (this.attackKey?.isDown && !this.attackCooldown) {
+            this.attack();
+        }
     }
 
     handleMovement(): void {
@@ -126,28 +140,27 @@ export default class Player {
         // Handle horizontal movement both on floor and in air
         if (this.cursors.left?.isDown) {
             // Move left
-            this.lastDirection = -1;
-            this.sprite.setVelocityX(-160);
+            this.direction = -1;
+            this.sprite.setVelocityX(-this.moveSpeed);
             this.sprite.flipX = true;
-            if (body.onFloor()) {
+            if (body.onFloor() && !this.attackCooldown) {
                 this.sprite.anims.play('left', true);
             }
         } 
         else if (this.cursors.right?.isDown) {
             // Move right
-            this.lastDirection = 1;
-            this.sprite.setVelocityX(160);
+            this.direction = 1;
+            this.sprite.setVelocityX(this.moveSpeed);
             this.sprite.flipX = false;
-            if (body.onFloor()) {
+            if (body.onFloor() && !this.attackCooldown) {
                 this.sprite.anims.play('right', true);
             }
         }
         else if (body.onFloor()) {
-            // Only idle or attack when on the floor and not moving horizontally
-            if (this.cursors.space?.isDown) {
-                this.attack();
-            } else {
+            // Only idle when on the floor and not moving horizontally or attacking
+            if (!this.attackCooldown) {
                 this.idle();
+                this.sprite.anims.play('idle', true);
             }
         } else {
             // In air with no input - keep current horizontal velocity with some air drag
@@ -156,29 +169,22 @@ export default class Player {
         }
 
         // Jumping is handled separately and only allowed on floor
-        if (this.cursors.up?.isDown && body.onFloor() && this.canJump) {
-            this.jump();
+        if (this.cursors.up?.isDown && body.onFloor() && this.canJump && !this.attackCooldown) {
+            this.playerJump();
         }
     }
 
-    moveLeft(): void {
-        if (!this.sprite.body) return;
-        this.sprite.setVelocityX(-160);
-        this.sprite.flipX = true;
-        this.sprite.anims.play('left', true);
+    // Override the idle method to include animation
+    idle(): void {
+        super.idle();
+        this.sprite.anims.play('idle', true);
     }
 
-    moveRight(): void {
-        if (!this.sprite.body) return;
-        this.sprite.setVelocityX(160);
-        this.sprite.flipX = false;
-        this.sprite.anims.play('right', true);
-    }
-
-    jump(): void {
-        if (!this.sprite.body) return;
-        // Keep horizontal velocity when jumping - don't reset it
-        this.sprite.setVelocityY(-500); // Higher (more negative) value = higher jump
+    // Player-specific jump implementation
+    playerJump(): void {
+        // Use the base jump method
+        super.jump(-500);
+        
         this.sprite.anims.play('jump', true);
         this.canJump = false;
 
@@ -189,69 +195,100 @@ export default class Player {
     }
 
     attack(): void {
-        this.isFighting = true;
+        if (this.attackCooldown || this.stamina <= 0) return;
 
-        // Reset after a delay
-        this.scene.time.delayedCall(1000, () => {
-            this.isFighting = false;
+        this.isFighting = true;
+        this.attackCooldown = true;
+        
+        // Stop horizontal movement during attack
+        this.sprite.setVelocityX(0);
+
+        // Play attack animation
+        this.sprite.anims.play('attack', true);
+        
+        // Consume stamina
+        this.stamina -= 10;
+        if (this.stamina < 0) this.stamina = 0;
+
+        // On animation complete, check for hits
+        this.sprite.once(Animations.Events.ANIMATION_COMPLETE_KEY + 'attack', () => {
+            // Find all bots in the scene that could be hit
+            const gameObjects = this.scene.physics.world.bodies.getArray()
+                .map(body => body.gameObject)
+                .filter(obj => obj && obj.active);
+                
+            // Calculate attack position based on player direction
+            const attackX = this.sprite.x + (this.direction * this.attackRange/2);
+            const attackY = this.sprite.y;
+
+            // Check each potential target
+            gameObjects.forEach(obj => {
+                // Skip if not a bot or already destroyed
+                if (!obj.getData('isBot') || !obj.active) return;
+                
+                // Calculate distance to potential target - cast to Phaser.GameObjects.Sprite for position access
+                const targetSprite = obj as unknown as Physics.Arcade.Sprite;
+                const distance = PhaserMath.Distance.Between(
+                    attackX, attackY,
+                    targetSprite.x, targetSprite.y
+                );
+                
+                // If in range, get the bot reference and damage it
+                if (distance <= this.attackRange) {
+                    const bot = obj.getData('botRef');
+                    if (bot && typeof bot.takeDamage === 'function') {
+                        bot.takeDamage(this.attackDamage * this.attackPower);
+                    }
+                }
+            });
+            
+            // Reset attack state after a delay
+            this.scene.time.delayedCall(500, () => {
+                this.isFighting = false;
+                this.attackCooldown = false;
+            });
         });
     }
 
-    idle(): void {
-        if (!this.sprite.body) return;
-        this.sprite.setVelocityX(0);
-        this.sprite.anims.play('idle', true);
-    }
-
     handleStamina(seconds: number): void {
-        // Handle stamina drain if fighting
-        if (this.isFighting) {
-            this.stamina -= this.staminaDrainRate * seconds;
-            if (this.stamina < 0) this.stamina = 0;
-        } else {
-            // Regenerate stamina when not fighting
-            if (this.stamina < this.maxStamina) {
-                this.stamina += this.staminaRegenRate * seconds;
-                if (this.stamina > this.maxStamina) this.stamina = this.maxStamina;
+        // Only regenerate stamina when not fighting
+        if (!this.isFighting && this.stamina < this.maxStamina) {
+            this.stamina += this.staminaRegenRate * seconds;
+            if (this.stamina > this.maxStamina) {
+                this.stamina = this.maxStamina;
             }
         }
 
         // Adjust attack power based on stamina
-        this.attackPower = this.stamina < 20 ? 0.5 : 1.0;
+        this.attackPower = Math.max(0.5, this.stamina / this.maxStamina);
+        
+        // Emit stamina changed event for UI
+        this.scene.events.emit('player-stamina-changed', this.stamina, this.maxStamina);
     }
 
+    // Override takeDamage to add player-specific behavior
     takeDamage(amount: number): void {
-        this.health -= amount;
-
-        if (this.health <= 0) {
-            this.health = 0;
-            this.die();
-        }
+        super.takeDamage(amount);
 
         // Signal that player health changed
         this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
     }
 
+    // Override die to add player-specific death behavior
     die(): void {
         if (this.dead) return;
 
-        this.dead = true;
-        if (this.sprite.body) {
-            this.sprite.setVelocity(0, -200);
-        }
+        super.die();
         this.sprite.anims.play('die', true);
 
         // Emit death event for the game to handle
         this.scene.events.emit('player-died');
     }
 
+    // Override reset to include player-specific reset logic
     reset(x: number, y: number): void {
-        this.sprite.setPosition(x, y);
-        if (this.sprite.body) {
-            this.sprite.setVelocity(0, 0);
-        }
-        this.dead = false;
-        this.health = this.maxHealth;
+        super.reset(x, y);
+        
         this.stamina = this.maxStamina;
         this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
     }

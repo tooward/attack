@@ -64,9 +64,9 @@ export default class Bot {
         scene.anims.create({
             key: 'bot-attack',
             frames: [
-                ...scene.anims.generateFrameNumbers('bot-attack1', { start: 0, end: 5 }), // Assuming 6 frames
-                ...scene.anims.generateFrameNumbers('bot-attack2', { start: 0, end: 5 }), // Assuming 6 frames
-                ...scene.anims.generateFrameNumbers('bot-attack3', { start: 0, end: 5 })  // Assuming 6 frames
+                ...scene.anims.generateFrameNumbers('bot-attack1', { start: 0, end: 4 }),
+                ...scene.anims.generateFrameNumbers('bot-attack2', { start: 0, end: 4 }),
+                ...scene.anims.generateFrameNumbers('bot-attack3', { start: 0, end: 9 })
             ],
             frameRate: 12,
             repeat: 0
@@ -123,7 +123,6 @@ export default class Bot {
             return;
         }
         // Ensure player and player.sprite exist and are active
-        // Access player properties correctly (e.g., player.sprite)
         if (!this.player?.sprite?.active) {
             // If player is inactive, do nothing or play idle
             this.sprite.setVelocityX(0);
@@ -147,6 +146,11 @@ export default class Bot {
             if (this.direction !== targetDirection) {
                  this.direction = targetDirection;
             }
+            
+            // Attack if close enough (within attack range)
+            if (distanceToPlayer <= 60 && !this.isHit) {
+                this.attack();
+            }
         } else {
             // Player is out of range, stop chasing
             this.isChasing = false;
@@ -158,10 +162,12 @@ export default class Bot {
         // Only allow horizontal movement if the bot is on the floor
         if (body.onFloor()) {
             if (this.isChasing) {
-                // Move towards the player if chasing
-                body.setVelocityX(this.chaseSpeed * this.direction);
-                if (this.sprite.anims.exists('bot-run')) {
-                    this.sprite.anims.play('bot-run', true);
+                // Move towards the player if chasing and not attacking
+                if (!this.sprite.anims.isPlaying || this.sprite.anims.currentAnim?.key !== 'bot-attack') {
+                    body.setVelocityX(this.chaseSpeed * this.direction);
+                    if (this.sprite.anims.exists('bot-run')) {
+                        this.sprite.anims.play('bot-run', true);
+                    }
                 }
             } else {
                 // Simple patrol AI
@@ -185,6 +191,53 @@ export default class Bot {
 
         // Flip sprite based on movement direction, regardless of being on floor
         this.sprite.setFlipX(this.direction < 0);
+    }
+
+    attack(): void {
+        // Don't attack if already hit or attacking
+        if (this.isHit || 
+            (this.sprite.anims.isPlaying && 
+             this.sprite.anims.currentAnim?.key === 'bot-attack')) {
+            return;
+        }
+        
+        // Stop movement during attack
+        if (this.sprite.body) {
+            (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
+        }
+        
+        // Play attack animation
+        this.sprite.anims.play('bot-attack', true);
+        
+        // On attack animation completion, attempt to damage player
+        this.sprite.once(Animations.Events.ANIMATION_COMPLETE_KEY + 'bot-attack', () => {
+            // Check if player is in range
+            if (this.player && this.player.sprite.active) {
+                const distanceToPlayer = PhaserMath.Distance.Between(
+                    this.sprite.x, this.sprite.y,
+                    this.player.sprite.x, this.player.sprite.y
+                );
+                
+                // Only damage player if in attack range
+                if (distanceToPlayer <= 60 && !this.player.dead) {
+                    this.player.takeDamage(15); // Deal damage to player
+                    
+                    // Knockback effect on player
+                    const knockbackDirection = this.player.sprite.x < this.sprite.x ? -1 : 1;
+                    if (this.player.sprite.body) {
+                        (this.player.sprite.body as Physics.Arcade.Body).setVelocityX(knockbackDirection * 150);
+                    }
+                }
+            }
+            
+            // Add a small cooldown before next attack
+            this.scene.time.delayedCall(500, () => {
+                // Return to run animation if still chasing
+                if (this.isChasing && this.sprite.active) {
+                    this.sprite.anims.play('bot-run', true);
+                }
+            });
+        });
     }
 
     takeDamage(amount: number): void {
@@ -240,31 +293,9 @@ export default class Bot {
             console.error("Player sprite not available for collision setup.");
             return;
         }
-        // Set up collision between player and this bot
-        this.scene.physics.add.overlap(player.sprite, this.sprite, (playerSprite, botSprite) => {
-            // Type assertion for safety, though overlap usually provides correct types
-            const p = player; // Use the passed player instance
-            const b = this;   // Use the current bot instance
-
-            // Check activity and health, access player properties correctly
-            if (!p?.sprite?.active || !b?.sprite?.active || b.health <= 0) return;
-
-            // Access player properties correctly (isFighting, attackPower, dead)
-            // Note: Player class doesn't have isRolling, assuming you meant !p.dead or similar state
-            if (p.isFighting && !b.isHit) {
-                // Player is fighting and can damage the bot
-                b.takeDamage((p.attackPower ?? 1) * 20);
-            } else if (!p.dead && !b.isHit) { // Removed isRolling check as it's not in Player
-                // Player gets damaged if not dead, or bot is already hit
-                p.takeDamage(10);
-
-                // Knockback effect
-                const knockbackDirection = p.sprite.x < b.sprite.x ? -1 : 1;
-                // Ensure player sprite body exists before setting velocity
-                if (p.sprite.body) {
-                    (p.sprite.body as Physics.Arcade.Body).setVelocityX(knockbackDirection * 200);
-                }
-            }
-        });
+        
+        // We no longer need combat collision here as it's handled in the update methods
+        // But we still set up the collision for physics
+        this.scene.physics.add.collider(player.sprite, this.sprite);
     }
 }

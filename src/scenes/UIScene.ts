@@ -68,8 +68,11 @@ export default class UIScene extends Scene {
         if (this.gameSceneRef) {
             // Listen for health change events
             this.gameSceneRef.events.on('player-health-changed', this.updateHealthBar, this);
+            
+            // Listen for stamina change events
+            this.gameSceneRef.events.on('player-stamina-changed', this.updateStaminaBar, this);
 
-            // Update stamina every frame using the scene's update event
+            // Update UI every frame (still needed for any continuous changes)
             this.events.on(Scenes.Events.UPDATE, this.updatePlayerUI, this);
             
             // Initial UI update once player is ready
@@ -87,9 +90,11 @@ export default class UIScene extends Scene {
         // Get reference to the player from the GameScene reference
         const player: Player | undefined = this.gameSceneRef?.player; // Use optional chaining
 
-        // No need for staminaBar check due to definite assignment
+        // Only update UI elements from update loop if they weren't updated by events
+        // This is a fallback for continuous values that don't emit events
         if (player) { 
-            this.updateStaminaBar(player.stamina, player.maxStamina);
+            // We're handling stamina with events now, so this is only a backup
+            // if other player status values need to be displayed in the future
         }
     }
 

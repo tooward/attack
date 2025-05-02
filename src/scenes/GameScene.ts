@@ -6,7 +6,7 @@ import Bot from '../entities/Bot.js';
 export default class GameScene extends Scene {
     player!: Player;
     platforms!: Phaser.Tilemaps.TilemapLayer;
-    bot!: Bot;
+    bots: Bot[] = []; // Store multiple bots in an array
     explosions!: Explosion;
     explosionDebugText!: Phaser.GameObjects.Text;
     backgrounds!: Phaser.GameObjects.Image[];
@@ -33,14 +33,8 @@ export default class GameScene extends Scene {
         // Add collision between player and platforms
         this.physics.add.collider(this.player.sprite, this.platforms);
         
-        // Create enemy bot using the modular Bot class, passing the player reference
-        this.bot = new Bot(this, 500, 350, this.player); // Pass this.player here
-
-        // Add bot collision with platforms
-        this.physics.add.collider(this.bot.sprite, this.platforms);
-        
-        // Set up collision between player and bot
-        this.bot.setupPlayerCollision(this.player);
+        // Create enemy bots at different positions
+        this.createBots();
         
         // Create explosions
         this.explosions = new Explosion(this);
@@ -69,12 +63,42 @@ export default class GameScene extends Scene {
         this.setupCamera();
     }
     
+    createBots() {
+        // Create multiple bots at different positions
+        const botPositions = [
+            { x: 500, y: 350 },
+            { x: 800, y: 300 },
+            { x: 1200, y: 350 }
+        ];
+        
+        botPositions.forEach(pos => {
+            const bot = new Bot(this, pos.x, pos.y, this.player);
+            
+            // Store the bot in our array
+            this.bots.push(bot);
+            
+            // Add bot collision with platforms
+            this.physics.add.collider(bot.sprite, this.platforms);
+            
+            // Set up combat interaction between player and bot
+            bot.setupPlayerCollision(this.player);
+            
+            // Store bot reference on the sprite for targeting during attacks
+            bot.sprite.setData('isBot', true);
+            bot.sprite.setData('botRef', bot);
+        });
+    }
+    
     update(time: number, delta: number) {
         // Update player
         this.player.update(time, delta);
         
-        // Update bot movement
-        this.bot.update();
+        // Update all bots
+        this.bots.forEach(bot => {
+            if (bot.sprite.active) {
+                bot.update();
+            }
+        });
 
         // Parallax background scroll
         this.updateParallaxBackgrounds();
@@ -85,10 +109,13 @@ export default class GameScene extends Scene {
             const explodedCount = this.explosions.group.getChildren().filter(
                 exp => (exp as Phaser.GameObjects.Sprite).getData('hasExploded')
             ).length;
+            const activeBots = this.bots.filter(bot => bot.sprite.active).length;
             
             this.explosionDebugText.setText(
                 `Explosions: ${activeCount} active, ${explodedCount} exploded\n` + 
                 `Player health: ${this.player.health}/${this.player.maxHealth}\n` +
+                `Player stamina: ${Math.floor(this.player.stamina)}/${this.player.maxStamina}\n` +
+                `Active bots: ${activeBots}/${this.bots.length}\n` +
                 `Press D to toggle debug info`
             );
         }
