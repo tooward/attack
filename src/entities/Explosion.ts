@@ -1,4 +1,4 @@
-import { Scene, Physics, Math as PhaserMath, GameObjects, Time, Tilemaps } from 'phaser';
+import { Scene, Physics, Math as PhaserMath, GameObjects, Time, Tilemaps, Animations } from 'phaser';
 // Import GameScene to access scene-specific properties like player and platforms
 import GameScene from '../scenes/GameScene';
 import Player from './Player'; // Ensure Player is imported
@@ -152,7 +152,7 @@ export default class Explosion {
             // this.debugDrawRadius(expSprite);
 
             // Clean up after animation completes using the animation's complete event
-            expSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+            expSprite.once(Animations.Events.ANIMATION_COMPLETE, () => {
                 console.log("Explosion animation complete, disabling sprite.");
                 // Make inactive instead of destroying if using a group for recycling
                 this.group.killAndHide(expSprite);

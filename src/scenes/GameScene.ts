@@ -9,6 +9,8 @@ export default class GameScene extends Scene {
     bot!: Bot;
     explosions!: Explosion;
     explosionDebugText!: Phaser.GameObjects.Text;
+    backgrounds!: Phaser.GameObjects.Image[];
+    map!: Phaser.Tilemaps.Tilemap;
 
     constructor() {
         super({ key: 'GameScene' });
@@ -18,6 +20,13 @@ export default class GameScene extends Scene {
         // Create the tilemap
         this.createMap();
         
+        // Parallax backgrounds
+        this.backgrounds = [
+            this.add.image(0, 0, 'bg3').setOrigin(0, 0).setScrollFactor(0),
+            this.add.image(0, 0, 'bg2').setOrigin(0, 0).setScrollFactor(0),
+            this.add.image(0, 0, 'bg1').setOrigin(0, 0).setScrollFactor(0)
+        ];
+
         // Create player
         this.player = new Player(this, 300, 350);
         
@@ -42,7 +51,8 @@ export default class GameScene extends Scene {
             color: '#fff',
             backgroundColor: '#000a',
             padding: { x: 5, y: 5 }
-        }).setVisible(false); // Hidden by default
+        }).setVisible(false) // Hidden by default
+        .setScrollFactor(0); // Keep UI element fixed on screen
         
         // Listen for player death
         this.events.on('player-died', this.handlePlayerDeath, this);
@@ -54,6 +64,9 @@ export default class GameScene extends Scene {
         this.input.keyboard?.on('keydown-D', () => {
             this.explosionDebugText.setVisible(!this.explosionDebugText.visible);
         });
+        
+        // Set up camera to follow player
+        this.setupCamera();
     }
     
     update(time: number, delta: number) {
@@ -62,6 +75,9 @@ export default class GameScene extends Scene {
         
         // Update bot movement
         this.bot.update();
+
+        // Parallax background scroll
+        this.updateParallaxBackgrounds();
         
         // Update explosion debug text if visible
         if (this.explosionDebugText.visible) {
@@ -81,6 +97,8 @@ export default class GameScene extends Scene {
     createMap() {
         // Create the tilemap
         const map = this.make.tilemap({ key: 'map' });
+        this.map = map; // Store reference to the map
+        
         const tileset = map.addTilesetImage('ground', 'ground');
         if (!tileset) throw new Error('Tileset not found');
         const platformLayer = map.createLayer('ground', tileset, 0, 0);
@@ -92,6 +110,38 @@ export default class GameScene extends Scene {
         console.log("Number of tiles in the layer:", this.platforms.layer.data.length);
         const collidingTiles = this.platforms.filterTiles((tile: Phaser.Tilemaps.Tile) => tile.collides);
         console.log("Number of colliding tiles:", collidingTiles.length);
+        
+        // Set world bounds to match the size of our tilemap
+        this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+    }
+    
+    setupCamera() {
+        // Configure camera to follow the player
+        const camera = this.cameras.main;
+        
+        // Set camera bounds to the size of the tilemap
+        camera.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+        
+        // Set camera to follow the player sprite
+        camera.startFollow(this.player.sprite);
+        
+        // Optional: Add camera settings for smooth following
+        camera.setDeadzone(200, 200); // Add a "deadzone" where small movements won't scroll
+        camera.setZoom(1); // You can adjust zoom if needed
+        
+        // Optional: smooth camera movement
+        camera.setLerp(0.1, 0.1); // Lower values = smoother camera movement
+    }
+    
+    updateParallaxBackgrounds() {
+        const cam = this.cameras.main;
+        if (this.backgrounds) {
+            // Position backgrounds relative to camera for parallax effect
+            // Different scroll factors create the parallax depth effect
+            this.backgrounds[0].x = cam.scrollX * 0.2;
+            this.backgrounds[1].x = cam.scrollX * 0.5;
+            this.backgrounds[2].x = cam.scrollX * 0.8;
+        }
     }
     
     handlePlayerDeath() {
@@ -100,13 +150,14 @@ export default class GameScene extends Scene {
         // Stop explosions
         this.explosions.stopSpawning();
         
-        // Show game over text
+        // Show game over text (fixed to camera)
         this.add.text(
             (this.sys.game.config.width as number) / 2, 
             (this.sys.game.config.height as number) / 2, 
             'GAME OVER', 
             { fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }
-        ).setOrigin(0.5);
+        ).setOrigin(0.5)
+        .setScrollFactor(0); // Keep text fixed to the camera
         
         // Wait and then show game over
         this.time.delayedCall(2000, () => {

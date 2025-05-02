@@ -1,4 +1,4 @@
-import { Scene, GameObjects } from 'phaser'; // Added GameObjects
+import { Scene, GameObjects, Scenes } from 'phaser'; // Added GameObjects
 import GameScene from './GameScene'; // Import GameScene to get player reference
 import Player from '../entities/Player'; // Import Player type
 
@@ -70,8 +70,8 @@ export default class UIScene extends Scene {
             this.gameSceneRef.events.on('player-health-changed', this.updateHealthBar, this);
 
             // Update stamina every frame using the scene's update event
-            this.events.on(Phaser.Scenes.Events.UPDATE, this.updatePlayerUI, this);
-
+            this.events.on(Scenes.Events.UPDATE, this.updatePlayerUI, this);
+            
             // Initial UI update once player is ready
             if (this.gameSceneRef.player) {
                 this.updateHealthBar(this.gameSceneRef.player.health, this.gameSceneRef.player.maxHealth);

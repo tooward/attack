@@ -81,6 +81,10 @@ export default class Player {
             body.setSize(96, 96);
             body.setOffset(30, 10);
             body.setCollideWorldBounds(true);
+            
+            // Custom gravity and physics properties for jump feel
+            body.setGravityY(600); // Higher value = faster fall
+            body.setDragX(300);    // Horizontal drag to slow down player when not moving
         }
 
         // Player state
@@ -119,41 +123,39 @@ export default class Player {
         const body = this.sprite.body as Phaser.Physics.Arcade.Body;
         if (!body) return;
 
-        // Only allow horizontal movement if on the floor
-        if (body.onFloor()) {
-            if (this.cursors.left?.isDown) {
-                // Move left
-                this.lastDirection = -1;
-                this.moveLeft();
-            } 
-            else if (this.cursors.right?.isDown) {
-                // Move right
-                this.lastDirection = 1;
-                this.moveRight();
+        // Handle horizontal movement both on floor and in air
+        if (this.cursors.left?.isDown) {
+            // Move left
+            this.lastDirection = -1;
+            this.sprite.setVelocityX(-160);
+            this.sprite.flipX = true;
+            if (body.onFloor()) {
+                this.sprite.anims.play('left', true);
             }
-            else if (this.cursors.space?.isDown) {
+        } 
+        else if (this.cursors.right?.isDown) {
+            // Move right
+            this.lastDirection = 1;
+            this.sprite.setVelocityX(160);
+            this.sprite.flipX = false;
+            if (body.onFloor()) {
+                this.sprite.anims.play('right', true);
+            }
+        }
+        else if (body.onFloor()) {
+            // Only idle or attack when on the floor and not moving horizontally
+            if (this.cursors.space?.isDown) {
                 this.attack();
-            }
-            else {
+            } else {
                 this.idle();
             }
         } else {
-            // Allow changing direction mid-air but don't apply velocity
-            if (this.cursors.left?.isDown) {
-                this.lastDirection = -1;
-                this.sprite.flipX = true; // Keep sprite facing the correct way
-            } else if (this.cursors.right?.isDown) {
-                this.lastDirection = 1;
-                this.sprite.flipX = false; // Keep sprite facing the correct way
-            }
-            // If no horizontal input, keep current animation unless jumping/falling
-            if (!this.sprite.anims.currentAnim || this.sprite.anims.currentAnim.key !== 'jump') {
-                 // Optionally play a falling animation here if you have one
-                 // this.sprite.anims.play('fall', true);
-            }
+            // In air with no input - keep current horizontal velocity with some air drag
+            // This allows maintaining momentum while still providing some air control
+            this.sprite.setVelocityX(body.velocity.x * 0.98);
         }
 
-        // Jumping is handled separately and allowed mid-air or on floor
+        // Jumping is handled separately and only allowed on floor
         if (this.cursors.up?.isDown && body.onFloor() && this.canJump) {
             this.jump();
         }
@@ -175,7 +177,8 @@ export default class Player {
 
     jump(): void {
         if (!this.sprite.body) return;
-        this.sprite.setVelocityY(-400);
+        // Keep horizontal velocity when jumping - don't reset it
+        this.sprite.setVelocityY(-500); // Higher (more negative) value = higher jump
         this.sprite.anims.play('jump', true);
         this.canJump = false;
 

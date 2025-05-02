@@ -13,11 +13,11 @@
             "scaleInEditor": 1
         },
         "map.tmj": {
-            "scale": 0.577,
+            "scale": 0.2835,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 591.8544194107452,
-                "y": 562.3916811091855
+                "x": -583.7742504409171,
+                "y": 671.9576719576719
             }
         },
         "map.tmj#ground": {
@@ -25,11 +25,11 @@
         }
     },
     "last.imagePath": "/Users/mikeiog/Development/Phaser/attack/assets/maps",
-    "map.height": 40,
+    "map.height": 50,
     "map.lastUsedFormat": "json",
     "map.tileHeight": 16,
     "map.tileWidth": 16,
-    "map.width": 50,
+    "map.width": 500,
     "openFiles": [
         "map.tmj"
     ],

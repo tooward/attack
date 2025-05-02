@@ -16,6 +16,11 @@ export default class BootScene extends Scene {
         this.load.image('ground', 'assets/maps/Tileset.png');
         this.load.tilemapTiledJSON('map', 'assets/maps/map.tmj');
 
+        // background images
+        this.load.image('bg3', 'assets/background/3.png');
+        this.load.image('bg2', 'assets/background/2.png');
+        this.load.image('bg1', 'assets/background/1.png');
+
         // Load player assets using the static method from Player class
         Player.preload(this);
         
