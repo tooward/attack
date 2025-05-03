@@ -1,6 +1,7 @@
 import { Scene, Physics, GameObjects, Input, Animations, Types, Math as PhaserMath } from 'phaser';
 import Character from './Character';
 import Bot from './Bot';
+import SpriteUtils from '../utils/SpriteUtils';
 
 export default class Player extends Character {
     canJump: boolean;
@@ -87,11 +88,9 @@ export default class Player extends Character {
             moveSpeed: 160
         });
 
-        // Set up physics body with player-specific properties
-        if (this.sprite.body) {
-            const body = this.sprite.body as Physics.Arcade.Body;
-            body.setDragX(300); // Horizontal drag to slow down player when not moving
-        }
+        // Apply pixel-perfect collision with debug enabled temporarily
+        // to help verify hitbox alignment
+        this.setupPixelPerfectCollision(5, true);
 
         // Player-specific state
         this.canJump = true;

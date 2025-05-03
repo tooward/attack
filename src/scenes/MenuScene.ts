@@ -10,7 +10,7 @@ export default class MenuScene extends Scene {
         const height = this.sys.game.config.height as number;
         
         // Title text
-        this.add.text(width / 2, height / 3, 'ATTACK GAME', {
+        this.add.text(width / 2, height / 3, 'KOUGEKI!', {
             fontSize: '64px',
             color: '#fff',
             fontStyle: 'bold'

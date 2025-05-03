@@ -38,6 +38,7 @@
     "recentFiles": [
         "map.tmj"
     ],
+    "resizeMap.removeObjects": true,
     "tileset.embedInMap": true,
     "tileset.tileSize": {
         "height": 16,

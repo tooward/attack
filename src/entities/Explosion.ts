@@ -122,7 +122,54 @@ export default class Explosion {
         }
     }
 
-    // Type the parameters for the collider callback
+    /**
+     * Checks all characters within explosion radius and applies damage/knockback
+     */
+    checkCharacterProximity(explosion: Physics.Arcade.Sprite): void {
+        const charactersToCheck = [
+            this.scene.player,
+            ...this.scene.bots
+        ];
+
+        // Check each character (player and bots)
+        charactersToCheck.forEach(character => {
+            // Skip if character doesn't exist, sprite is invalid, or already dead
+            if (!character?.sprite || !character.sprite.active || character.dead) {
+                return;
+            }
+
+            // Calculate distance between character and explosion
+            const distance: number = PhaserMath.Distance.Between(
+                character.sprite.x, character.sprite.y,
+                explosion.x, explosion.y
+            );
+
+            // Check if character is within explosion radius
+            if (distance <= this.explosionRadius) {
+                console.log(`Character in blast radius! Distance: ${distance}, taking damage`);
+
+                // Damage character (50% of max health)
+                character.takeDamage(character.maxHealth * 0.5);
+
+                // Apply knockback force away from explosion
+                const knockbackForce: number = 300;
+                const angle: number = PhaserMath.Angle.Between(
+                    explosion.x, explosion.y, 
+                    character.sprite.x, character.sprite.y
+                );
+
+                // Ensure character sprite body exists and is enabled before setting velocity
+                const characterBody = character.sprite.body as Physics.Arcade.Body;
+                if (characterBody && characterBody.enable) {
+                    characterBody.setVelocity(
+                        Math.cos(angle) * knockbackForce,
+                        Math.sin(angle) * knockbackForce
+                    );
+                }
+            }
+        });
+    }
+
     handleExplosionLanding(explosion: GameObjects.GameObject, platform: GameObjects.GameObject): void {
         // Cast explosion to the correct type
         const expSprite = explosion as Physics.Arcade.Sprite;
@@ -145,8 +192,8 @@ export default class Explosion {
             // Play explosion sound
             this.scene.sound.play('explosion-sound');
 
-            // Check if player is within damage radius
-            this.checkPlayerProximity(expSprite);
+            // Check all characters' proximity to the explosion
+            this.checkCharacterProximity(expSprite);
 
             // Optional: Draw debug radius
             // this.debugDrawRadius(expSprite);
@@ -161,40 +208,6 @@ export default class Explosion {
                     (expSprite.body as Physics.Arcade.Body).enable = false;
                 }
             });
-        }
-    }
-
-    checkPlayerProximity(explosion: Physics.Arcade.Sprite): void { // Type explosion parameter
-        // Get player from the scene (already typed as GameScene)
-        const player: Player | undefined = this.scene.player; // Player might not exist
-
-        if (player?.sprite && !player.dead) { // Check player.sprite exists
-            // Calculate distance between player and explosion
-            const distance: number = PhaserMath.Distance.Between(
-                player.sprite.x, player.sprite.y,
-                explosion.x, explosion.y
-            );
-
-            // Check if player is within explosion radius
-            if (distance <= this.explosionRadius) {
-                console.log(`Player in blast radius! Distance: ${distance}, taking damage`);
-
-                // Damage player (50% of max health)
-                player.takeDamage(player.maxHealth * 0.5);
-
-                // Apply knockback force away from explosion
-                const knockbackForce: number = 300;
-                const angle: number = PhaserMath.Angle.Between(explosion.x, explosion.y, player.sprite.x, player.sprite.y);
-
-                // Ensure player sprite body exists and is enabled before setting velocity
-                const playerBody = player.sprite.body as Physics.Arcade.Body;
-                if (playerBody && playerBody.enable) {
-                    playerBody.setVelocity(
-                        Math.cos(angle) * knockbackForce,
-                        Math.sin(angle) * knockbackForce
-                    );
-                }
-            }
         }
     }
 

@@ -1,5 +1,6 @@
 // filepath: /Users/mike/Development/attack/src/entities/Character.ts
 import { Scene, Physics, GameObjects, Math as PhaserMath, Types, Animations } from 'phaser';
+import SpriteUtils from '../utils/SpriteUtils';
 
 /**
  * Base class for characters in the game (player and bots).
@@ -56,6 +57,7 @@ export default abstract class Character {
             );
             body.setCollideWorldBounds(true);
             body.setGravityY(600);
+            body.setDragX(300); // Horizontal drag for smoother movement/stopping
         } else {
             console.error("Character sprite body not created.");
         }
@@ -75,7 +77,40 @@ export default abstract class Character {
      */
     update(time: number, delta: number): void {
         if (this.dead || !this.sprite.body) return;
+        
+        // Handle hitbox adjustment for sprite flipping
+        this.updateHitboxForFlip();
+        
         // Child classes should override this method
+    }
+    
+    /**
+     * Update the hitbox offset when character changes direction
+     * This handles the pixel-perfect collision adjustment for flipped sprites
+     */
+    updateHitboxForFlip(): void {
+        // Skip if sprite is inactive or has no body
+        if (!this.sprite.active || !this.sprite.body) return;
+        
+        // Get the last recorded flip state
+        const lastFlipX = this.sprite.getData('lastFlipX');
+        
+        // If flip state changed and we have the necessary data
+        if (lastFlipX !== undefined && lastFlipX !== this.sprite.flipX) {
+            const leftOffset = this.sprite.getData('leftOffset');
+            const rightOffset = this.sprite.getData('rightOffset');
+            const topOffset = this.sprite.getData('topOffset');
+            
+            // If we have the necessary offset data
+            if (leftOffset !== undefined && rightOffset !== undefined) {
+                const body = this.sprite.body as Physics.Arcade.Body;
+                // Apply the appropriate offset based on current flip state
+                body.offset.x = this.sprite.flipX ? rightOffset : leftOffset;
+                
+                // Update the stored flip state
+                this.sprite.setData('lastFlipX', this.sprite.flipX);
+            }
+        }
     }
     
     /**
@@ -188,5 +223,65 @@ export default abstract class Character {
         );
         
         return distance <= range;
+    }
+
+    /**
+     * Set up collision with platforms
+     * @param platforms The tilemap layer to collide with
+     */
+    setupPlatformCollision(platforms: Phaser.Tilemaps.TilemapLayer): void {
+        if (platforms) {
+            this.scene.physics.add.collider(this.sprite, platforms);
+        }
+    }
+    
+    /**
+     * Apply pixel-perfect collision based on sprite image
+     * @param padding Optional padding around the collision shape
+     * @param debug Whether to show debug visualization of the collision shape
+     */
+    setupPixelPerfectCollision(padding: number = 5, debug: boolean = false): void {
+        // Wait for the next frame to ensure the texture is fully loaded
+        this.scene.time.delayedCall(0, () => {
+            if (this.sprite.active) {
+                // Apply pixel-perfect collision body with padding and optional debug
+                SpriteUtils.trimBodyToSprite(this.scene, this.sprite, padding, debug);
+                
+                if (debug) {
+                    // Set up a check to wait until the character has landed
+                    const waitForLanding = () => {
+                        // Safety check: if sprite is no longer active or body is gone, clean up and exit
+                        if (!this.sprite || !this.sprite.active || !this.sprite.body) {
+                            this.scene.events.off('update', waitForLanding);
+                            return;
+                        }
+                        
+                        const body = this.sprite.body as Physics.Arcade.Body;
+                        // Only show debug once character is on ground and settled
+                        if (body.onFloor() && Math.abs(body.velocity.y) < 10) {
+                            // Show debug hitbox now that character has landed
+                            const showDebugFn = this.sprite.getData('showDebugHitbox');
+                            if (typeof showDebugFn === 'function') {
+                                showDebugFn();
+                            }
+                            // Stop checking
+                            this.scene.events.off('update', waitForLanding);
+                        }
+                    };
+                    
+                    // Start checking each frame for landing
+                    this.scene.events.on('update', waitForLanding);
+                    
+                    // Safety timeout - show debug anyway after 2 seconds if not landed
+                    this.scene.time.delayedCall(2000, () => {
+                        const showDebugFn = this.sprite.getData('showDebugHitbox');
+                        if (typeof showDebugFn === 'function' && this.sprite.active) {
+                            this.scene.events.off('update', waitForLanding);
+                            showDebugFn();
+                        }
+                    });
+                }
+            }
+        });
     }
 }

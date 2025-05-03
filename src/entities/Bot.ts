@@ -1,17 +1,15 @@
 import { Scene, Physics, GameObjects, Math as PhaserMath, Types, Animations } from 'phaser';
-import Player from './Player'; // Assuming Player class is in the same directory
+import Character from './Character';
+import Player from './Player';
+import SpriteUtils from '../utils/SpriteUtils';
 
-export default class Bot {
-    scene: Scene;
+export default class Bot extends Character {
     player: Player;
-    sprite: Physics.Arcade.Sprite;
     isHit: boolean;
-    health: number;
-    direction: number;
-    speed: number;
     chaseSpeed: number;
     detectionRange: number;
     isChasing: boolean;
+    attackCooldown: boolean;
 
     /**
      * Static method to preload bot assets
@@ -86,42 +84,46 @@ export default class Bot {
     }
 
     constructor(scene: Scene, x: number, y: number, player: Player) {
-        this.scene = scene;
+        // Call the parent constructor with bot-specific configuration
+        super(scene, x, y, 'bot-idle', {
+            maxHealth: 100,
+            moveSpeed: 50,
+            bodyWidth: 60, 
+            bodyHeight: 40,
+            bodyOffsetX: 15,
+            bodyOffsetY: 24
+        });
+        
         this.player = player;
-
-        // Create the bot sprite
-        this.sprite = scene.physics.add.sprite(x, y, 'bot-idle');
-
-        // Add null check for the body before setting properties
-        if (this.sprite.body) {
-            const body = this.sprite.body as Physics.Arcade.Body;
-            body.setCollideWorldBounds(true);
-            // Adjust body size if necessary based on actual sprite dimensions
-            body.setSize(40, 60); // Example: Adjusted size
-            body.setOffset(26, 4); // Example: Adjusted offset
-        } else {
-            console.error("Bot sprite body not created.");
-            // Handle error appropriately, maybe disable the bot or throw
-        }
+        
+        // Apply pixel-perfect collision with debug enabled temporarily
+        this.setupPixelPerfectCollision(5, true);
 
         // Bot state
         this.isHit = false;
-        this.health = 100;
         this.direction = 1; // 1 for right, -1 for left
-        this.speed = 50;
         this.chaseSpeed = 75;
         this.detectionRange = 200;
         this.isChasing = false;
+        this.attackCooldown = false;
 
+        // Store bot reference on the sprite for targeting during attacks
+        this.sprite.setData('isBot', true);
+        this.sprite.setData('botRef', this);
+        
         // Set up sprite animations
         this.sprite.anims.play('bot-idle', true);
     }
 
     update(): void {
-        // Add null check for bot's own sprite body
-        if (!this.sprite.body || !this.sprite.active) {
+        // Call the base class update method
+        super.update(0, 0);
+        
+        // Return early if bot is dead or sprite is inactive
+        if (this.dead || !this.sprite.body || !this.sprite.active) {
             return;
         }
+
         // Ensure player and player.sprite exist and are active
         if (!this.player?.sprite?.active) {
             // If player is inactive, do nothing or play idle
@@ -134,22 +136,31 @@ export default class Bot {
 
         const distanceToPlayer = PhaserMath.Distance.Between(
             this.sprite.x, this.sprite.y,
-            this.player.sprite.x, this.player.sprite.y // Correct access
+            this.player.sprite.x, this.player.sprite.y
         );
 
         // Determine if the bot should be chasing based on distance
         if (distanceToPlayer <= this.detectionRange) {
             this.isChasing = true;
             // Determine direction towards player
-            const targetDirection = (this.player.sprite.x > this.sprite.x) ? 1 : -1; // Correct access
+            const targetDirection = (this.player.sprite.x > this.sprite.x) ? 1 : -1;
             // Update direction if needed
             if (this.direction !== targetDirection) {
                  this.direction = targetDirection;
             }
             
             // Attack if close enough (within attack range)
-            if (distanceToPlayer <= 60 && !this.isHit) {
+            if (distanceToPlayer <= 60 && !this.isHit && !this.attackCooldown) {
                 this.attack();
+            }
+            // Stop movement if very close to player (prevents pushing)
+            else if (distanceToPlayer <= 40) {
+                if (this.sprite.body) {
+                    (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
+                }
+                if (this.sprite.anims.exists('bot-idle')) {
+                    this.sprite.anims.play('bot-idle', true);
+                }
             }
         } else {
             // Player is out of range, stop chasing
@@ -163,7 +174,9 @@ export default class Bot {
         if (body.onFloor()) {
             if (this.isChasing) {
                 // Move towards the player if chasing and not attacking
-                if (!this.sprite.anims.isPlaying || this.sprite.anims.currentAnim?.key !== 'bot-attack') {
+                // Only move if not too close (prevents pushing)
+                const tooClose = distanceToPlayer <= 40;
+                if (!tooClose && (!this.sprite.anims.isPlaying || this.sprite.anims.currentAnim?.key !== 'bot-attack')) {
                     body.setVelocityX(this.chaseSpeed * this.direction);
                     if (this.sprite.anims.exists('bot-run')) {
                         this.sprite.anims.play('bot-run', true);
@@ -185,7 +198,7 @@ export default class Bot {
             body.setVelocityX(0);
             // Optionally play a jump/fall animation here if available
             if (this.sprite.anims.exists('bot-jump')) {
-                // this.sprite.anims.play('bot-jump', true); // Decide if jump anim should play continuously
+                // this.sprite.anims.play('bot-jump', true);
             }
         }
 
@@ -195,11 +208,14 @@ export default class Bot {
 
     attack(): void {
         // Don't attack if already hit or attacking
-        if (this.isHit || 
+        if (this.isHit || this.attackCooldown || 
             (this.sprite.anims.isPlaying && 
              this.sprite.anims.currentAnim?.key === 'bot-attack')) {
             return;
         }
+        
+        // Set attack cooldown at the beginning of the attack
+        this.attackCooldown = true;
         
         // Stop movement during attack
         if (this.sprite.body) {
@@ -230,8 +246,9 @@ export default class Bot {
                 }
             }
             
-            // Add a small cooldown before next attack
+            // Reset attack cooldown after a delay (same as player's 500ms)
             this.scene.time.delayedCall(500, () => {
+                this.attackCooldown = false; // Reset attack cooldown
                 // Return to run animation if still chasing
                 if (this.isChasing && this.sprite.active) {
                     this.sprite.anims.play('bot-run', true);
@@ -241,13 +258,14 @@ export default class Bot {
     }
 
     takeDamage(amount: number): void {
-        if (this.isHit || this.health <= 0) return;
+        if (this.isHit || this.dead) return;
 
-        this.health -= amount;
+        // Call the parent takeDamage method
+        super.takeDamage(amount);
+        
         this.isHit = true;
 
         // Visual feedback
-        this.sprite.setTint(0xff0000); // Red tint when hit
         if (this.sprite.anims.exists('bot-hurt')) {
             this.sprite.anims.play('bot-hurt', true);
         }
@@ -255,30 +273,25 @@ export default class Bot {
         // Reset after a short delay
         this.scene.time.delayedCall(500, () => {
             this.isHit = false;
-            this.sprite.clearTint();
             // Optionally return to idle or run animation
-            if (this.sprite.body?.velocity.x !== 0 && this.sprite.anims.exists('bot-run')) {
-                this.sprite.anims.play('bot-run', true);
-            } else if (this.sprite.anims.exists('bot-idle')) {
-                this.sprite.anims.play('bot-idle', true);
+            if (!this.dead) {
+                if (this.sprite.body?.velocity.x !== 0 && this.sprite.anims.exists('bot-run')) {
+                    this.sprite.anims.play('bot-run', true);
+                } else if (this.sprite.anims.exists('bot-idle')) {
+                    this.sprite.anims.play('bot-idle', true);
+                }
             }
         });
-
-        if (this.health <= 0) {
-            this.die();
-        }
     }
 
     die(): void {
-        if (!this.sprite.active) return; // Prevent multiple calls
+        if (this.dead) return;
+        
+        // Call parent die method
+        super.die();
 
-        this.health = 0; // Ensure health is 0
         if (this.sprite.anims.exists('bot-die')) {
             this.sprite.anims.play('bot-die', true);
-        }
-        // Add null check before disabling body
-        if (this.sprite.body) {
-            this.sprite.body.enable = false; // Disable physics body
         }
 
         // Use 'animationcomplete-key' format
@@ -294,8 +307,10 @@ export default class Bot {
             return;
         }
         
-        // We no longer need combat collision here as it's handled in the update methods
-        // But we still set up the collision for physics
-        this.scene.physics.add.collider(player.sprite, this.sprite);
+        // Use an overlap instead of a collider to prevent pushing
+        this.scene.physics.add.overlap(player.sprite, this.sprite, () => {
+            // The overlap callback is empty because combat is handled in the update method
+            // This just triggers overlap detection without solid physics collision
+        });
     }
 }
