@@ -1,7 +1,8 @@
 {
   "dependencies": {
     "http-server": "^14.1.1",
-    "phaser": "^3.88.2"
+    "phaser": "^3.88.2",
+    "xstate": "^5.19.2"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

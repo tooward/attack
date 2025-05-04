@@ -6,13 +6,17 @@ import SpriteUtils from '../utils/SpriteUtils';
 export default class Player extends Character {
     canJump: boolean;
     isFighting: boolean;
+    isDefending: boolean;
+    defendDirection: number; // The direction player is defending in
     maxStamina: number;
     stamina: number;
     staminaRegenRate: number;
     staminaDrainRate: number;
+    defendDrainRate: number; // Stamina drain rate while defending
     attackPower: number;
     cursors: Types.Input.Keyboard.CursorKeys;
     attackKey: Input.Keyboard.Key | null;
+    defendKey: Input.Keyboard.Key | null;
     attackCooldown: boolean;
     attackRange: number;
     attackDamage: number;
@@ -28,6 +32,7 @@ export default class Player extends Character {
         scene.load.spritesheet('dude-jump', 'assets/player/JUMP.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-die', 'assets/player/DEATH.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-attack', 'assets/player/ATTACK1.png', { frameWidth: 96, frameHeight: 96 });
+        scene.load.spritesheet('dude-defend', 'assets/player/DEFEND.png', { frameWidth: 96, frameHeight: 96 });
     }
 
     /**
@@ -76,6 +81,13 @@ export default class Player extends Character {
             frameRate: 20,
             repeat: 0
         });
+        
+        scene.anims.create({
+            key: 'defend',
+            frames: scene.anims.generateFrameNumbers('dude-defend', { start: 0, end: 5 }),
+            frameRate: 15,
+            repeat: 0
+        });
     }
 
     constructor(scene: Scene, x: number, y: number) {
@@ -95,10 +107,13 @@ export default class Player extends Character {
         // Player-specific state
         this.canJump = true;
         this.isFighting = false;
+        this.isDefending = false;
+        this.defendDirection = 0;
         this.maxStamina = 100;
         this.stamina = 100;
         this.staminaRegenRate = 10;  // per second
         this.staminaDrainRate = 20;  // per second during fighting
+        this.defendDrainRate = 5;   // per second while defending
         this.attackPower = 1.0;
         this.attackCooldown = false;
         this.attackRange = 50; // Melee attack range
@@ -108,10 +123,12 @@ export default class Player extends Character {
         if (scene.input.keyboard) {
             this.cursors = scene.input.keyboard.createCursorKeys();
             this.attackKey = scene.input.keyboard.addKey('H');
+            this.defendKey = scene.input.keyboard.addKey('J');
         } else {
             console.error("Keyboard input not available.");
             this.cursors = {} as Types.Input.Keyboard.CursorKeys;
             this.attackKey = null;
+            this.defendKey = null;
         }
     }
 
@@ -123,13 +140,21 @@ export default class Player extends Character {
         if (this.dead || !this.sprite.body) return;
 
         const seconds = delta / 1000;
-        this.handleMovement();
-        this.handleStamina(seconds);
         
-        // Check attack key input separately from movement
-        if (this.attackKey?.isDown && !this.attackCooldown) {
-            this.attack();
+        // Handle defend action
+        this.handleDefend(seconds);
+        
+        // Only handle movement and attacks if not defending
+        if (!this.isDefending) {
+            this.handleMovement();
+            
+            // Check attack key input separately from movement
+            if (this.attackKey?.isDown && !this.attackCooldown) {
+                this.attack();
+            }
         }
+        
+        this.handleStamina(seconds);
     }
 
     handleMovement(): void {
@@ -249,6 +274,39 @@ export default class Player extends Character {
         });
     }
 
+    handleDefend(seconds: number): void {
+        // Check if defend key is pressed and there's enough stamina
+        if (this.defendKey?.isDown && this.stamina > 0) {
+            // Start defending if not already
+            if (!this.isDefending) {
+                this.isDefending = true;
+                this.defendDirection = this.direction; // Remember which direction we're defending
+                this.sprite.anims.play('defend', true);
+                this.sprite.setVelocityX(0); // Stop movement while defending
+            }
+            
+            // Drain stamina while defending
+            this.stamina -= this.defendDrainRate * seconds;
+            if (this.stamina <= 0) {
+                this.stamina = 0;
+                this.stopDefending();
+            }
+        } else if (this.isDefending) {
+            // Stop defending when key is released
+            this.stopDefending();
+        }
+    }
+    
+    stopDefending(): void {
+        this.isDefending = false;
+        this.defendDirection = 0;
+        
+        // Return to idle animation if on the ground
+        if ((this.sprite.body as Phaser.Physics.Arcade.Body).onFloor()) {
+            this.sprite.anims.play('idle', true);
+        }
+    }
+
     handleStamina(seconds: number): void {
         // Only regenerate stamina when not fighting
         if (!this.isFighting && this.stamina < this.maxStamina) {
@@ -266,7 +324,33 @@ export default class Player extends Character {
     }
 
     // Override takeDamage to add player-specific behavior
-    takeDamage(amount: number): void {
+    takeDamage(amount: number, attackerPosition?: {x: number, y: number}): void {
+        // Check if we're defending
+        if (this.isDefending) {
+            // Get the attacker direction relative to player
+            let attackerDirection = 0;
+            
+            if (attackerPosition) {
+                // Determine the direction of the attack (1 for right of player, -1 for left)
+                attackerDirection = attackerPosition.x > this.sprite.x ? 1 : -1;
+                
+                // If defending in the right direction, block the damage
+                if (attackerDirection === this.defendDirection) {
+                    console.log("Attack blocked by defense!");
+                    
+                    // Play a block feedback animation/effect here if desired
+                    // For example, a quick flash or particle effect
+                    this.sprite.setTintFill(0xffffff);
+                    this.scene.time.delayedCall(100, () => {
+                        this.sprite.clearTint();
+                    });
+                    
+                    return; // No damage taken
+                }
+            }
+        }
+        
+        // Not defending or wrong direction - take full damage
         super.takeDamage(amount);
 
         // Signal that player health changed

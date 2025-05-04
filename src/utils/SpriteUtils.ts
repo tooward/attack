@@ -126,8 +126,19 @@ export default class SpriteUtils {
                 debugGraphics.lineStyle(2, 0xff0000, 1);
                 
                 try {
-                    // Get the body's position in world space
-                    const bodyBounds = body.getBounds();
+                    // Make sure the body is still valid and enabled
+                    if (!body.enable || body.debugShowBody === false) {
+                        return;
+                    }
+                    
+                    // Get the body's position in world space - create a custom bounds object
+                    // instead of relying on body.getBounds() which can throw errors
+                    const bodyBounds = {
+                        x: body.position.x,
+                        y: body.position.y,
+                        width: body.width,
+                        height: body.height
+                    };
                     
                     // Draw rectangle at the correct position
                     debugGraphics.strokeRect(

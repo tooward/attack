@@ -123,10 +123,10 @@ export default abstract class Character {
         this.health -= amount;
         
         // Visual feedback (can be overridden by child classes)
-        this.sprite.setTint(0xff0000);
-        this.scene.time.delayedCall(100, () => {
-            if (this.sprite.active) this.sprite.clearTint();
-        });
+        // this.sprite.setTint(0xff0000);
+        // this.scene.time.delayedCall(100, () => {
+        //     if (this.sprite.active) this.sprite.clearTint();
+        // });
         
         if (this.health <= 0) {
             this.health = 0;

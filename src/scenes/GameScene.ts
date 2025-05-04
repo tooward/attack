@@ -23,7 +23,6 @@ export default class GameScene extends Scene {
     }
 
     create() {
-                
         // Scale backgrounds to fit viewport
         const gameWidth = this.sys.game.config.width as number;
         const gameHeight = this.sys.game.config.height as number;
@@ -88,19 +87,14 @@ export default class GameScene extends Scene {
             this.explosionDebugText.setVisible(!this.explosionDebugText.visible);
         });
         
-        // Hitbox debug toggle key (P)
-        this.input.keyboard?.addKey('P').on('down', () => {
+        // Hitbox debug toggle key (H)
+        this.input.keyboard?.on('keydown-P', () => {
             // Toggle custom debug rendering
             this.showDebug = !this.showDebug;
             
-            // Clean up any existing Phaser debug mode
+            // This prevents the error from occurring
             if (this.physics.world.drawDebug) {
                 this.physics.world.drawDebug = false;
-            }
-            
-            // Clear graphics when turning off debug
-            if (!this.showDebug && this.customDebugGraphics) {
-                this.customDebugGraphics.clear();
             }
             
             // Show a temporary message about debug mode
@@ -115,8 +109,6 @@ export default class GameScene extends Scene {
             this.time.delayedCall(2000, () => {
                 statusText.destroy();
             });
-            
-            console.log("Debug mode toggled:", this.showDebug);
         });
         
         // Set up camera to follow player
