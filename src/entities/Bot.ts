@@ -114,6 +114,13 @@ export default class Bot extends Character {
     detectionRange: number;
     isChasing: boolean;
     attackCooldown: boolean;
+    // Properties for obstacle detection and jumping
+    stuckDetectionTime: number;
+    lastMovingX: number;
+    stuckStartTime: number;
+    isStuck: boolean;
+    jumpCooldown: boolean;
+    canJump: boolean;
 
     // Health bar components
     healthBarBackground!: Phaser.GameObjects.Graphics;
@@ -251,6 +258,14 @@ export default class Bot extends Character {
         this.isChasing = false;
         this.attackCooldown = false;
 
+        // Properties for obstacle detection and jumping
+        this.stuckDetectionTime = 300;
+        this.lastMovingX = this.sprite.x;
+        this.stuckStartTime = 0;
+        this.isStuck = false;
+        this.jumpCooldown = false;
+        this.canJump = true;
+
         // Store bot reference on the sprite for targeting during attacks
         this.sprite.setData('isBot', true);
         this.sprite.setData('botRef', this);
@@ -275,7 +290,6 @@ export default class Bot extends Character {
         // Subscribe to state changes
         this.botService.subscribe((snapshot) => {
             this.currentState = snapshot.value as string;
-            console.log(`Bot state transitioned to: ${this.currentState}`);
             
             // Handle state entry actions
             switch(this.currentState) {
@@ -351,9 +365,27 @@ export default class Bot extends Character {
         // Update distance in state machine context
         this.botService.send({ type: 'UPDATE_CONTEXT', context: { distanceToPlayer } });
         
-        // Debug distance info when in hurt state to understand recovery decisions
-        if (this.currentState === 'hurt') {
-            console.log(`Bot in hurt state - Distance to player: ${distanceToPlayer}, Detect range: ${this.detectionRange}`);
+        // Stuck detection that works in any state (except dead)
+        if (!this.dead && body.onFloor() && Math.abs(body.velocity.x) > 10) {
+            // We're trying to move, check if we're actually moving
+            const movedLessThanThreshold = Math.abs(this.sprite.x - this.lastMovingX) < 0.5;
+            
+            if (movedLessThanThreshold) {
+                // We haven't moved much despite having velocity
+                if (!this.isStuck) {
+                    this.stuckStartTime = this.scene.time.now;
+                    this.isStuck = true;
+                } else if (this.scene.time.now - this.stuckStartTime > this.stuckDetectionTime) {
+                    // We've been stuck for the threshold time, attempt to jump
+                    this.jumpOverObstacle();
+                }
+            } else {
+                // We've moved, so we're not stuck
+                this.isStuck = false;
+            }
+            
+            // Store current position for next frame comparison
+            this.lastMovingX = this.sprite.x;
         }
         
         // State machine driven behavior
@@ -374,7 +406,6 @@ export default class Bot extends Character {
                 
                 // Attack when close enough
                 if (distanceToPlayer <= 60 && !this.attackCooldown) {
-                    console.log("Bot sending ATTACK_READY event, distance:", distanceToPlayer);
                     this.attackCooldown = true; // Set cooldown when initiating attack
                     this.botService.send({ type: 'ATTACK_READY' });
                     break;
@@ -417,8 +448,6 @@ export default class Bot extends Character {
             return;
         }
         
-        console.log("Bot performing attack");
-        
         // Stop movement during attack
         if (this.sprite.body) {
             (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
@@ -429,8 +458,6 @@ export default class Bot extends Character {
         
         // On attack animation completion, attempt to damage player
         this.sprite.once(Animations.Events.ANIMATION_COMPLETE, () => {
-            console.log("Bot attack animation completed");
-            
             // Check if player is in range
             if (this.player && this.player.sprite.active) {
                 const distanceToPlayer = PhaserMath.Distance.Between(
@@ -440,7 +467,6 @@ export default class Bot extends Character {
                 
                 // Only damage player if in attack range
                 if (distanceToPlayer <= 60 && !this.player.dead) {
-                    console.log("Bot dealing damage to player");
                     // Pass bot position to takeDamage so player can determine attack direction
                     this.player.takeDamage(15, { x: this.sprite.x, y: this.sprite.y });
                     
@@ -516,8 +542,6 @@ export default class Bot extends Character {
         // Don't take damage if already hit, dead, or if sprite is inactive/being destroyed
         if (this.isHit || this.dead || !this.sprite || !this.sprite.active || !this.sprite.anims) return;
 
-        console.log(`Bot taking damage: ${amount}. Current health: ${this.health}, State: ${this.currentState}`);
-
         // Call the parent takeDamage method
         super.takeDamage(amount);
         
@@ -525,7 +549,6 @@ export default class Bot extends Character {
 
         // Update the state machine with damage event
         this.botService.send({ type: 'DAMAGE_TAKEN', damage: amount });
-        console.log(`Bot after damage: Health=${this.health}, New state: ${this.currentState}`);
 
         // Visual feedback - make sure anims exists before checking if animation exists
         if (this.sprite.anims && this.scene.anims.exists('bot-hurt')) {
@@ -545,11 +568,9 @@ export default class Bot extends Character {
         // Reset after a short delay
         this.scene.time.delayedCall(500, () => {
             this.isHit = false;
-            console.log(`Bot recovery after hit. Current state: ${this.currentState}, Health: ${this.health}`);
             
             // Send RECOVER event to the state machine
             this.botService.send({ type: 'RECOVER' });
-            console.log(`Bot state after RECOVER event: ${this.currentState}`);
             
             // Make sure we still have valid references before attempting animations
             if (!this.dead && this.sprite && this.sprite.active && this.sprite.anims) {
@@ -596,12 +617,8 @@ export default class Bot extends Character {
         // Add a visible "dying" effect before playing the animation
         this.sprite.setTint(0xff0000); // Red tint
         
-        console.log("Adding delay before death animation");
-        
         // Add a delay before starting the death animation
         this.scene.time.delayedCall(300, () => {
-            console.log("Playing death animation with slower frameRate");
-            
             // Clear the tint
             this.sprite.clearTint();
             
@@ -612,19 +629,16 @@ export default class Bot extends Character {
                 
                 // Listen for animation completion
                 this.sprite.on('animationcomplete', () => {
-                    console.log("Death animation completed");
                     this.destroyBot();
                 });
                 
                 // Increased timeout for slower animation
                 this.scene.time.delayedCall(3000, () => {
                     if (this.sprite && this.sprite.active) {
-                        console.log("Death animation timeout - destroying bot");
                         this.destroyBot();
                     }
                 });
             } catch (error) {
-                console.error("Error playing bot-die animation:", error);
                 this.destroyBot();
             }
         });
@@ -652,7 +666,6 @@ export default class Bot extends Character {
     setupPlayerCollision(player: Player): void {
         // Ensure player sprite exists before setting up overlap
         if (!player.sprite) {
-            console.error("Player sprite not available for collision setup.");
             return;
         }
         
@@ -729,5 +742,165 @@ export default class Bot extends Character {
         // Draw health bar with new width based on percentage
         this.healthBar.fillStyle(color, 1);
         this.healthBar.fillRect(0, 0, this.healthBarWidth * percentage, this.healthBarHeight);
+    }
+
+    /**
+     * Checks if there's a landing spot after a jump
+     * @returns Boolean indicating if there's a safe landing spot
+     */
+    checkForLandingSpot(): boolean {
+        // Get the tilemap layer from the scene
+        const platforms = (this.scene as any).platforms as Phaser.Tilemaps.TilemapLayer;
+        if (!platforms) {
+            return false;
+        }
+
+        // Force jump detection even if we don't detect a good landing spot
+        // This simulates the bot making a "desperate" jump attempt when stuck too long
+        const forceJumpDetection = this.isStuck && 
+            (this.scene.time.now - this.stuckStartTime > this.stuckDetectionTime * 3);
+        
+        if (forceJumpDetection) {
+            return true;
+        }
+
+        const map = platforms.tilemap;
+        if (!map) {
+            return false;
+        }
+
+        // Bot position
+        const body = this.sprite.body as Physics.Arcade.Body;
+        const botX = this.sprite.x;
+        const botY = this.sprite.y;
+        const tileSize = map.tileWidth;
+
+        // Direction we're trying to go (toward player)
+        const lookAheadDistance = this.direction * 3; // Look ahead 3 tiles
+        
+        // Current position in tile coordinates
+        const currentTileX = Math.floor(botX / tileSize);
+        const currentTileY = Math.floor((botY + body.height / 2) / tileSize);
+        
+        // The obstacle is directly in front of us
+        const obstacleTileX = currentTileX + this.direction;
+        
+        // Check for obstacle directly in front
+        // First, check if there's a colliding tile at the current level
+        const frontTile = map.getTileAt(obstacleTileX, currentTileY);
+        
+        // Then check if there's a colliding tile one level up (for taller obstacles)
+        const frontTileUp = map.getTileAt(obstacleTileX, currentTileY - 1);
+        
+        if ((frontTile && frontTile.collides) || (frontTileUp && frontTileUp.collides)) {
+            
+            // Now check for landing spot
+            const landingTileX = currentTileX + lookAheadDistance;
+            
+            // Check for ground at multiple levels to land on
+            for (let y = currentTileY - 1; y <= currentTileY + 2; y++) {
+                const tile = map.getTileAt(landingTileX, y);
+                if (tile && tile.collides) {
+                    return true;
+                }
+            }
+        }
+        
+        // Special case: check for slightly higher ground ahead (small step up)
+        const stepUpTile = map.getTileAt(obstacleTileX, currentTileY - 1);
+        if (stepUpTile && stepUpTile.collides) {
+            // There's a step up, consider it jumpable
+            return true;
+        }
+        
+        // No obstacle or no landing spot
+        return false;
+    }
+
+    /**
+     * Makes the bot jump over an obstacle if stuck
+     */
+    jumpOverObstacle(): void {
+        if (this.jumpCooldown || !this.canJump) {
+            return;
+        }
+
+        // Force jump when stuck - we'll jump regardless of landing spot in some cases
+        const forceJump = this.isStuck && (this.scene.time.now - this.stuckStartTime > this.stuckDetectionTime * 2);
+        
+        // Check for landing spot
+        const hasLandingSpot = this.checkForLandingSpot();
+        
+        if (!hasLandingSpot && !forceJump) {
+            
+            // Reset stuck state to allow detection again after a shorter delay
+            this.scene.time.delayedCall(1000, () => {
+                this.isStuck = false;
+                this.stuckStartTime = 0;
+            });
+            
+            return;
+        }
+
+        // Set jump cooldown
+        this.jumpCooldown = true;
+        this.canJump = false;
+
+        // Apply vertical velocity for jump
+        if (this.sprite.body) {
+            // Stronger jump for higher obstacles
+            (this.sprite.body as Physics.Arcade.Body).setVelocityY(-350);
+            
+            // Boost horizontal velocity during jump to clear the obstacle
+            const jumpBoost = 1.8; // 80% boost to help clear obstacles better
+            (this.sprite.body as Physics.Arcade.Body).setVelocityX(this.direction * this.chaseSpeed * jumpBoost);
+        }
+
+        // Play jump animation
+        if (this.sprite.anims && this.scene.anims.exists('bot-jump')) {
+            this.sprite.anims.play('bot-jump', true);
+        }
+        
+        // Clear the stuck flag immediately when jumping
+        this.isStuck = false;
+        
+        // Wait for landing before allowing another jump
+        const checkForLanding = () => {
+            // Safety check - make sure sprite and body still exist
+            if (!this.sprite?.body) {
+                this.scene.events.off('update', checkForLanding);
+                return;
+            }
+            
+            const body = this.sprite.body as Physics.Arcade.Body;
+            if (body.onFloor()) {
+                
+                // Re-enable jumping after landing with a short delay
+                this.scene.time.delayedCall(300, () => {
+                    this.jumpCooldown = false;
+                    this.canJump = true;
+                    
+                    // Return to running animation if not engaged in other actions
+                    if (this.currentState === 'chasing' && this.sprite?.active && this.sprite?.anims) {
+                        this.sprite.anims.play('bot-run', true);
+                    }
+                });
+                
+                // Remove the event listener
+                this.scene.events.off('update', checkForLanding);
+            }
+        };
+        
+        // Start checking for landing
+        this.scene.events.on('update', checkForLanding);
+        
+        // Safety timeout - enable jumping after 2 seconds regardless
+        this.scene.time.delayedCall(2000, () => {
+            if (this.scene.events.listenerCount('update') > 0) {
+                this.scene.events.off('update', checkForLanding);
+                this.jumpCooldown = false;
+                this.canJump = true;
+            }
+        });
     }
 }

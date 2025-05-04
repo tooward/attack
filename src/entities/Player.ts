@@ -207,7 +207,7 @@ export default class Player extends Character {
     // Player-specific jump implementation
     playerJump(): void {
         // Use the base jump method
-        super.jump(-500);
+        super.jump(-350);
         
         this.sprite.anims.play('jump', true);
         this.canJump = false;
