@@ -144,7 +144,7 @@ export default class GameScene extends Scene {
         // Update all bots
         this.bots.forEach(bot => {
             if (bot.sprite.active) {
-                bot.update();
+                bot.update(time, delta); // Pass time and delta here
             }
         });
 
@@ -162,7 +162,7 @@ export default class GameScene extends Scene {
             this.explosionDebugText.setText(
                 `Explosions: ${activeCount} active, ${explodedCount} exploded\n` + 
                 `Player health: ${this.player.health}/${this.player.maxHealth}\n` +
-                `Player stamina: ${Math.floor(this.player.stamina)}/${this.player.maxStamina}\n` +
+                `Player energy: ${Math.floor(this.player.energy)}/${this.player.maxEnergy}\n` + // Changed stamina to energy
                 `Active bots: ${activeBots}/${this.bots.length}\n` +
                 `Press D to toggle debug info`
             );

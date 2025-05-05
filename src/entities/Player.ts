@@ -2,24 +2,196 @@ import { Scene, Physics, GameObjects, Input, Animations, Types, Math as PhaserMa
 import Character from './Character';
 import Bot from './Bot';
 import SpriteUtils from '../utils/SpriteUtils';
+import { createMachine, createActor, type ActorRefFrom } from 'xstate';
+
+// Define the context and events for the player state machine
+type PlayerContext = {
+    health: number;
+    energy: number; // Renamed from stamina for consistency
+    attackCooldownActive: boolean;
+    defendDirection: number;
+};
+
+type PlayerEvent = 
+    | { type: 'MOVE_LEFT' }
+    | { type: 'MOVE_RIGHT' }
+    | { type: 'STOP_MOVING' }
+    | { type: 'JUMP' }
+    | { type: 'ATTACK_PRESSED' }
+    | { type: 'ATTACK_COMPLETED' }
+    | { type: 'DEFEND_PRESSED' }
+    | { type: 'DEFEND_RELEASED' }
+    | { type: 'DAMAGE_TAKEN', damage: number, attackerPosition?: {x: number, y: number} }
+    | { type: 'DEATH' }
+    | { type: 'OUT_OF_ENERGY' }
+    | { type: 'UPDATE_CONTEXT', context: Partial<PlayerContext> };
+
+// Create the player state machine
+const createPlayerMachine = () => createMachine({
+    id: 'player',
+    types: {} as {
+        context: PlayerContext;
+        events: PlayerEvent;
+    },
+    context: {
+        health: 100,
+        energy: 100,
+        attackCooldownActive: false,
+        defendDirection: 0
+    },
+    initial: 'idle',
+    states: {
+        idle: {
+            on: {
+                MOVE_LEFT: { target: 'moving' },
+                MOVE_RIGHT: { target: 'moving' },
+                JUMP: { target: 'jumping' },
+                ATTACK_PRESSED: [
+                    {
+                        target: 'attacking',
+                        guard: ({ context }) => !context.attackCooldownActive && context.energy > 0
+                    }
+                ],
+                DEFEND_PRESSED: [
+                    {
+                        target: 'defending',
+                        guard: ({ context }) => context.energy > 0
+                    }
+                ],
+                DAMAGE_TAKEN: { target: 'hurt' },
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            }
+        },
+        moving: {
+            on: {
+                STOP_MOVING: { target: 'idle' },
+                JUMP: { target: 'jumping' },
+                ATTACK_PRESSED: [
+                    {
+                        target: 'attacking',
+                        guard: ({ context }) => !context.attackCooldownActive && context.energy > 0
+                    }
+                ],
+                DEFEND_PRESSED: [
+                    {
+                        target: 'defending',
+                        guard: ({ context }) => context.energy > 0
+                    }
+                ],
+                DAMAGE_TAKEN: { target: 'hurt' },
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            }
+        },
+        jumping: {
+            on: {
+                MOVE_LEFT: { target: 'moving' }, // Allow direct transition to moving when landing
+                MOVE_RIGHT: { target: 'moving' }, // Allow direct transition to moving when landing
+                ATTACK_PRESSED: [
+                    {
+                        target: 'airAttacking',
+                        guard: ({ context }) => !context.attackCooldownActive && context.energy > 0
+                    }
+                ],
+                STOP_MOVING: { target: 'idle' },
+                DAMAGE_TAKEN: { target: 'hurt' },
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            }
+        },
+        attacking: {
+            on: {
+                ATTACK_COMPLETED: { target: 'idle' },
+                DAMAGE_TAKEN: { target: 'hurt' },
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            }
+        },
+        airAttacking: {
+            on: {
+                ATTACK_COMPLETED: { target: 'jumping' },
+                DAMAGE_TAKEN: { target: 'hurt' },
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            }
+        },
+        defending: {
+            on: {
+                DEFEND_RELEASED: { target: 'idle' },
+                OUT_OF_ENERGY: { target: 'idle' },
+                DAMAGE_TAKEN: { target: 'defending' }, // Stay in defending if taking damage while defending
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            }
+        },
+        hurt: {
+            on: {
+                DEATH: { target: 'dead' },
+                STOP_MOVING: { target: 'idle' },
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            },
+            after: {
+                500: { target: 'idle' } // Automatically return to idle after 500ms
+            }
+        },
+        dead: {
+            type: 'final'
+        }
+    }
+});
 
 export default class Player extends Character {
     canJump: boolean;
-    isFighting: boolean;
     isDefending: boolean;
     defendDirection: number; // The direction player is defending in
-    maxStamina: number;
-    stamina: number;
-    staminaRegenRate: number;
-    staminaDrainRate: number;
-    defendDrainRate: number; // Stamina drain rate while defending
-    attackPower: number;
+    defendDrainRate: number; // Energy drain rate while defending
     cursors: Types.Input.Keyboard.CursorKeys;
     attackKey: Input.Keyboard.Key | null;
     defendKey: Input.Keyboard.Key | null;
-    attackCooldown: boolean;
-    attackRange: number;
-    attackDamage: number;
+    
+    // State machine
+    playerMachine: ReturnType<typeof createPlayerMachine>;
+    playerService: ActorRefFrom<ReturnType<typeof createPlayerMachine>>;
+    currentState: string = 'idle';
+    // Track state transitions to prevent repeated execution of entry actions
+    lastProcessedState: string = '';
 
     /**
      * Static method to preload all player assets
@@ -97,7 +269,12 @@ export default class Player extends Character {
             bodyHeight: 96,
             bodyOffsetX: 30,
             bodyOffsetY: 10,
-            moveSpeed: 160
+            moveSpeed: 160,
+            maxEnergy: 100,
+            energyRegenRate: 10,
+            energyDrainRate: 20,
+            attackRange: 50,
+            attackDamage: 20
         });
 
         // Apply pixel-perfect collision with debug enabled temporarily
@@ -106,18 +283,9 @@ export default class Player extends Character {
 
         // Player-specific state
         this.canJump = true;
-        this.isFighting = false;
         this.isDefending = false;
         this.defendDirection = 0;
-        this.maxStamina = 100;
-        this.stamina = 100;
-        this.staminaRegenRate = 10;  // per second
-        this.staminaDrainRate = 20;  // per second during fighting
         this.defendDrainRate = 5;   // per second while defending
-        this.attackPower = 1.0;
-        this.attackCooldown = false;
-        this.attackRange = 50; // Melee attack range
-        this.attackDamage = 20; // Base damage for attacks
 
         // Set up player input
         if (scene.input.keyboard) {
@@ -130,6 +298,70 @@ export default class Player extends Character {
             this.attackKey = null;
             this.defendKey = null;
         }
+
+        // Initialize state machine
+        this.playerMachine = createPlayerMachine();
+        this.playerService = createActor(this.playerMachine, {
+            input: {
+                health: this.health,
+                energy: this.energy,
+                attackCooldownActive: false,
+                defendDirection: 0
+            }
+        });
+            
+        // Subscribe to state changes
+        this.playerService.subscribe((snapshot) => {
+            const newState = snapshot.value as string;
+            
+            // Only process state entry actions if the state has actually changed
+            // This prevents repeated calls to performAttack() while in the attacking state
+            if (this.currentState !== newState) {
+                console.log(`Player state transition: ${this.currentState} -> ${newState}`);
+                
+                // Save the previous state before updating
+                const previousState = this.currentState;
+                this.currentState = newState;
+                
+                // Handle state entry actions - only once per state change
+                switch(newState) {
+                    case 'idle':
+                        this.idle();
+                        this.sprite.anims.play('idle', true);
+                        break;
+                    case 'moving':
+                        // Movement direction is handled in update
+                        break;
+                    case 'jumping':
+                        // Jumping physics are applied when the event is sent
+                        break;
+                    case 'attacking':
+                        // Only call performAttack once when entering this state
+                        this.performAttack();
+                        break;
+                    case 'airAttacking':
+                        // Only call performAttack once when entering this state
+                        this.performAttack();
+                        break;
+                    case 'defending':
+                        this.startDefending();
+                        break;
+                    case 'hurt':
+                        // Visual feedback handled in takeDamage
+                        this.sprite.setVelocityX(0);
+                        break;
+                    case 'dead':
+                        this.die();
+                        break;
+                }
+                
+                // Update last processed state
+                this.lastProcessedState = newState;
+            }
+        });
+            
+        // Start the state machine
+        this.playerService.start();
     }
 
     update(time: number, delta: number): void {
@@ -140,68 +372,122 @@ export default class Player extends Character {
         if (this.dead || !this.sprite.body) return;
 
         const seconds = delta / 1000;
-        
-        // Handle defend action
-        this.handleDefend(seconds);
-        
-        // Only handle movement and attacks if not defending
-        if (!this.isDefending) {
-            this.handleMovement();
-            
-            // Check attack key input separately from movement
-            if (this.attackKey?.isDown && !this.attackCooldown) {
-                this.attack();
-            }
-        }
-        
-        this.handleStamina(seconds);
-    }
-
-    handleMovement(): void {
         const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-        if (!body) return;
-
-        // Handle horizontal movement both on floor and in air
-        if (this.cursors.left?.isDown) {
-            // Move left
-            this.direction = -1;
-            this.sprite.setVelocityX(-this.moveSpeed);
-            this.sprite.flipX = true;
-            if (body.onFloor() && !this.attackCooldown) {
-                this.sprite.anims.play('left', true);
-            }
-        } 
-        else if (this.cursors.right?.isDown) {
-            // Move right
-            this.direction = 1;
-            this.sprite.setVelocityX(this.moveSpeed);
-            this.sprite.flipX = false;
-            if (body.onFloor() && !this.attackCooldown) {
-                this.sprite.anims.play('right', true);
+        
+        // Check if player has landed on the ground and reset jump ability
+        if (body.onFloor() && !this.canJump) {
+            this.canJump = true;
+            
+            // If we're in the jumping state and we've landed, transition to the correct state
+            if (this.currentState === 'jumping') {
+                console.log("Player landed on ground, transitioning from jumping state");
+                
+                // If horizontal movement keys are pressed, go to moving state
+                if (this.cursors.left?.isDown || this.cursors.right?.isDown) {
+                    this.playerService.send({ type: 'MOVE_LEFT' }); // or MOVE_RIGHT, doesn't matter as handleInput will set correct direction
+                } else {
+                    this.playerService.send({ type: 'STOP_MOVING' });
+                }
             }
         }
-        else if (body.onFloor()) {
-            // Only idle when on the floor and not moving horizontally or attacking
-            if (!this.attackCooldown) {
-                this.idle();
-                this.sprite.anims.play('idle', true);
+        
+        // Update state machine context with current values
+        this.playerService.send({
+            type: 'UPDATE_CONTEXT',
+            context: {
+                health: this.health,
+                energy: this.energy
+            }
+        });
+        
+        // Handle energy management - different drain rates based on state
+        if (this.currentState === 'defending') {
+            // Handle energy drain while defending
+            this.handleEnergy(seconds, false, this.defendDrainRate);
+            
+            // Check if we ran out of energy while defending
+            if (this.energy <= 0) {
+                this.playerService.send({ type: 'OUT_OF_ENERGY' });
             }
         } else {
-            // In air with no input - keep current horizontal velocity with some air drag
-            // This allows maintaining momentum while still providing some air control
-            this.sprite.setVelocityX(body.velocity.x * 0.98);
+            // Normal energy handling - regenerate when not in combat states
+            const isRegenAllowed = !['attacking', 'airAttacking'].includes(this.currentState);
+            this.handleEnergy(seconds, isRegenAllowed);
         }
-
-        // Jumping is handled separately and only allowed on floor
-        if (this.cursors.up?.isDown && body.onFloor() && this.canJump && !this.attackCooldown) {
-            this.playerJump();
-        }
+        
+        // Always check input regardless of state
+        this.handleInput(body);
+        
+        // Emit stamina changed event for UI
+        this.scene.events.emit('player-stamina-changed', this.energy, this.maxEnergy);
     }
 
-    // Override the idle method to include animation
-    idle(): void {
-        super.idle();
-        this.sprite.anims.play('idle', true);
+    handleInput(body: Phaser.Physics.Arcade.Body): void {
+        // Don't handle movement input in certain states
+        const canMove = !['attacking', 'airAttacking', 'defending', 'hurt', 'dead'].includes(this.currentState);
+        
+        if (canMove) {
+            // Handle horizontal movement
+            if (this.cursors.left?.isDown) {
+                // Send move left event if in idle state
+                if (this.currentState === 'idle') {
+                    this.playerService.send({ type: 'MOVE_LEFT' });
+                }
+                this.direction = -1;
+                this.sprite.setVelocityX(-this.moveSpeed);
+                this.sprite.flipX = true;
+                if (body.onFloor() && this.currentState === 'moving') {
+                    this.sprite.anims.play('left', true);
+                }
+            } 
+            else if (this.cursors.right?.isDown) {
+                // Send move right event if in idle state
+                if (this.currentState === 'idle') {
+                    this.playerService.send({ type: 'MOVE_RIGHT' });
+                }
+                this.direction = 1;
+                this.sprite.setVelocityX(this.moveSpeed);
+                this.sprite.flipX = false;
+                if (body.onFloor() && this.currentState === 'moving') {
+                    this.sprite.anims.play('right', true);
+                }
+            }
+            else if (body.onFloor()) {
+                // No movement input and on floor - return to idle
+                if (this.currentState === 'moving' || this.currentState === 'jumping') {
+                    this.playerService.send({ type: 'STOP_MOVING' });
+                }
+                this.sprite.setVelocityX(0);
+            } else {
+                // In air with no input - maintain some momentum
+                this.sprite.setVelocityX(body.velocity.x * 0.98);
+            }
+        }
+
+        // Jumping - process the jump if we're on the floor and allowed to jump
+        // Allow jumping from any state where the player can move and is on the floor
+        if (this.cursors.up?.isDown && body.onFloor() && this.canJump) {
+            if (['idle', 'moving'].includes(this.currentState)) {
+                console.log("Jump key pressed, sending JUMP event");
+                this.playerService.send({ type: 'JUMP' });
+                this.playerJump();
+            }
+        }
+
+        // Attack - check if attack key was just pressed
+        if (this.attackKey?.isDown && !this.attackCooldown && 
+            !['attacking', 'airAttacking', 'defending', 'hurt', 'dead'].includes(this.currentState)) {
+            this.playerService.send({ type: 'ATTACK_PRESSED' });
+        }
+
+        // Defend - toggle based on key state
+        if (this.defendKey?.isDown && this.energy > 0 && 
+            !['attacking', 'airAttacking', 'defending', 'hurt', 'dead'].includes(this.currentState)) {
+            this.playerService.send({ type: 'DEFEND_PRESSED' });
+        } 
+        else if (this.defendKey?.isUp && this.currentState === 'defending') {
+            this.playerService.send({ type: 'DEFEND_RELEASED' });
+        }
     }
 
     // Player-specific jump implementation
@@ -212,17 +498,35 @@ export default class Player extends Character {
         this.sprite.anims.play('jump', true);
         this.canJump = false;
 
-        // Add delay before allowing another jump
-        this.scene.time.delayedCall(1000, () => {
-            this.canJump = true;
-        });
+        // Instead of using a fixed timer, we'll check for landing in the update method
     }
 
-    attack(): void {
-        if (this.attackCooldown || this.stamina <= 0) return;
+    performAttack(): void {
+        console.log("Player.performAttack() called, attackCooldown:", this.attackCooldown, "energy:", this.energy, "state:", this.currentState);
+        
+        // IMPORTANT: Force reset the cooldown flag if we're in an attacking state
+        // This ensures we don't get stuck with attackCooldown = true
+        if (this.attackCooldown && ['attacking', 'airAttacking'].includes(this.currentState)) {
+            console.log("WARNING: Attack cooldown was still true in attacking state - forcing reset");
+            this.attackCooldown = false;
+        }
+        
+        if (this.attackCooldown || this.energy <= 0) {
+            console.log("Attack prevented - cooldown:", this.attackCooldown, "energy:", this.energy);
+            return;
+        }
 
-        this.isFighting = true;
+        // Set attack cooldown
         this.attackCooldown = true;
+        this.isFighting = true;
+        
+        // Update state machine context
+        this.playerService.send({ 
+            type: 'UPDATE_CONTEXT', 
+            context: { attackCooldownActive: true } 
+        });
+        
+        console.log("Player attack started - cooldown set to TRUE");
         
         // Stop horizontal movement during attack
         this.sprite.setVelocityX(0);
@@ -230,71 +534,113 @@ export default class Player extends Character {
         // Play attack animation
         this.sprite.anims.play('attack', true);
         
-        // Consume stamina
-        this.stamina -= 10;
-        if (this.stamina < 0) this.stamina = 0;
+        // Consume energy
+        this.energy -= 10;
+        if (this.energy < 0) this.energy = 0;
 
-        // On animation complete, check for hits
-        this.sprite.once(Animations.Events.ANIMATION_COMPLETE_KEY + 'attack', () => {
-            // Find all bots in the scene that could be hit
-            const gameObjects = this.scene.physics.world.bodies.getArray()
-                .map(body => body.gameObject)
-                .filter(obj => obj && obj.active);
-                
-            // Calculate attack position based on player direction
-            const attackX = this.sprite.x + (this.direction * this.attackRange/2);
-            const attackY = this.sprite.y;
-
-            // Check each potential target
-            gameObjects.forEach(obj => {
-                // Skip if not a bot or already destroyed
-                if (!obj.getData('isBot') || !obj.active) return;
-                
-                // Calculate distance to potential target - cast to Phaser.GameObjects.Sprite for position access
-                const targetSprite = obj as unknown as Physics.Arcade.Sprite;
-                const distance = PhaserMath.Distance.Between(
-                    attackX, attackY,
-                    targetSprite.x, targetSprite.y
-                );
-                
-                // If in range, get the bot reference and damage it
-                if (distance <= this.attackRange) {
-                    const bot = obj.getData('botRef');
-                    if (bot && typeof bot.takeDamage === 'function') {
-                        bot.takeDamage(this.attackDamage * this.attackPower);
-                    }
-                }
+        // Apply damage mid-animation at fixed time
+        this.scene.time.delayedCall(300, this.applyAttackDamage, [this]);
+        
+        // Schedule the end of the attack
+        this.scene.time.delayedCall(500, () => {
+            // Only proceed if sprite is still valid
+            if (!this.sprite || !this.sprite.active) return;
+            
+            console.log("Player attack completion - resetting cooldown");
+            
+            // Reset cooldown flags
+            this.attackCooldown = false;
+            this.isFighting = false;
+            
+            // First update the context
+            this.playerService.send({ 
+                type: 'UPDATE_CONTEXT', 
+                context: { attackCooldownActive: false }
             });
             
-            // Reset attack state after a delay
-            this.scene.time.delayedCall(500, () => {
-                this.isFighting = false;
+            // Then notify state machine the attack is complete
+            this.playerService.send({ type: 'ATTACK_COMPLETED' });
+        });
+        
+        // Add backup reset in case the main one fails
+        this.scene.time.delayedCall(1000, () => {
+            if (this.attackCooldown && this.sprite && this.sprite.active) {
+                console.log("BACKUP: Attack cooldown still true after 1000ms - forcing reset");
                 this.attackCooldown = false;
-            });
+                this.isFighting = false;
+                
+                // First update the context
+                this.playerService.send({ 
+                    type: 'UPDATE_CONTEXT', 
+                    context: { attackCooldownActive: false }
+                });
+                
+                // Then send the completion event
+                this.playerService.send({ type: 'ATTACK_COMPLETED' });
+            }
+        });
+    }
+    
+    /**
+     * Helper method to apply damage to enemies in range
+     */
+    applyAttackDamage(playerInstance: Player): void {
+        // Use the provided player instance or fallback to 'this'
+        const player = playerInstance || this;
+        
+        if (!player.sprite || !player.sprite.active) return;
+        
+        console.log("Player attack damage check triggered");
+        
+        // Find all bots in the scene that could be hit
+        const gameObjects = player.scene.physics.world.bodies.getArray()
+            .map(body => body.gameObject)
+            .filter(obj => obj && obj.active);
+        
+        console.log("Checking", gameObjects.length, "possible targets");
+        
+        // Calculate attack position based on player direction
+        const attackX = player.sprite.x + (player.direction * player.attackRange/2);
+        const attackY = player.sprite.y;
+
+        // Check each potential target
+        gameObjects.forEach(obj => {
+            // Skip if not a bot or already destroyed
+            if (!obj.getData('isBot') || !obj.active) return;
+            
+            // Calculate distance to potential target
+            const targetSprite = obj as unknown as Physics.Arcade.Sprite;
+            const distance = PhaserMath.Distance.Between(
+                attackX, attackY,
+                targetSprite.x, targetSprite.y
+            );
+            
+            console.log("Bot found at distance:", distance, "attackRange:", player.attackRange);
+            
+            // If in range, get the bot reference and damage it
+            if (distance <= player.attackRange) {
+                const bot = obj.getData('botRef');
+                if (bot && typeof bot.takeDamage === 'function') {
+                    console.log("Damaging bot");
+                    bot.takeDamage(player.attackDamage * player.getAttackPower());
+                }
+            }
         });
     }
 
-    handleDefend(seconds: number): void {
-        // Check if defend key is pressed and there's enough stamina
-        if (this.defendKey?.isDown && this.stamina > 0) {
-            // Start defending if not already
-            if (!this.isDefending) {
-                this.isDefending = true;
-                this.defendDirection = this.direction; // Remember which direction we're defending
-                this.sprite.anims.play('defend', true);
-                this.sprite.setVelocityX(0); // Stop movement while defending
-            }
-            
-            // Drain stamina while defending
-            this.stamina -= this.defendDrainRate * seconds;
-            if (this.stamina <= 0) {
-                this.stamina = 0;
-                this.stopDefending();
-            }
-        } else if (this.isDefending) {
-            // Stop defending when key is released
-            this.stopDefending();
-        }
+    startDefending(): void {
+        if (this.energy <= 0) return;
+        
+        this.isDefending = true;
+        this.defendDirection = this.direction;
+        this.sprite.anims.play('defend', true);
+        this.sprite.setVelocityX(0);
+        
+        // Update state machine context
+        this.playerService.send({ 
+            type: 'UPDATE_CONTEXT', 
+            context: { defendDirection: this.direction } 
+        });
     }
     
     stopDefending(): void {
@@ -307,57 +653,48 @@ export default class Player extends Character {
         }
     }
 
-    handleStamina(seconds: number): void {
-        // Only regenerate stamina when not fighting
-        if (!this.isFighting && this.stamina < this.maxStamina) {
-            this.stamina += this.staminaRegenRate * seconds;
-            if (this.stamina > this.maxStamina) {
-                this.stamina = this.maxStamina;
-            }
-        }
-
-        // Adjust attack power based on stamina
-        this.attackPower = Math.max(0.5, this.stamina / this.maxStamina);
-        
-        // Emit stamina changed event for UI
-        this.scene.events.emit('player-stamina-changed', this.stamina, this.maxStamina);
-    }
-
-    // Override takeDamage to add player-specific behavior
     takeDamage(amount: number, attackerPosition?: {x: number, y: number}): void {
-        // Check if we're defending
-        if (this.isDefending) {
+        // Check if already dead
+        if (this.dead) return;
+
+        // Check if we're defending and the attack is coming from the direction we're defending
+        if (this.currentState === 'defending' && attackerPosition) {
             // Get the attacker direction relative to player
-            let attackerDirection = 0;
+            let attackerDirection = attackerPosition.x > this.sprite.x ? 1 : -1;
             
-            if (attackerPosition) {
-                // Determine the direction of the attack (1 for right of player, -1 for left)
-                attackerDirection = attackerPosition.x > this.sprite.x ? 1 : -1;
+            // If defending in the right direction, block the damage
+            if (attackerDirection === this.defendDirection) {
+                console.log("Attack blocked by defense!");
                 
-                // If defending in the right direction, block the damage
-                if (attackerDirection === this.defendDirection) {
-                    console.log("Attack blocked by defense!");
-                    
-                    // Play a block feedback animation/effect here if desired
-                    // For example, a quick flash or particle effect
-                    this.sprite.setTintFill(0xffffff);
-                    this.scene.time.delayedCall(100, () => {
-                        this.sprite.clearTint();
-                    });
-                    
-                    return; // No damage taken
-                }
+                // Play a block feedback animation/effect
+                this.sprite.setTintFill(0xffffff);
+                this.scene.time.delayedCall(100, () => {
+                    this.sprite.clearTint();
+                });
+                
+                return; // No damage taken
             }
         }
         
         // Not defending or wrong direction - take full damage
-        super.takeDamage(amount);
+        super.takeDamage(amount, attackerPosition);
+
+        // Send damage event to state machine
+        this.playerService.send({ 
+            type: 'DAMAGE_TAKEN', 
+            damage: amount,
+            attackerPosition 
+        });
+
+        // If health <= 0, send death event
+        if (this.health <= 0) {
+            this.playerService.send({ type: 'DEATH' });
+        }
 
         // Signal that player health changed
         this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
     }
 
-    // Override die to add player-specific death behavior
     die(): void {
         if (this.dead) return;
 
@@ -368,11 +705,23 @@ export default class Player extends Character {
         this.scene.events.emit('player-died');
     }
 
-    // Override reset to include player-specific reset logic
     reset(x: number, y: number): void {
         super.reset(x, y);
         
-        this.stamina = this.maxStamina;
+        this.energy = this.maxEnergy;
         this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
+        this.scene.events.emit('player-stamina-changed', this.energy, this.maxEnergy);
+        
+        // Create a new state machine or reset the existing one
+        this.playerService.stop();
+        this.playerService = createActor(this.playerMachine, {
+            input: {
+                health: this.health,
+                energy: this.energy,
+                attackCooldownActive: false,
+                defendDirection: 0
+            }
+        });
+        this.playerService.start();
     }
 }

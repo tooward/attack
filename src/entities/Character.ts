@@ -15,6 +15,18 @@ export default abstract class Character {
     direction: number; // 1 for right, -1 for left
     moveSpeed: number;
 
+    // Add shared energy system properties
+    energy: number;
+    maxEnergy: number;
+    energyRegenRate: number;
+    energyDrainRate: number;
+
+    // Add shared combat properties
+    attackCooldown: boolean;
+    attackRange: number;
+    attackDamage: number;
+    isFighting: boolean;
+
     /**
      * Constructor for the base character
      * @param scene The current game scene
@@ -35,6 +47,11 @@ export default abstract class Character {
             bodyHeight?: number;
             bodyOffsetX?: number;
             bodyOffsetY?: number;
+            maxEnergy?: number;
+            energyRegenRate?: number;
+            energyDrainRate?: number;
+            attackRange?: number;
+            attackDamage?: number;
         } = {}
     ) {
         this.scene = scene;
@@ -68,6 +85,18 @@ export default abstract class Character {
         this.moveSpeed = config.moveSpeed || 160;
         this.dead = false;
         this.direction = 1; // Default facing right
+        
+        // Energy system defaults
+        this.maxEnergy = config.maxEnergy || 100;
+        this.energy = this.maxEnergy;
+        this.energyRegenRate = config.energyRegenRate || 10; // per second
+        this.energyDrainRate = config.energyDrainRate || 20; // per second during actions
+        
+        // Combat defaults
+        this.attackCooldown = false;
+        this.attackRange = config.attackRange || 50;
+        this.attackDamage = config.attackDamage || 20;
+        this.isFighting = false;
     }
     
     /**
@@ -116,10 +145,12 @@ export default abstract class Character {
     /**
      * Handle taking damage
      * @param amount Amount of damage to take
+     * @param attackerPosition Optional position of the attacker
      */
-    takeDamage(amount: number): void {
+    takeDamage(amount: number, attackerPosition?: {x: number, y: number}): void {
         if (this.dead) return;
         
+        // Basic damage application
         this.health -= amount;
         
         // Visual feedback (can be overridden by child classes)
@@ -127,6 +158,9 @@ export default abstract class Character {
         // this.scene.time.delayedCall(100, () => {
         //     if (this.sprite.active) this.sprite.clearTint();
         // });
+        
+        // Emit health changed event
+        this.scene.events.emit('character-health-changed', this, this.health, this.maxHealth);
         
         if (this.health <= 0) {
             this.health = 0;
@@ -283,5 +317,56 @@ export default abstract class Character {
                 }
             }
         });
+    }
+
+    /**
+     * Handles energy regeneration and drain
+     * @param seconds Time elapsed in seconds
+     * @param isRegenAllowed Whether regeneration is allowed in current state
+     * @param drainRate Optional custom drain rate
+     */
+    handleEnergy(seconds: number, isRegenAllowed: boolean, drainRate?: number): void {
+        // Regenerate energy when allowed
+        if (isRegenAllowed && this.energy < this.maxEnergy) {
+            this.energy += this.energyRegenRate * seconds;
+            if (this.energy > this.maxEnergy) {
+                this.energy = this.maxEnergy;
+            }
+        }
+        
+        // Drain energy if a drain rate is provided
+        if (drainRate && this.energy > 0) {
+            this.energy -= drainRate * seconds;
+            if (this.energy < 0) {
+                this.energy = 0;
+            }
+        }
+    }
+    
+    /**
+     * Base attack functionality to be extended by child classes
+     */
+    attack(): void {
+        if (this.attackCooldown || this.energy <= 0) return;
+        
+        this.isFighting = true;
+        this.attackCooldown = true;
+        
+        // Stop horizontal movement during attack
+        this.sprite.setVelocityX(0);
+        
+        // Consume energy
+        this.energy -= 10;
+        if (this.energy < 0) this.energy = 0;
+        
+        // Child classes should implement specific attack animations and damage logic
+    }
+    
+    /**
+     * Get attack power based on current energy level
+     * @returns Attack power multiplier between 0.5 and 1.0
+     */
+    getAttackPower(): number {
+        return Math.max(0.5, this.energy / this.maxEnergy);
     }
 }

@@ -9,6 +9,7 @@ type BotContext = {
     player: Player;
     distanceToPlayer: number;
     health: number;
+    energy: number;
     attackCooldownActive: boolean;
 };
 
@@ -20,6 +21,7 @@ type BotEvent =
     | { type: 'DAMAGE_TAKEN', damage: number }
     | { type: 'DEATH' }
     | { type: 'RECOVER' }
+    | { type: 'OUT_OF_ENERGY' }
     | { type: 'UPDATE_CONTEXT', context: Partial<BotContext> };
 
 // Create the bot state machine
@@ -33,6 +35,7 @@ const createBotMachine = () => createMachine({
         player: undefined as unknown as Player, // Will be set on initialization
         distanceToPlayer: 1000,
         health: 100,
+        energy: 100,
         attackCooldownActive: false
     },
     initial: 'idle',
@@ -52,7 +55,12 @@ const createBotMachine = () => createMachine({
         chasing: {
             on: {
                 PLAYER_LOST: { target: 'idle' },
-                ATTACK_READY: { target: 'attacking' },
+                ATTACK_READY: [
+                    {
+                        target: 'attacking',
+                        guard: ({ context }) => !context.attackCooldownActive && context.energy > 0
+                    }
+                ],
                 DAMAGE_TAKEN: { target: 'hurt' },
                 UPDATE_CONTEXT: {
                     actions: ({ context, event }) => {
@@ -113,7 +121,19 @@ export default class Bot extends Character {
     chaseSpeed: number;
     detectionRange: number;
     isChasing: boolean;
+    
+    // Attack-related properties
     attackCooldown: boolean;
+    attackDelayActive: boolean;
+    lastAttackTime: number;
+    minimumAttackInterval: number;
+    
+    // Direction stability tracking
+    lastDirection: number = 1;
+    lastDirectionChangeTime: number = 0;
+    directionStabilityThreshold: number = 500; // Increased from 300 to 500ms for more stability
+    attackPreparing: boolean = false; // Flag to lock movement when preparing to attack
+    
     // Properties for obstacle detection and jumping
     stuckDetectionTime: number;
     lastMovingX: number;
@@ -132,6 +152,9 @@ export default class Bot extends Character {
     botMachine: ReturnType<typeof createBotMachine>;
     botService: ActorRefFrom<ReturnType<typeof createBotMachine>>;
     currentState: string = 'idle';
+
+    // Track state transitions to prevent repeated execution of entry actions
+    lastProcessedState: string = '';
 
     /**
      * Static method to preload bot assets
@@ -192,18 +215,22 @@ export default class Bot extends Character {
             });
         }
         
-        if (!scene.anims.exists('bot-attack')) {
-            scene.anims.create({
-                key: 'bot-attack',
-                frames: [
-                    ...scene.anims.generateFrameNumbers('bot-attack1', { start: 0, end: 4 }),
-                    ...scene.anims.generateFrameNumbers('bot-attack2', { start: 0, end: 4 }),
-                    ...scene.anims.generateFrameNumbers('bot-attack3', { start: 0, end: 9 })
-                ],
-                frameRate: 12,
-                repeat: 0
-            });
+        // Remove any existing 'bot-attack' animation first to prevent conflicts
+        if (scene.anims.exists('bot-attack')) {
+            scene.anims.remove('bot-attack');
         }
+        
+        // Create or recreate the attack animation
+        scene.anims.create({
+            key: 'bot-attack',
+            frames: [
+                ...scene.anims.generateFrameNumbers('bot-attack1', { start: 0, end: 4 }),
+                ...scene.anims.generateFrameNumbers('bot-attack2', { start: 0, end: 4 }),
+                ...scene.anims.generateFrameNumbers('bot-attack3', { start: 0, end: 9 })
+            ],
+            frameRate: 10,
+            repeat: 0
+        });
         
         if (!scene.anims.exists('bot-hurt')) {
             scene.anims.create({
@@ -242,7 +269,11 @@ export default class Bot extends Character {
             bodyWidth: 60, 
             bodyHeight: 40,
             bodyOffsetX: 15,
-            bodyOffsetY: 24
+            bodyOffsetY: 24,
+            maxEnergy: 100,
+            energyRegenRate: 15, // Bots regenerate energy faster than players
+            attackRange: 120,    // Increased from 60 to 120 to make attacks more likely
+            attackDamage: 15
         });
         
         this.player = player;
@@ -256,7 +287,18 @@ export default class Bot extends Character {
         this.chaseSpeed = 75;
         this.detectionRange = 200;
         this.isChasing = false;
+        
+        // Additional properties for attack management
         this.attackCooldown = false;
+        this.attackDelayActive = false;
+        this.lastAttackTime = 0; // Track when the last attack was executed
+        this.minimumAttackInterval = 1200; // Minimum ms between attacks
+
+        // Direction stability tracking
+        this.lastDirection = this.direction;
+        this.lastDirectionChangeTime = scene.time.now;
+        this.directionStabilityThreshold = 500; // Increased from 300 to 500ms for more stability
+        this.attackPreparing = false; // Flag to lock movement when preparing to attack
 
         // Properties for obstacle detection and jumping
         this.stuckDetectionTime = 300;
@@ -283,43 +325,59 @@ export default class Bot extends Character {
         this.botMachine = createBotMachine();
         this.botService = createActor(this.botMachine, {
             input: {
-                player: this.player
+                player: this.player,
+                health: this.health,
+                energy: this.energy
             }
         });
             
-        // Subscribe to state changes
+        // Subscribe to state changes with one-shot entry actions
         this.botService.subscribe((snapshot) => {
-            this.currentState = snapshot.value as string;
+            const newState = snapshot.value as string;
             
-            // Handle state entry actions
-            switch(this.currentState) {
-                case 'idle':
-                    if (this.sprite && this.sprite.anims) {
-                        this.sprite.anims.play('bot-idle', true);
-                    }
-                    if (this.sprite.body) {
-                        (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
-                    }
-                    break;
-                case 'chasing':
-                    if (this.sprite && this.sprite.anims) {
-                        this.sprite.anims.play('bot-run', true);
-                    }
-                    break;
-                case 'attacking':
-                    this.performAttack();
-                    break;
-                case 'hurt':
-                    if (this.sprite && this.sprite.anims) {
-                        this.sprite.anims.play('bot-hurt', true);
-                    }
-                    if (this.sprite.body) {
-                        (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
-                    }
-                    break;
-                case 'dead':
-                    this.die();
-                    break;
+            // Only process state entry actions if the state has actually changed
+            // This prevents repeated calls to performAttack() while in the attacking state
+            if (this.currentState !== newState) {
+                console.log(`Bot state transition: ${this.currentState} -> ${newState}`);
+                
+                // Save the previous state before updating
+                const previousState = this.currentState;
+                this.currentState = newState;
+                
+                // Handle state entry actions - only once per state change
+                switch(newState) {
+                    case 'idle':
+                        if (this.sprite && this.sprite.anims) {
+                            this.sprite.anims.play('bot-idle', true);
+                        }
+                        if (this.sprite.body) {
+                            (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
+                        }
+                        break;
+                    case 'chasing':
+                        if (this.sprite && this.sprite.anims) {
+                            this.sprite.anims.play('bot-run', true);
+                        }
+                        break;
+                    case 'attacking':
+                        // Only trigger attack once when entering this state
+                        this.performAttack();
+                        break;
+                    case 'hurt':
+                        if (this.sprite && this.sprite.anims) {
+                            this.sprite.anims.play('bot-hurt', true);
+                        }
+                        if (this.sprite.body) {
+                            (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
+                        }
+                        break;
+                    case 'dead':
+                        this.die();
+                        break;
+                }
+                
+                // Update last processed state
+                this.lastProcessedState = newState;
             }
         });
             
@@ -335,14 +393,24 @@ export default class Bot extends Character {
         Bot.createAnimsInScene(this.scene);
     }
 
-    update(): void {
+    update(time: number, delta: number): void {
+        // --- BEGIN ADDED DEBUG LOG ---
+        console.log(`Bot.update called with time: ${time}, delta: ${delta}`);
+        // --- END ADDED DEBUG LOG ---
+
         // Call the base class update method
-        super.update(0, 0);
+        super.update(time, delta);
         
         // Return early if bot is dead or sprite is inactive
         if (this.dead || !this.sprite.body || !this.sprite.active) {
             return;
         }
+
+        const seconds = delta / 1000;
+        
+        // Handle energy regeneration - bots always regenerate energy unless attacking
+        const isRegenAllowed = this.currentState !== 'attacking';
+        this.handleEnergy(seconds, isRegenAllowed);
 
         // Ensure player and player.sprite exist and are active
         if (!this.player?.sprite?.active) {
@@ -362,8 +430,16 @@ export default class Bot extends Character {
             this.player.sprite.x, this.player.sprite.y
         );
         
-        // Update distance in state machine context
-        this.botService.send({ type: 'UPDATE_CONTEXT', context: { distanceToPlayer } });
+        // Update distance and energy in state machine context
+        this.botService.send({ 
+            type: 'UPDATE_CONTEXT', 
+            context: { 
+                distanceToPlayer,
+                energy: this.energy,
+                health: this.health,
+                attackCooldownActive: this.attackCooldown || this.attackDelayActive
+            } 
+        });
         
         // Stuck detection that works in any state (except dead)
         if (!this.dead && body.onFloor() && Math.abs(body.velocity.x) > 10) {
@@ -388,6 +464,11 @@ export default class Bot extends Character {
             this.lastMovingX = this.sprite.x;
         }
         
+        // Check if enough time has passed since the last attack
+        const canStartNewAttack = !this.attackCooldown && 
+                                !this.attackDelayActive && 
+                                (time - this.lastAttackTime >= this.minimumAttackInterval);
+        
         // State machine driven behavior
         switch (this.currentState) {
             case 'idle':
@@ -404,20 +485,108 @@ export default class Bot extends Character {
                     break;
                 }
                 
-                // Attack when close enough
-                if (distanceToPlayer <= 60 && !this.attackCooldown) {
-                    this.attackCooldown = true; // Set cooldown when initiating attack
-                    this.botService.send({ type: 'ATTACK_READY' });
+                // Calculate new direction to face player
+                const newDirection = this.player.sprite.x < this.sprite.x ? -1 : 1;
+                
+                // Only change direction if not preparing to attack or attacking
+                const directionChangeThreshold = 20; // Increased from 10 to 20 pixels
+                const horizontalDifference = Math.abs(this.player.sprite.x - this.sprite.x);
+                
+                // KEY FIX: Don't change direction if attack is being prepared or we're close to attacking
+                const inAttackRange = distanceToPlayer <= this.attackRange * 1.2;
+                const attackPreparation = this.attackDelayActive || this.attackPreparing;
+                const shouldUpdateDirection = !attackPreparation && 
+                                           (!inAttackRange || horizontalDifference > 60); // Increased from 40 to 60
+                
+                if (shouldUpdateDirection && newDirection !== this.direction) {
+                    // Track direction change time for stability calculations
+                    this.lastDirection = this.direction;
+                    this.direction = newDirection;
+                    this.lastDirectionChangeTime = time;
+                    this.sprite.setFlipX(this.direction < 0);
+                }
+                
+                // Calculate time in current direction for stability check
+                const timeInCurrentDirection = time - this.lastDirectionChangeTime;
+                const directionStable = timeInCurrentDirection > this.directionStabilityThreshold;
+                
+                // --- BEGIN ADDED DEBUG LOG ---
+                const attackCheckTime = time; // Use consistent time for checks
+                const timeSinceLastAttack = attackCheckTime - this.lastAttackTime;
+                const energySufficient = this.energy >= 10; // Use the actual energy cost check value
+                const conditions = {
+                    distance: distanceToPlayer <= this.attackRange,
+                    cooldown: !this.attackCooldown,
+                    delayActive: !this.attackDelayActive,
+                    preparing: !this.attackPreparing,
+                    interval: timeSinceLastAttack >= this.minimumAttackInterval,
+                    energy: energySufficient,
+                    stable: directionStable
+                };
+                const allConditionsMet = conditions.distance && conditions.cooldown && conditions.delayActive && conditions.preparing && conditions.interval && conditions.energy && conditions.stable;
+
+                // Log conditions only if close enough to potentially attack
+                if (distanceToPlayer <= this.attackRange * 1.5) { // Log slightly outside attack range too
+                    // Add checks to prevent toFixed error on undefined values
+                    const logTime = typeof attackCheckTime === 'number' ? attackCheckTime.toFixed(0) : 'undef';
+                    const logDist = typeof distanceToPlayer === 'number' ? distanceToPlayer.toFixed(1) : 'undef';
+                    const logInterval = typeof timeSinceLastAttack === 'number' ? timeSinceLastAttack.toFixed(0) : 'undef';
+                    const logEnergy = typeof this.energy === 'number' ? this.energy.toFixed(0) : 'undef';
+
+                    console.log(`[${logTime}] Attack Check: Met=${allConditionsMet}, Dist=${logDist}/${this.attackRange}, CD=${!this.attackCooldown}, Delay=${!this.attackDelayActive}, Prep=${!this.attackPreparing}, Interval=${logInterval}/${this.minimumAttackInterval}, Energy=${logEnergy}/10, Stable=${directionStable}`);
+                }
+                // --- END ADDED DEBUG LOG ---
+
+                // Attack when close enough, energy available, not on cooldown, and direction is stable
+                const attackConditionsMet = allConditionsMet; // Use the calculated value
+
+                if (attackConditionsMet) {
+                    console.log(`[${attackCheckTime.toFixed(0)}] Attack conditions MET. Setting attackPreparing=true. LastAttackTime=${this.lastAttackTime.toFixed(0)}`); // Log when prep starts
+                    
+                    // NEW: Set flag to lock direction during attack preparation
+                    this.attackPreparing = true;
+                    this.lastAttackTime = time; // Use the current time
+                    
+                    // Create a delay before sending the attack ready event (gives player chance to react)
+                    this.scene.time.delayedCall(200, () => {
+                        // --- BEGIN ADDED DEBUG LOG ---
+                        const callbackTime = this.scene.time.now;
+                        console.log(`[${callbackTime.toFixed(0)}] Attack Prep Delay FINISHED. Current state: ${this.currentState}. Setting attackDelayActive=true, attackPreparing=false.`);
+                        // --- END ADDED DEBUG LOG ---
+                        if (this.sprite && this.sprite.active) {
+                            // Stop movement completely while preparing to attack
+                            (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
+                            this.attackDelayActive = true;
+                            this.attackPreparing = false; // Reset the preparation flag
+                            
+                            // Only send attack event if we're still in chasing state
+                            if (this.currentState === 'chasing') {
+                                console.log(`[${callbackTime.toFixed(0)}] Sending ATTACK_READY event.`); // Log event send
+                                this.botService.send({ type: 'ATTACK_READY' });
+                            } else {
+                                console.log(`[${callbackTime.toFixed(0)}] NOT sending ATTACK_READY event because state is ${this.currentState}.`); // Log why not sending
+                            }
+                        } else {
+                             console.log(`[${callbackTime.toFixed(0)}] Attack Prep Delay finished but sprite inactive.`);
+                        }
+                    });
                     break;
                 }
                 
                 // Move toward player when chasing
-                body.setVelocityX(this.direction * this.chaseSpeed);
+                // KEY FIX: Don't move if preparing to attack or attack delay is active
+                if (!this.attackDelayActive && !this.attackPreparing) {
+                    (this.sprite.body as Physics.Arcade.Body).setVelocityX(this.direction * this.chaseSpeed);
+                } else {
+                    // Stop movement when preparing to attack
+                    (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
+                }
                 break;
                 
             case 'attacking':
-                // Attack logic is handled in the performAttack method
-                // The state will transition back to chasing after the attack completes
+                // When in attacking state, DO NOT change direction or velocity
+                // Ensure we stay locked in attack position
+                (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
                 break;
                 
             case 'hurt':
@@ -429,10 +598,6 @@ export default class Bot extends Character {
                 break;
         }
         
-        // Update direction to face player
-        this.direction = this.player.sprite.x < this.sprite.x ? -1 : 1;
-        this.sprite.setFlipX(this.direction < 0);
-        
         // Update health bar position to follow the bot
         this.updateHealthBarPosition();
     }
@@ -441,111 +606,165 @@ export default class Bot extends Character {
      * Performs an attack action triggered by the state machine
      */
     performAttack(): void {
-        // Don't attack if already hit or attacking
-        if (this.isHit || 
-            (this.sprite.anims.isPlaying && 
-             this.sprite.anims.currentAnim?.key === 'bot-attack')) {
-            return;
-        }
+        console.log("Bot.performAttack() called, attackCooldown:", this.attackCooldown, 
+                   "attackDelayActive:", this.attackDelayActive,
+                   "energy:", this.energy, 
+                   "state:", this.currentState);
         
-        // Stop movement during attack
-        if (this.sprite.body) {
-            (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
-        }
-        
-        // Play attack animation
-        this.sprite.anims.play('bot-attack', true);
-        
-        // On attack animation completion, attempt to damage player
-        this.sprite.once(Animations.Events.ANIMATION_COMPLETE, () => {
-            // Check if player is in range
-            if (this.player && this.player.sprite.active) {
-                const distanceToPlayer = PhaserMath.Distance.Between(
-                    this.sprite.x, this.sprite.y,
-                    this.player.sprite.x, this.player.sprite.y
-                );
-                
-                // Only damage player if in attack range
-                if (distanceToPlayer <= 60 && !this.player.dead) {
-                    // Pass bot position to takeDamage so player can determine attack direction
-                    this.player.takeDamage(15, { x: this.sprite.x, y: this.sprite.y });
-                    
-                    // Knockback effect on player
-                    const knockbackDirection = this.player.sprite.x < this.sprite.x ? -1 : 1;
-                    if (this.player.sprite.body) {
-                        (this.player.sprite.body as Physics.Arcade.Body).setVelocityX(knockbackDirection * 150);
-                    }
-                }
-            }
-            
-            // Reset attack cooldown after a delay
-            this.scene.time.delayedCall(500, () => {
-                this.attackCooldown = false;
-                // Transition back to chasing state
+        // Don't proceed if cooldown is active or no energy
+        if (this.attackCooldown || this.energy <= 0) {
+            console.log("Bot attack prevented - cooldown:", this.attackCooldown, 
+                       "energy:", this.energy);
+            // Clear delay active if we can't proceed
+            this.attackDelayActive = false;
+            this.attackPreparing = false; // Also clear the preparation flag
+            // Revert to chasing state if we couldn't attack
+            if (this.currentState === 'attacking') {
                 this.botService.send({ type: 'ATTACK_COMPLETED' });
-            });
-        }, this);
-    }
-
-    attack(): void {
-        // Don't attack if already hit or attacking
-        if (this.isHit || this.attackCooldown || 
-            (this.sprite.anims.isPlaying && 
-             this.sprite.anims.currentAnim?.key === 'bot-attack')) {
+            }
             return;
         }
         
-        // Set attack cooldown at the beginning of the attack
+        // Set attack cooldown state
         this.attackCooldown = true;
+        this.isFighting = true;
+        
+        // Update state machine context
+        this.botService.send({ 
+            type: 'UPDATE_CONTEXT', 
+            context: { attackCooldownActive: true } 
+        });
         
         // Stop movement during attack
         if (this.sprite.body) {
             (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
         }
         
-        // Play attack animation
-        this.sprite.anims.play('bot-attack', true);
+        // Play attack animation - make sure we have valid sprite and anims
+        if (this.sprite && this.sprite.anims) {
+            // Force stop any current animation
+            this.sprite.anims.stop();
+            
+            // Play attack animation
+            try {
+                this.sprite.anims.play('bot-attack', true);
+                console.log("Bot attack animation started successfully");
+                
+                // Listen for animation completion
+                this.sprite.once('animationcomplete', (animation: any) => {
+                    if (animation.key === 'bot-attack') {
+                        console.log("Bot attack animation complete event fired");
+                        this.completeAttack();
+                    }
+                });
+            } catch (error) {
+                console.error("Error playing attack animation:", error);
+                // If animation fails, still complete the attack after a delay
+                this.scene.time.delayedCall(800, () => this.completeAttack());
+            }
+        } else {
+            console.error("Cannot play attack animation: sprite or anims is invalid");
+            // If sprite/anims invalid, still complete the attack after a delay
+            this.scene.time.delayedCall(800, () => this.completeAttack());
+        }
         
-        // On attack animation completion, attempt to damage player
-        this.sprite.once(Animations.Events.ANIMATION_COMPLETE_KEY + 'bot-attack', () => {
+        // Consume energy
+        this.energy -= 10;
+        if (this.energy < 0) this.energy = 0;
+        
+        // Apply damage mid-animation
+        this.scene.time.delayedCall(300, () => {
+            // Check if bot still exists
+            if (!this.sprite || !this.sprite.active) return;
+            
             // Check if player is in range
-            if (this.player && this.player.sprite.active) {
+            if (this.player && this.player.sprite.active && !this.player.dead) {
                 const distanceToPlayer = PhaserMath.Distance.Between(
                     this.sprite.x, this.sprite.y,
                     this.player.sprite.x, this.player.sprite.y
                 );
                 
                 // Only damage player if in attack range
-                if (distanceToPlayer <= 60 && !this.player.dead) {
-                    this.player.takeDamage(15); // Deal damage to player
+                if (distanceToPlayer <= this.attackRange) {
+                    console.log("Player in range, applying damage");
+                    this.player.takeDamage(this.attackDamage * this.getAttackPower(), 
+                        { x: this.sprite.x, y: this.sprite.y });
                     
-                    // Knockback effect on player
+                    // Knockback effect
                     const knockbackDirection = this.player.sprite.x < this.sprite.x ? -1 : 1;
                     if (this.player.sprite.body) {
                         (this.player.sprite.body as Physics.Arcade.Body).setVelocityX(knockbackDirection * 150);
                     }
                 }
             }
-            
-            // Reset attack cooldown after a delay (same as player's 500ms)
-            this.scene.time.delayedCall(500, () => {
-                this.attackCooldown = false; // Reset attack cooldown
-                // Return to run animation if still chasing
-                if (this.isChasing && this.sprite.active) {
-                    this.sprite.anims.play('bot-run', true);
-                }
-            });
+        });
+        
+        // Backup safety timer in case animation completion doesn't fire
+        this.scene.time.delayedCall(1000, () => {
+            if (this.currentState === 'attacking') {
+                console.log("BACKUP: Attack still in progress after 1000ms - forcing completion");
+                this.completeAttack();
+            }
+        });
+    }
+    
+    /**
+     * Handles the completion of an attack and reset of states
+     */
+    completeAttack(): void {
+        // Only proceed if we're still in the attacking state and sprite exists
+        if (this.currentState !== 'attacking' || !this.sprite || !this.sprite.active) return;
+        
+        // --- BEGIN ADDED DEBUG LOG ---
+        const completeTime = this.scene.time.now;
+        console.log(`[${completeTime.toFixed(0)}] Attack COMPLETE. Resetting flags. Setting attackDelayActive=true for 600ms.`);
+        // --- END ADDED DEBUG LOG ---
+        
+        console.log("Bot attack completing - resetting states");
+        
+        // End the fighting state
+        this.isFighting = false;
+        this.attackCooldown = false;
+        this.attackPreparing = false; // Reset the preparation flag
+        
+        // First update the context
+        this.botService.send({ 
+            type: 'UPDATE_CONTEXT', 
+            context: { attackCooldownActive: false }
+        });
+        
+        // Then notify state machine the attack is complete
+        this.botService.send({ type: 'ATTACK_COMPLETED' });
+        
+        // Remove animation completion listener to prevent multiple calls
+        if (this.sprite && this.sprite.anims) {
+            this.sprite.off('animationcomplete');
+        }
+        
+        console.log("Bot state after ATTACK_COMPLETED:", this.currentState);
+        
+        // Keep delay active for a period to prevent immediate follow-up attacks
+        this.attackDelayActive = true;
+        this.scene.time.delayedCall(600, () => {
+            if (this.sprite && this.sprite.active) {
+                this.attackDelayActive = false;
+                // --- BEGIN ADDED DEBUG LOG ---
+                console.log(`[${this.scene.time.now.toFixed(0)}] Attack post-completion delay ended. attackDelayActive=false.`);
+                // --- END ADDED DEBUG LOG ---
+                console.log("Bot attack delay ended - NOW ready for next attack");
+            }
         });
     }
 
-    takeDamage(amount: number): void {
+    takeDamage(amount: number, attackerPosition?: {x: number, y: number}): void {
         // Don't take damage if already hit, dead, or if sprite is inactive/being destroyed
         if (this.isHit || this.dead || !this.sprite || !this.sprite.active || !this.sprite.anims) return;
 
-        // Call the parent takeDamage method
-        super.takeDamage(amount);
-        
+        // Set hit state to prevent multiple rapid damage events
         this.isHit = true;
+
+        // Call the parent takeDamage method
+        super.takeDamage(amount, attackerPosition);
 
         // Update the state machine with damage event
         this.botService.send({ type: 'DAMAGE_TAKEN', damage: amount });
@@ -557,13 +776,6 @@ export default class Bot extends Character {
 
         // Update health bar to reflect new health
         this.updateHealthBar();
-
-        // Check if health is zero or below
-        if (this.health <= 0) {
-            this.health = 0;
-            this.die();
-            return;
-        }
 
         // Reset after a short delay
         this.scene.time.delayedCall(500, () => {
@@ -846,12 +1058,11 @@ export default class Bot extends Character {
         this.jumpCooldown = true;
         this.canJump = false;
 
-        // Apply vertical velocity for jump
+        // Use base class jump with stronger impulse
+        super.jump(-350);
+
+        // Boost horizontal velocity during jump to clear the obstacle
         if (this.sprite.body) {
-            // Stronger jump for higher obstacles
-            (this.sprite.body as Physics.Arcade.Body).setVelocityY(-350);
-            
-            // Boost horizontal velocity during jump to clear the obstacle
             const jumpBoost = 1.8; // 80% boost to help clear obstacles better
             (this.sprite.body as Physics.Arcade.Body).setVelocityX(this.direction * this.chaseSpeed * jumpBoost);
         }
@@ -872,8 +1083,7 @@ export default class Bot extends Character {
                 return;
             }
             
-            const body = this.sprite.body as Physics.Arcade.Body;
-            if (body.onFloor()) {
+            if (this.isOnGround()) {
                 
                 // Re-enable jumping after landing with a short delay
                 this.scene.time.delayedCall(300, () => {
