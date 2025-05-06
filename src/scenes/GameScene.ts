@@ -18,6 +18,11 @@ export default class GameScene extends Scene {
     showDebug: boolean = false;
     customDebugGraphics: Phaser.GameObjects.Graphics | null = null;
 
+    // Tree properties
+    treeGroup!: Phaser.GameObjects.Group;
+    treeLocations: Phaser.Math.Vector2[] = [];
+    treeLoadMargin: number = 500; // Load trees 500px beyond camera view
+
     constructor() {
         super({ key: 'GameScene' });
     }
@@ -45,6 +50,15 @@ export default class GameScene extends Scene {
                         
         // Create the tilemap
         this.createMap();
+
+        // Initialize tree group for object pooling
+        this.treeGroup = this.add.group({
+            classType: Phaser.GameObjects.Image,
+            runChildUpdate: false // Trees don't need individual updates
+        });
+
+        // Initial tree visibility check
+        this.updateTreeVisibility();
 
         // Calculate the position for player and bots
         const mapHeight = this.map.heightInPixels;
@@ -172,6 +186,9 @@ export default class GameScene extends Scene {
         if (this.showDebug && this.customDebugGraphics) {
             this.renderCustomDebug();
         }
+
+        // Update tree visibility based on camera scroll
+        this.updateTreeVisibility();
     }
     
     /**
@@ -243,6 +260,16 @@ export default class GameScene extends Scene {
         if (!platformLayer) throw new Error('Layer not found');
         this.platforms = platformLayer;
         this.platforms.setCollisionByExclusion([-1]);
+        
+        // Store locations for trees based on custom tile property
+        this.treeLocations = [];
+        this.platforms.forEachTile(tile => {
+            if (tile.properties.health) { // Check for your custom property
+                const worldX = this.platforms.x + tile.pixelX + tile.width / 2;
+                const worldY = this.platforms.y + tile.pixelY + tile.height;
+                this.treeLocations.push(new Phaser.Math.Vector2(worldX, worldY));
+            }
+        });
                 
         // Debug tilemap
         console.log("Number of tiles in the layer:", this.platforms.layer.data.length);
@@ -251,6 +278,55 @@ export default class GameScene extends Scene {
         
         // Set world bounds to match the size and position of our tilemap
         this.physics.world.setBounds(0, bottomY, map.widthInPixels, map.heightInPixels);
+    }
+    
+    updateTreeVisibility() {
+        if (!this.treeGroup || !this.map || !this.cameras.main) return;
+
+        const camera = this.cameras.main;
+        const cameraView = camera.worldView;
+
+        // Define an extended view rectangle for loading/unloading trees
+        const extendedView = new Phaser.Geom.Rectangle(
+            cameraView.x - this.treeLoadMargin,
+            cameraView.y - this.treeLoadMargin,
+            cameraView.width + (2 * this.treeLoadMargin),
+            cameraView.height + (2 * this.treeLoadMargin)
+        );
+
+        // Deactivate trees outside the extended view
+        this.treeGroup.getChildren().forEach(child => {
+            const tree = child as Phaser.GameObjects.Image;
+            // Use getBottomCenter() for checking if the tree's base is in view
+            const treeBottomCenter = tree.getBottomCenter();
+            if (tree.active && !extendedView.contains(treeBottomCenter.x, treeBottomCenter.y)) {
+                this.treeGroup.killAndHide(tree);
+            }
+        });
+        
+        // Activate or create trees within the extended view
+        this.treeLocations.forEach(location => {
+            // Check if the location (bottom-center of where tree should be) is within extended view
+            if (Phaser.Geom.Rectangle.Contains(extendedView, location.x, location.y)) {
+                let treeExistsAndActiveAtLocation = false;
+                this.treeGroup.getChildren().forEach(child => {
+                    const existingTree = child as Phaser.GameObjects.Image;
+                    if (existingTree.active && existingTree.x === location.x && existingTree.y === location.y) {
+                        treeExistsAndActiveAtLocation = true;
+                    }
+                });
+
+                if (!treeExistsAndActiveAtLocation) {
+                    const tree = this.treeGroup.get(location.x, location.y, 'tree') as Phaser.GameObjects.Image;
+                    if (tree) {
+                        tree.setActive(true)
+                            .setVisible(true)
+                            .setOrigin(0.5, 1) // Set origin to bottom-center
+                            .setDepth(this.platforms.depth > 0 ? this.platforms.depth -1 : -1); // Place behind platforms or at a default depth like -1
+                    }
+                }
+            }
+        });
     }
     
     setupCamera() {

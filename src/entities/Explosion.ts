@@ -89,7 +89,7 @@ export default class Explosion {
         const gameWidth: number = this.scene.sys.game.config.width as number; // Assert type
         const xPos: number = PhaserMath.Between(100, gameWidth - 100);
 
-        console.log("Spawning explosion at x:", xPos);
+//        console.log("Spawning explosion at x:", xPos);
 
         // Create the explosion using create
         let explosion = this.group.get(xPos, 50, 'explosion') as Physics.Arcade.Sprite | null; // Use get() for recycling, cast result
@@ -146,7 +146,7 @@ export default class Explosion {
 
             // Check if character is within explosion radius
             if (distance <= this.explosionRadius) {
-                console.log(`Character in blast radius! Distance: ${distance}, taking damage`);
+//                console.log(`Character in blast radius! Distance: ${distance}, taking damage`);
 
                 // Damage character (50% of max health)
                 character.takeDamage(character.maxHealth * 0.5);
@@ -176,7 +176,7 @@ export default class Explosion {
 
         // Check if it's an active sprite and hasn't exploded (using getData)
         if (expSprite && expSprite.active && !expSprite.getData('hasExploded')) {
-            console.log("Explosion landed, playing animation");
+//            console.log("Explosion landed, playing animation");
 
             // Mark that this explosion has exploded
             expSprite.setData('hasExploded', true);
@@ -200,7 +200,7 @@ export default class Explosion {
 
             // Clean up after animation completes using the animation's complete event
             expSprite.once(Animations.Events.ANIMATION_COMPLETE, () => {
-                console.log("Explosion animation complete, disabling sprite.");
+//                console.log("Explosion animation complete, disabling sprite.");
                 // Make inactive instead of destroying if using a group for recycling
                 this.group.killAndHide(expSprite);
                 // Ensure body is disabled again if necessary

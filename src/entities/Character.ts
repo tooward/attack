@@ -94,8 +94,8 @@ export default abstract class Character {
         
         // Combat defaults
         this.attackCooldown = false;
-        this.attackRange = config.attackRange || 50;
-        this.attackDamage = config.attackDamage || 20;
+        this.attackRange = config.attackRange || 30;
+        this.attackDamage = config.attackDamage || 10;
         this.isFighting = false;
     }
     

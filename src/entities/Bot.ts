@@ -394,9 +394,6 @@ export default class Bot extends Character {
     }
 
     update(time: number, delta: number): void {
-        // --- BEGIN ADDED DEBUG LOG ---
-        console.log(`Bot.update called with time: ${time}, delta: ${delta}`);
-        // --- END ADDED DEBUG LOG ---
 
         // Call the base class update method
         super.update(time, delta);
@@ -514,8 +511,9 @@ export default class Bot extends Character {
                 const attackCheckTime = time; // Use consistent time for checks
                 const timeSinceLastAttack = attackCheckTime - this.lastAttackTime;
                 const energySufficient = this.energy >= 10; // Use the actual energy cost check value
+                const attackInitiationRange = this.attackRange * 0.6; // Attack when within 60% of attackRange
                 const conditions = {
-                    distance: distanceToPlayer <= this.attackRange,
+                    distance: distanceToPlayer <= attackInitiationRange, // Use the new initiation range
                     cooldown: !this.attackCooldown,
                     delayActive: !this.attackDelayActive,
                     preparing: !this.attackPreparing,
@@ -533,7 +531,7 @@ export default class Bot extends Character {
                     const logInterval = typeof timeSinceLastAttack === 'number' ? timeSinceLastAttack.toFixed(0) : 'undef';
                     const logEnergy = typeof this.energy === 'number' ? this.energy.toFixed(0) : 'undef';
 
-                    console.log(`[${logTime}] Attack Check: Met=${allConditionsMet}, Dist=${logDist}/${this.attackRange}, CD=${!this.attackCooldown}, Delay=${!this.attackDelayActive}, Prep=${!this.attackPreparing}, Interval=${logInterval}/${this.minimumAttackInterval}, Energy=${logEnergy}/10, Stable=${directionStable}`);
+                    console.log(`[${logTime}] Attack Check: Met=${allConditionsMet}, Dist=${logDist}/${attackInitiationRange.toFixed(1)} (actual: ${this.attackRange}), CD=${!this.attackCooldown}, Delay=${!this.attackDelayActive}, Prep=${!this.attackPreparing}, Interval=${logInterval}/${this.minimumAttackInterval}, Energy=${logEnergy}/10, Stable=${directionStable}`);
                 }
                 // --- END ADDED DEBUG LOG ---
 
