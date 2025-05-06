@@ -1,8 +1,9 @@
-import { Scene, Physics, GameObjects, Input, Animations, Types, Math as PhaserMath } from 'phaser';
+import { Scene, Physics, GameObjects, Input, Animations, Types, Math as PhaserMath, Geom } from 'phaser'; // Added Geom
 import Character from './Character';
 import Bot from './Bot';
 import SpriteUtils from '../utils/SpriteUtils';
 import { createMachine, createActor, type ActorRefFrom } from 'xstate';
+import type GameScene from '../scenes/GameScene'; // Import GameScene type for casting
 
 // Define the context and events for the player state machine
 type PlayerContext = {
@@ -21,6 +22,8 @@ type PlayerEvent =
     | { type: 'ATTACK_COMPLETED' }
     | { type: 'DEFEND_PRESSED' }
     | { type: 'DEFEND_RELEASED' }
+    | { type: 'HEAL_PRESSED' } // New event for starting healing
+    | { type: 'HEAL_COMPLETED' } // New event for when healing action finishes
     | { type: 'DAMAGE_TAKEN', damage: number, attackerPosition?: {x: number, y: number} }
     | { type: 'DEATH' }
     | { type: 'OUT_OF_ENERGY' }
@@ -58,6 +61,7 @@ const createPlayerMachine = () => createMachine({
                         guard: ({ context }) => context.energy > 0
                     }
                 ],
+                HEAL_PRESSED: { target: 'healing' }, // Transition to healing
                 DAMAGE_TAKEN: { target: 'hurt' },
                 UPDATE_CONTEXT: {
                     actions: ({ context, event }) => {
@@ -84,6 +88,7 @@ const createPlayerMachine = () => createMachine({
                         guard: ({ context }) => context.energy > 0
                     }
                 ],
+                HEAL_PRESSED: { target: 'healing' }, // Transition to healing
                 DAMAGE_TAKEN: { target: 'hurt' },
                 UPDATE_CONTEXT: {
                     actions: ({ context, event }) => {
@@ -155,6 +160,20 @@ const createPlayerMachine = () => createMachine({
                 }
             }
         },
+        healing: { // New healing state
+            on: {
+                HEAL_COMPLETED: { target: 'idle' },
+                DAMAGE_TAKEN: { target: 'hurt' }, // Can be interrupted by damage
+                // Add other potential interruptions if needed (e.g., movement input)
+                UPDATE_CONTEXT: {
+                    actions: ({ context, event }) => {
+                        if (event.context) {
+                            Object.assign(context, event.context);
+                        }
+                    }
+                }
+            }
+        },
         hurt: {
             on: {
                 DEATH: { target: 'dead' },
@@ -185,6 +204,7 @@ export default class Player extends Character {
     cursors: Types.Input.Keyboard.CursorKeys;
     attackKey: Input.Keyboard.Key | null;
     defendKey: Input.Keyboard.Key | null;
+    healKey: Input.Keyboard.Key | null; // Key for healing
     
     // State machine
     playerMachine: ReturnType<typeof createPlayerMachine>;
@@ -205,6 +225,7 @@ export default class Player extends Character {
         scene.load.spritesheet('dude-die', 'assets/player/DEATH.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-attack', 'assets/player/ATTACK1.png', { frameWidth: 96, frameHeight: 96 });
         scene.load.spritesheet('dude-defend', 'assets/player/DEFEND.png', { frameWidth: 96, frameHeight: 96 });
+        scene.load.spritesheet('dude-heal', 'assets/player/HEALING.png', { frameWidth: 96, frameHeight: 96 }); // Healing spritesheet
     }
 
     /**
@@ -260,6 +281,13 @@ export default class Player extends Character {
             frameRate: 15,
             repeat: 0
         });
+
+        scene.anims.create({ // Healing animation
+            key: 'heal',
+            frames: scene.anims.generateFrameNumbers('dude-heal', { start: 0, end: 14 }),
+            frameRate: 15,
+            repeat: 0
+        });
     }
 
     constructor(scene: Scene, x: number, y: number) {
@@ -292,11 +320,13 @@ export default class Player extends Character {
             this.cursors = scene.input.keyboard.createCursorKeys();
             this.attackKey = scene.input.keyboard.addKey('H');
             this.defendKey = scene.input.keyboard.addKey('J');
+            this.healKey = scene.input.keyboard.addKey('Y'); // Initialize heal key
         } else {
             console.error("Keyboard input not available.");
             this.cursors = {} as Types.Input.Keyboard.CursorKeys;
             this.attackKey = null;
             this.defendKey = null;
+            this.healKey = null; // Initialize heal key as null
         }
 
         // Initialize state machine
@@ -345,6 +375,9 @@ export default class Player extends Character {
                         break;
                     case 'defending':
                         this.startDefending();
+                        break;
+                    case 'healing': // Handle healing state entry
+                        this.performHealing();
                         break;
                     case 'hurt':
                         // Visual feedback handled in takeDamage
@@ -417,6 +450,29 @@ export default class Player extends Character {
         
         // Always check input regardless of state
         this.handleInput(body);
+        
+        // Check for healing input
+        if (this.healKey?.isDown && !['attacking', 'airAttacking', 'defending', 'hurt', 'dead', 'healing'].includes(this.currentState)) {
+            // Check if player is near a tree
+            const gameScene = this.scene as GameScene; // Cast scene to GameScene
+            let canHeal = false;
+            if (gameScene.treeGroup) {
+                const playerBounds = this.sprite.getBounds();
+                gameScene.treeGroup.getChildren().forEach(treeChild => {
+                    const tree = treeChild as Phaser.GameObjects.Image;
+                    if (tree.active) {
+                        const treeBounds = tree.getBounds();
+                        if (Phaser.Geom.Intersects.RectangleToRectangle(playerBounds, treeBounds)) {
+                            canHeal = true;
+                        }
+                    }
+                });
+            }
+
+            if (canHeal) {
+                this.playerService.send({ type: 'HEAL_PRESSED' });
+            }
+        }
         
         // Emit stamina changed event for UI
         this.scene.events.emit('player-stamina-changed', this.energy, this.maxEnergy);
@@ -679,6 +735,13 @@ export default class Player extends Character {
         // Not defending or wrong direction - take full damage
         super.takeDamage(amount, attackerPosition);
 
+        // If healing, interrupt it
+        if (this.currentState === 'healing') {
+            this.sprite.anims.stop(); // Stop healing animation
+            // Optionally, you might want to send a HEAL_COMPLETED or a new HEAL_INTERRUPTED event
+            // For now, taking damage will transition to 'hurt' state as per the state machine
+        }
+
         // Send damage event to state machine
         this.playerService.send({ 
             type: 'DAMAGE_TAKEN', 
@@ -703,6 +766,25 @@ export default class Player extends Character {
 
         // Emit death event for the game to handle
         this.scene.events.emit('player-died');
+    }
+
+    performHealing(): void {
+        if (this.health >= this.maxHealth) {
+            this.playerService.send({ type: 'HEAL_COMPLETED' });
+            return; // Already at max health
+        }
+
+        this.sprite.anims.play('heal', true);
+        this.health += this.maxHealth * 0.10; // Increase health by 10%
+        if (this.health > this.maxHealth) {
+            this.health = this.maxHealth;
+        }
+        this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
+
+        // Complete healing after animation finishes
+        this.sprite.once(Animations.Events.ANIMATION_COMPLETE_KEY + 'heal', () => {
+            this.playerService.send({ type: 'HEAL_COMPLETED' });
+        });
     }
 
     reset(x: number, y: number): void {
