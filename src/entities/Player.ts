@@ -11,6 +11,7 @@ type PlayerContext = {
     energy: number; // Renamed from stamina for consistency
     attackCooldownActive: boolean;
     defendDirection: number;
+    coins: number; // Added coins property to context
 };
 
 type PlayerEvent = 
@@ -40,7 +41,8 @@ const createPlayerMachine = () => createMachine({
         health: 100,
         energy: 100,
         attackCooldownActive: false,
-        defendDirection: 0
+        defendDirection: 0,
+        coins: 10 // Initialize with 10 coins
     },
     initial: 'idle',
     states: {
@@ -205,6 +207,7 @@ export default class Player extends Character {
     attackKey: Input.Keyboard.Key | null;
     defendKey: Input.Keyboard.Key | null;
     healKey: Input.Keyboard.Key | null; // Key for healing
+    coins: number; // Player's purse with gold coins
     
     // State machine
     playerMachine: ReturnType<typeof createPlayerMachine>;
@@ -314,6 +317,7 @@ export default class Player extends Character {
         this.isDefending = false;
         this.defendDirection = 0;
         this.defendDrainRate = 5;   // per second while defending
+        this.coins = 10; // Start with 10 coins
 
         // Set up player input
         if (scene.input.keyboard) {
@@ -336,7 +340,8 @@ export default class Player extends Character {
                 health: this.health,
                 energy: this.energy,
                 attackCooldownActive: false,
-                defendDirection: 0
+                defendDirection: 0,
+                coins: this.coins // Include coins in initial context
             }
         });
             
@@ -791,8 +796,10 @@ export default class Player extends Character {
         super.reset(x, y);
         
         this.energy = this.maxEnergy;
+        this.coins = 10; // Reset coins to 10
         this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
         this.scene.events.emit('player-stamina-changed', this.energy, this.maxEnergy);
+        this.scene.events.emit('player-coins-changed', this.coins); // Emit coin update
         
         // Create a new state machine or reset the existing one
         this.playerService.stop();
@@ -801,9 +808,58 @@ export default class Player extends Character {
                 health: this.health,
                 energy: this.energy,
                 attackCooldownActive: false,
-                defendDirection: 0
+                defendDirection: 0,
+                coins: this.coins // Add coins to state machine input
             }
         });
         this.playerService.start();
+    }
+
+    /**
+     * Add coins to the player's purse
+     * @param amount Number of coins to add
+     */
+    addCoins(amount: number): void {
+        if (amount <= 0) return;
+        this.coins += amount;
+        
+        // Update state machine context
+        this.playerService.send({
+            type: 'UPDATE_CONTEXT',
+            context: { coins: this.coins }
+        });
+        
+        // Emit event for UI update
+        this.scene.events.emit('player-coins-changed', this.coins);
+    }
+    
+    /**
+     * Remove coins from the player's purse
+     * @param amount Number of coins to remove
+     * @returns boolean True if the player had enough coins and they were removed
+     */
+    removeCoins(amount: number): boolean {
+        if (amount <= 0) return true;
+        if (this.coins < amount) return false;
+        
+        this.coins -= amount;
+        
+        // Update state machine context
+        this.playerService.send({
+            type: 'UPDATE_CONTEXT',
+            context: { coins: this.coins }
+        });
+        
+        // Emit event for UI update
+        this.scene.events.emit('player-coins-changed', this.coins);
+        return true;
+    }
+    
+    /**
+     * Get the current coin balance
+     * @returns number Current coin balance
+     */
+    getCoins(): number {
+        return this.coins;
     }
 }

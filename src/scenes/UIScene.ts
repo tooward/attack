@@ -7,6 +7,8 @@ export default class UIScene extends Scene {
     healthBar!: GameObjects.Graphics; // Use definite assignment
     staminaBarBackground!: GameObjects.Graphics; // Use definite assignment
     staminaBar!: GameObjects.Graphics; // Use definite assignment
+    coinDisplay!: GameObjects.Text; // Add coin display text
+    coinIcon!: GameObjects.Image; // Add coin icon
     gameSceneRef!: GameScene; // Use definite assignment
 
     constructor() {
@@ -23,6 +25,9 @@ export default class UIScene extends Scene {
 
         // Create stamina bar
         this.createStaminaBar(width);
+
+        // Create coin display
+        this.createCoinDisplay(width);
 
         // Get reference to the GameScene
         this.gameSceneRef = this.scene.get('GameScene') as GameScene;
@@ -63,6 +68,32 @@ export default class UIScene extends Scene {
         this.staminaBar = this.add.graphics();
     }
 
+    createCoinDisplay(width: number): void {
+        // Coin display in right column
+        const rightColumnX = 480; // Position to the right of health/stamina bars
+        
+        // Coin text label
+        this.add.text(rightColumnX, 20, 'COINS', {
+            fontSize: '24px',
+            color: '#fff'
+        });
+
+        // Coin display background
+        this.add.graphics()
+            .fillStyle(0x222222, 0.8)
+            .fillRect(rightColumnX, 50, 150, 40);
+
+        // Coin icon
+        this.coinIcon = this.add.image(rightColumnX + 30, 70, 'coin');
+        this.coinIcon.setScale(0.4);
+
+        // Coin text
+        this.coinDisplay = this.add.text(rightColumnX + 60, 57, '10', {
+            fontSize: '24px',
+            color: '#ffff00' // Gold color for coins
+        });
+    }
+
     listenForHealthChanges(): void { // Add return type
         // Check if gameSceneRef is valid
         if (this.gameSceneRef) {
@@ -72,13 +103,17 @@ export default class UIScene extends Scene {
             // Listen for stamina change events
             this.gameSceneRef.events.on('player-stamina-changed', this.updateStaminaBar, this);
 
+            // Listen for coin change events
+            this.gameSceneRef.events.on('player-coins-changed', this.updateCoinDisplay, this);
+
             // Update UI every frame (still needed for any continuous changes)
             this.events.on(Scenes.Events.UPDATE, this.updatePlayerUI, this);
             
             // Initial UI update once player is ready
             if (this.gameSceneRef.player) {
                 this.updateHealthBar(this.gameSceneRef.player.health, this.gameSceneRef.player.maxHealth);
-                this.updateStaminaBar(this.gameSceneRef.player.stamina, this.gameSceneRef.player.maxStamina);
+                this.updateStaminaBar(this.gameSceneRef.player.energy, this.gameSceneRef.player.maxEnergy);
+                this.updateCoinDisplay(this.gameSceneRef.player.coins);
             }
         } else {
             console.warn("UIScene: Could not get GameScene reference to listen for events.");
@@ -126,5 +161,9 @@ export default class UIScene extends Scene {
         // Draw stamina bar
         this.staminaBar.fillStyle(0x0088ff, 1);
         this.staminaBar.fillRect(150, 60, 300 * percentage, 24);
+    }
+
+    updateCoinDisplay(coins: number): void { // Add coin display update
+        this.coinDisplay.setText(coins.toString());
     }
 }

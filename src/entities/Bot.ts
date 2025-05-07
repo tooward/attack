@@ -864,6 +864,9 @@ export default class Bot extends Character {
      * Helper method to ensure consistent destruction of bot resources
      */
     destroyBot(): void {
+        // Drop a coin at the bot's position
+        this.dropCoin();
+        
         // Destroy the sprite if it still exists
         if (this.sprite && this.sprite.active) {
             this.sprite.destroy();
@@ -877,6 +880,24 @@ export default class Bot extends Character {
         if (this.healthBar && this.healthBar.active) {
             this.healthBar.destroy();
         }
+    }
+    
+    /**
+     * Drops a coin at the bot's position when defeated
+     */
+    dropCoin(): void {
+        // Make sure player reference and sprite exist
+        if (!this.player || !this.sprite || !this.sprite.active) return;
+        
+        // Get bot's current position
+        const x = this.sprite.x;
+        const y = this.sprite.y;
+        
+        // Directly add a coin to the player's purse
+        // This is a simple implementation without visual effects or animations
+        this.player.addCoins(1);
+        
+        console.log(`Bot destroyed, coin added to player purse. Player now has ${this.player.getCoins()} coins.`);
     }
 
     setupPlayerCollision(player: Player): void {

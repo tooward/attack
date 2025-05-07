@@ -16,6 +16,9 @@ export default class BootScene extends Scene {
         this.load.image('ground', 'assets/maps/Tileset.png');
         this.load.tilemapTiledJSON('map', 'assets/maps/map.tmj');
 
+        // Load coin image for UI
+        this.load.image('coin', 'assets/maps/Props.png');
+        
         // background & scenery images
         this.load.image('bg3', 'assets/background/3.png');
         this.load.image('bg2', 'assets/background/2.png');
