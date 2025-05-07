@@ -376,6 +376,9 @@ export default class GameScene extends Scene {
         
         // Wait and then show game over
         this.time.delayedCall(2000, () => {
+            // Stop the UIScene before returning to MenuScene
+            this.scene.stop('UIScene');
+            
             // Reset the game after a short delay
             this.scene.start('MenuScene');
         });

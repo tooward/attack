@@ -14,11 +14,11 @@
             "scaleInEditor": 1
         },
         "map.tmj": {
-            "scale": 0.49,
+            "scale": 0.5285,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 3940.816326530612,
-                "y": 339.7959183673469
+                "x": 1582.7814569536426,
+                "y": 324.5033112582782
             }
         },
         "map.tmj#ground": {

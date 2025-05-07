@@ -813,7 +813,9 @@ export default class Bot extends Character {
         this.createOrRetrieveAnimations();
         
         // Recreate the animation with a slower frame rate
-        this.scene.anims.remove('bot-die');
+        if (this.scene.anims.exists('bot-die')) {
+            this.scene.anims.remove('bot-die');
+        }
         this.scene.anims.create({
             key: 'bot-die',
             frames: this.scene.anims.generateFrameNumbers('bot-die', { start: 0, end: 9 }),
@@ -829,27 +831,31 @@ export default class Bot extends Character {
         
         // Add a delay before starting the death animation
         this.scene.time.delayedCall(300, () => {
+            if (!this.sprite || !this.sprite.active) return; // Guard in case sprite is destroyed during delay
+
             // Clear the tint
             this.sprite.clearTint();
             
             // Set the texture and play death frames
             try {
-                this.sprite.setTexture('bot-die', 0);
                 this.sprite.anims.play('bot-die');
                 
-                // Listen for animation completion
-                this.sprite.on('animationcomplete', () => {
-                    this.destroyBot();
+                // Listen for animation completion specifically for 'bot-die'
+                this.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, (animation: Phaser.Animations.Animation) => {
+                    if (animation.key === 'bot-die') {
+                        this.destroyBot();
+                    }
                 });
                 
-                // Increased timeout for slower animation
-                this.scene.time.delayedCall(3000, () => {
-                    if (this.sprite && this.sprite.active) {
+                // Increased timeout for slower animation (10 frames / 4fps = 2500ms. Total: 300ms delay + 2500ms anim = 2800ms)
+                this.scene.time.delayedCall(3000, () => { // Safety net
+                    if (this.sprite && this.sprite.active) { // Check if not already destroyed
                         this.destroyBot();
                     }
                 });
             } catch (error) {
-                this.destroyBot();
+                console.error("Error playing bot death animation:", error);
+                this.destroyBot(); // Destroy if an error occurs during animation playback
             }
         });
     }
