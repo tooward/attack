@@ -61,6 +61,12 @@ export default class GameScene extends Scene {
         // Initial tree visibility check
         this.updateTreeVisibility();
 
+        // Initialize map objects (well, arch, lamp)
+        this.load.atlas('objects', 'Objects.png', 'Objects.json');
+        // this.add.image(x, y, 'objects', 'lamp');
+        // this.add.image(x, y, 'objects', 'arch');
+        // this.add.image(x, y, 'objects', 'well');
+
         // Calculate the position for player and bots
         const mapHeight = this.map.heightInPixels;
         const bottomY = gameHeight - mapHeight;

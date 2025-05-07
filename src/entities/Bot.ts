@@ -156,6 +156,9 @@ export default class Bot extends Character {
     // Track state transitions to prevent repeated execution of entry actions
     lastProcessedState: string = '';
 
+    // Add a property to track death animation state
+    isDeathAnimationPlaying: boolean = false;
+
     /**
      * Static method to preload bot assets
      * @param {Scene} scene - The scene to use for loading
@@ -241,14 +244,20 @@ export default class Bot extends Character {
             });
         }
         
-        if (!scene.anims.exists('bot-die')) {
-            scene.anims.create({
-                key: 'bot-die',
-                frames: scene.anims.generateFrameNumbers('bot-die', { start: 0, end: 9 }),
-                frameRate: 10,
-                repeat: 0
-            });
+        // Remove existing die animation if it exists
+        if (scene.anims.exists('bot-die')) {
+            scene.anims.remove('bot-die');
         }
+        
+        // Create death animation with a more visible framerate
+        scene.anims.create({
+            key: 'bot-die',
+            frames: scene.anims.generateFrameNumbers('bot-die', { start: 0, end: 9 }),
+            frameRate: 8, // Lower framerate for better visibility
+            repeat: 0,
+            showOnStart: true,
+            hideOnComplete: false // Ensure the last frame remains visible
+        });
     }
 
     /**
@@ -744,18 +753,48 @@ export default class Bot extends Character {
         // Update health bar to reflect new health
         this.updateHealthBar();
 
-        // Reset after a short delay
+        // Calculate distance to player to determine recovery state
+        const distanceToPlayer = this.player && this.player.sprite && this.player.sprite.active ?
+            PhaserMath.Distance.Between(
+                this.sprite.x, this.sprite.y,
+                this.player.sprite.x, this.player.sprite.y
+            ) : Infinity;
+        
+        // Log the distance before recovery decision
+        console.log(`Bot takeDamage: health=${this.health}, distanceToPlayer=${distanceToPlayer}`);
+
+        // Reset the hit state and determine next state after delay
         this.scene.time.delayedCall(500, () => {
+            if (!this.sprite || !this.sprite.active || this.dead) return;
+            
             this.isHit = false;
             
+            // Reset attack-related flags to prevent getting stuck
+            this.attackDelayActive = false; 
+            this.attackPreparing = false;
+            this.attackCooldown = false;
+            this.isFighting = false;
+            
+            // Update context with current values before sending RECOVER
+            this.botService.send({ 
+                type: 'UPDATE_CONTEXT', 
+                context: { 
+                    distanceToPlayer,
+                    health: this.health,
+                    energy: this.energy,
+                    attackCooldownActive: false
+                } 
+            });
+            
             // Send RECOVER event to the state machine
+            console.log(`Bot sending RECOVER: Health=${this.health}, Distance=${distanceToPlayer}`);
             this.botService.send({ type: 'RECOVER' });
             
             // Make sure we still have valid references before attempting animations
             if (!this.dead && this.sprite && this.sprite.active && this.sprite.anims) {
-                if (this.sprite.body?.velocity.x !== 0 && this.scene.anims.exists('bot-run')) {
+                if (this.currentState === 'chasing' && this.scene.anims.exists('bot-run')) {
                     this.sprite.anims.play('bot-run', true);
-                } else if (this.scene.anims.exists('bot-idle')) {
+                } else if (this.currentState === 'idle' && this.scene.anims.exists('bot-idle')) {
                     this.sprite.anims.play('bot-idle', true);
                 }
             }
@@ -763,7 +802,12 @@ export default class Bot extends Character {
     }
 
     die(): void {
-        if (this.dead) return;
+        if (this.dead || this.isDeathAnimationPlaying) return;
+        
+        console.log("Bot death started");
+        
+        // Set dying state tracking
+        this.isDeathAnimationPlaying = true;
         
         // Call parent die method
         super.die();
@@ -771,61 +815,63 @@ export default class Bot extends Character {
         // Disable physics to prevent further interactions
         if (this.sprite.body) {
             (this.sprite.body as Physics.Arcade.Body).setEnable(false);
-        }
-
-        // Force bot to stay in place
-        if (this.sprite.body) {
             (this.sprite.body as Physics.Arcade.Body).setVelocity(0, 0);
         }
 
-        // Ensure animations exist
-        this.createOrRetrieveAnimations();
+        // Ensure the sprite stays visible
+        this.sprite.setVisible(true);
         
-        // Recreate the animation with a slower frame rate
+        // Ensure death animation is properly created on demand
         if (this.scene.anims.exists('bot-die')) {
             this.scene.anims.remove('bot-die');
         }
+        
+        // Create a simple animation with a very slow framerate for visibility
         this.scene.anims.create({
             key: 'bot-die',
             frames: this.scene.anims.generateFrameNumbers('bot-die', { start: 0, end: 9 }),
-            frameRate: 4, // Even slower frame rate
-            repeat: 0
+            frameRate: 5, // Even slower framerate for better visibility
+            repeat: 0, 
+            showOnStart: true,
+            hideOnComplete: false
         });
         
-        // Stop any current animation immediately
-        this.sprite.anims.stop();
-        
-        // Add a visible "dying" effect before playing the animation
-        this.sprite.setTint(0xff0000); // Red tint
-        
-        // Add a delay before starting the death animation
-        this.scene.time.delayedCall(300, () => {
-            if (!this.sprite || !this.sprite.active) return; // Guard in case sprite is destroyed during delay
-
-            // Clear the tint
-            this.sprite.clearTint();
+        // Critical fix: Delay the animation start slightly to ensure proper setup
+        this.scene.time.delayedCall(50, () => {
+            if (!this.sprite?.active) return;
             
-            // Set the texture and play death frames
-            try {
-                this.sprite.anims.play('bot-die');
-                
-                // Listen for animation completion specifically for 'bot-die'
-                this.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, (animation: Phaser.Animations.Animation) => {
-                    if (animation.key === 'bot-die') {
-                        this.destroyBot();
-                    }
-                });
-                
-                // Increased timeout for slower animation (10 frames / 4fps = 2500ms. Total: 300ms delay + 2500ms anim = 2800ms)
-                this.scene.time.delayedCall(3000, () => { // Safety net
-                    if (this.sprite && this.sprite.active) { // Check if not already destroyed
-                        this.destroyBot();
-                    }
-                });
-            } catch (error) {
-                console.error("Error playing bot death animation:", error);
-                this.destroyBot(); // Destroy if an error occurs during animation playback
-            }
+            // Make sure any current animation is stopped
+            this.sprite.anims.stop();
+            
+            // Clear all animation listeners to prevent issues with previous listeners
+            this.sprite.removeAllListeners(Phaser.Animations.Events.ANIMATION_COMPLETE);
+            this.sprite.removeAllListeners(Phaser.Animations.Events.ANIMATION_COMPLETE_KEY + 'bot-die');
+            
+            // Set up animation completion event listener
+            this.sprite.on(Phaser.Animations.Events.ANIMATION_COMPLETE, (animation: any) => {
+                console.log(`Animation complete: ${animation.key}`);
+                if (animation.key === 'bot-die') {
+                    // Ensure a delay after animation completes
+                    this.scene.time.delayedCall(200, () => {
+                        if (this.sprite?.active) {
+                            this.destroyBot();
+                        }
+                    });
+                }
+            });
+            
+            // Start the death animation
+            this.sprite.anims.play('bot-die', true);
+            console.log("Death animation started playing");
+            
+            // Fallback timer based on animation duration: 10 frames at 5fps = 2000ms
+            const animDuration = 2500; // Add buffer for safety
+            this.scene.time.delayedCall(animDuration, () => {
+                if (this.isDeathAnimationPlaying && this.sprite?.active) {
+                    console.log("Bot death safety timer triggered");
+                    this.destroyBot();
+                }
+            });
         });
     }
     
@@ -833,20 +879,23 @@ export default class Bot extends Character {
      * Helper method to ensure consistent destruction of bot resources
      */
     destroyBot(): void {
+        if (!this.sprite?.active) return; // Prevent multiple destroy calls
+        
+        console.log("Destroying bot");
+        this.isDeathAnimationPlaying = false;
+        
         // Drop a coin at the bot's position
         this.dropCoin();
         
-        // Destroy the sprite if it still exists
-        if (this.sprite && this.sprite.active) {
-            this.sprite.destroy();
-        }
+        // Destroy the sprite
+        this.sprite.destroy();
         
         // Destroy health bar graphics if they exist
-        if (this.healthBarBackground && this.healthBarBackground.active) {
+        if (this.healthBarBackground?.active) {
             this.healthBarBackground.destroy();
         }
         
-        if (this.healthBar && this.healthBar.active) {
+        if (this.healthBar?.active) {
             this.healthBar.destroy();
         }
     }

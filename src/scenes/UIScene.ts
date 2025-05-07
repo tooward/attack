@@ -8,7 +8,7 @@ export default class UIScene extends Scene {
     staminaBarBackground!: GameObjects.Graphics; // Use definite assignment
     staminaBar!: GameObjects.Graphics; // Use definite assignment
     coinDisplay!: GameObjects.Text; // Add coin display text
-    coinIcon!: GameObjects.Image; // Add coin icon
+    coinIcon!: GameObjects.Graphics; // Changed from Image to Graphics
     gameSceneRef!: GameScene; // Use definite assignment
 
     constructor() {
@@ -83,9 +83,10 @@ export default class UIScene extends Scene {
             .fillStyle(0x222222, 0.8)
             .fillRect(rightColumnX, 50, 150, 40);
 
-        // Coin icon
-        this.coinIcon = this.add.image(rightColumnX + 30, 70, 'coin');
-        this.coinIcon.setScale(0.4);
+        // Coin icon - replacing image with a drawn circle
+        this.coinIcon = this.add.graphics();
+        this.coinIcon.fillStyle(0xCCAA00, 1); // Dark gold/yellow color
+        this.coinIcon.fillCircle(rightColumnX + 30, 70, 15);
 
         // Coin text
         this.coinDisplay = this.add.text(rightColumnX + 60, 57, '10', {
