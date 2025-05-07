@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import Player from '../entities/Player.js';
 import Explosion from '../entities/Explosion.js';
 import Bot from '../entities/Bot.js';
+import InventoryManager from '../data/InventoryManager';
 
 export default class BootScene extends Scene {
     constructor() {
@@ -11,6 +12,9 @@ export default class BootScene extends Scene {
     preload() {
         // Create loading bar
         this.createLoadingBar();
+        
+        // Load items data
+        this.load.json('items', 'src/data/items.json');
         
         // Load maps and tiles
         this.load.image('ground', 'assets/maps/Tileset.png');
@@ -35,11 +39,15 @@ export default class BootScene extends Scene {
         Bot.preload(this);
     }
 
-    create() {
+    async create() {
         // Create all the animations using the static methods from entity classes
         Player.createAnims(this);
         Explosion.createAnims(this);
         Bot.createAnims(this);
+        
+        // Initialize and load inventory items
+        const inventoryManager = InventoryManager.getInstance();
+        await inventoryManager.loadItems(this);
         
         // Start the menu scene when loading is complete
         this.scene.start('MenuScene');

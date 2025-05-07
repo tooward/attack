@@ -489,7 +489,7 @@ export default class Bot extends Character {
                 const directionChangeThreshold = 20; // Increased from 10 to 20 pixels
                 const horizontalDifference = Math.abs(this.player.sprite.x - this.sprite.x);
                 
-                // KEY FIX: Don't change direction if attack is being prepared or we're close to attacking
+                // Don't change direction if attack is being prepared or we're close to attacking
                 const inAttackRange = distanceToPlayer <= this.attackRange * 1.2;
                 const attackPreparation = this.attackDelayActive || this.attackPreparing;
                 const shouldUpdateDirection = !attackPreparation && 
@@ -547,10 +547,6 @@ export default class Bot extends Character {
                     
                     // Create a delay before sending the attack ready event (gives player chance to react)
                     this.scene.time.delayedCall(200, () => {
-                        // --- BEGIN ADDED DEBUG LOG ---
-                        const callbackTime = this.scene.time.now;
-                        console.log(`[${callbackTime.toFixed(0)}] Attack Prep Delay FINISHED. Current state: ${this.currentState}. Setting attackDelayActive=true, attackPreparing=false.`);
-                        // --- END ADDED DEBUG LOG ---
                         if (this.sprite && this.sprite.active) {
                             // Stop movement completely while preparing to attack
                             (this.sprite.body as Physics.Arcade.Body).setVelocityX(0);
@@ -559,13 +555,8 @@ export default class Bot extends Character {
                             
                             // Only send attack event if we're still in chasing state
                             if (this.currentState === 'chasing') {
-                                console.log(`[${callbackTime.toFixed(0)}] Sending ATTACK_READY event.`); // Log event send
                                 this.botService.send({ type: 'ATTACK_READY' });
-                            } else {
-                                console.log(`[${callbackTime.toFixed(0)}] NOT sending ATTACK_READY event because state is ${this.currentState}.`); // Log why not sending
-                            }
-                        } else {
-                             console.log(`[${callbackTime.toFixed(0)}] Attack Prep Delay finished but sprite inactive.`);
+                            }                        
                         }
                     });
                     break;
@@ -604,15 +595,9 @@ export default class Bot extends Character {
      * Performs an attack action triggered by the state machine
      */
     performAttack(): void {
-        console.log("Bot.performAttack() called, attackCooldown:", this.attackCooldown, 
-                   "attackDelayActive:", this.attackDelayActive,
-                   "energy:", this.energy, 
-                   "state:", this.currentState);
         
         // Don't proceed if cooldown is active or no energy
         if (this.attackCooldown || this.energy <= 0) {
-            console.log("Bot attack prevented - cooldown:", this.attackCooldown, 
-                       "energy:", this.energy);
             // Clear delay active if we can't proceed
             this.attackDelayActive = false;
             this.attackPreparing = false; // Also clear the preparation flag
@@ -646,7 +631,6 @@ export default class Bot extends Character {
             // Play attack animation
             try {
                 this.sprite.anims.play('bot-attack', true);
-                console.log("Bot attack animation started successfully");
                 
                 // Listen for animation completion
                 this.sprite.once('animationcomplete', (animation: any) => {
@@ -684,7 +668,6 @@ export default class Bot extends Character {
                 
                 // Only damage player if in attack range
                 if (distanceToPlayer <= this.attackRange) {
-                    console.log("Player in range, applying damage");
                     this.player.takeDamage(this.attackDamage * this.getAttackPower(), 
                         { x: this.sprite.x, y: this.sprite.y });
                     
@@ -700,7 +683,6 @@ export default class Bot extends Character {
         // Backup safety timer in case animation completion doesn't fire
         this.scene.time.delayedCall(1000, () => {
             if (this.currentState === 'attacking') {
-                console.log("BACKUP: Attack still in progress after 1000ms - forcing completion");
                 this.completeAttack();
             }
         });
@@ -712,14 +694,7 @@ export default class Bot extends Character {
     completeAttack(): void {
         // Only proceed if we're still in the attacking state and sprite exists
         if (this.currentState !== 'attacking' || !this.sprite || !this.sprite.active) return;
-        
-        // --- BEGIN ADDED DEBUG LOG ---
-        const completeTime = this.scene.time.now;
-        console.log(`[${completeTime.toFixed(0)}] Attack COMPLETE. Resetting flags. Setting attackDelayActive=true for 600ms.`);
-        // --- END ADDED DEBUG LOG ---
-        
-        console.log("Bot attack completing - resetting states");
-        
+                
         // End the fighting state
         this.isFighting = false;
         this.attackCooldown = false;
@@ -738,18 +713,12 @@ export default class Bot extends Character {
         if (this.sprite && this.sprite.anims) {
             this.sprite.off('animationcomplete');
         }
-        
-        console.log("Bot state after ATTACK_COMPLETED:", this.currentState);
-        
+                
         // Keep delay active for a period to prevent immediate follow-up attacks
         this.attackDelayActive = true;
         this.scene.time.delayedCall(600, () => {
             if (this.sprite && this.sprite.active) {
                 this.attackDelayActive = false;
-                // --- BEGIN ADDED DEBUG LOG ---
-                console.log(`[${this.scene.time.now.toFixed(0)}] Attack post-completion delay ended. attackDelayActive=false.`);
-                // --- END ADDED DEBUG LOG ---
-                console.log("Bot attack delay ended - NOW ready for next attack");
             }
         });
     }

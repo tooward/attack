@@ -3,6 +3,7 @@ import BootScene from '../scenes/BootScene.js';
 import GameScene from '../scenes/GameScene.js';
 import UIScene from '../scenes/UIScene.js';
 import MenuScene from '../scenes/MenuScene.js';
+import InventoryScene from '../scenes/InventoryScene.js';
 
 // Centralized game configuration
 export const config = {
@@ -17,5 +18,5 @@ export const config = {
         }
     },
     // Define scenes in loading order
-    scene: [BootScene, MenuScene, GameScene, UIScene]
+    scene: [BootScene, MenuScene, GameScene, UIScene, InventoryScene]
 };

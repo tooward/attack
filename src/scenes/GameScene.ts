@@ -3,6 +3,7 @@ import Player from '../entities/Player.js';
 import Explosion from '../entities/Explosion.js';
 import Bot from '../entities/Bot.js';
 import SpriteUtils from '../utils/SpriteUtils.js';
+import InventoryManager from '../data/InventoryManager.js';
 
 export default class GameScene extends Scene {
     player!: Player;
@@ -123,6 +124,28 @@ export default class GameScene extends Scene {
             this.time.delayedCall(2000, () => {
                 statusText.destroy();
             });
+        });
+        
+        // Inventory toggle key (I)
+        this.input.keyboard?.on('keydown-I', () => {
+            // Only open inventory if player is alive
+            if (this.player && !this.player.dead) {
+                // Show a temporary message
+                const statusText = this.add.text(
+                    (this.sys.game.config.width as number) / 2,
+                    100,
+                    'Opening Inventory',
+                    { fontSize: '24px', color: '#ffff00', backgroundColor: '#0008' }
+                ).setOrigin(0.5).setScrollFactor(0).setDepth(100);
+                
+                // Remove the text after 1 second
+                this.time.delayedCall(1000, () => {
+                    statusText.destroy();
+                });
+                
+                // Launch inventory scene
+                this.scene.launch('InventoryScene', { player: this.player });
+            }
         });
         
         // Set up camera to follow player

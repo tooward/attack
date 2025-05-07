@@ -1,0 +1,66 @@
+{
+  "items": [
+    {
+      "id": "sword",
+      "name": "Sword",
+      "type": "weapon",
+      "tradeable": true,
+      "usable": false,
+      "damage": 20,
+      "description": "A basic sword"
+    },
+    {
+      "id": "axe",
+      "name": "Battle Axe",
+      "type": "weapon",
+      "tradeable": true,
+      "usable": false,
+      "damage": 30,
+      "description": "Heavy but powerful"
+    },
+    {
+      "id": "dagger",
+      "name": "Dagger",
+      "type": "weapon",
+      "tradeable": true,
+      "usable": false,
+      "damage": 10,
+      "description": "Fast but less damage"
+    },
+    {
+      "id": "health_potion",
+      "name": "Health Potion",
+      "type": "health",
+      "tradeable": true,
+      "usable": true,
+      "health": 25,
+      "description": "Restores 25 health"
+    },
+    {
+      "id": "large_health_potion",
+      "name": "Large Health Potion",
+      "type": "health",
+      "tradeable": true,
+      "usable": true,
+      "health": 50,
+      "description": "Restores 50 health"
+    },
+    {
+      "id": "gem",
+      "name": "Gem",
+      "type": "valuable",
+      "tradeable": true,
+      "usable": false,
+      "value": 50,
+      "description": "Valuable trading item"
+    },
+    {
+      "id": "map",
+      "name": "Treasure Map",
+      "type": "quest",
+      "tradeable": false,
+      "usable": true,
+      "description": "Shows location of hidden treasure"
+    }
+  ]
+}

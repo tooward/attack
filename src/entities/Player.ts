@@ -4,6 +4,8 @@ import Bot from './Bot';
 import SpriteUtils from '../utils/SpriteUtils';
 import { createMachine, createActor, type ActorRefFrom } from 'xstate';
 import type GameScene from '../scenes/GameScene'; // Import GameScene type for casting
+import { Item, InventoryItem } from '../data/InventoryManager';
+import InventoryManager from '../data/InventoryManager';
 
 // Define the context and events for the player state machine
 type PlayerContext = {
@@ -209,6 +211,10 @@ export default class Player extends Character {
     healKey: Input.Keyboard.Key | null; // Key for healing
     coins: number; // Player's purse with gold coins
     
+    // Inventory system
+    inventory: InventoryItem[]; // Player's inventory
+    equippedWeapon: Item | null; // Currently equipped weapon
+    
     // State machine
     playerMachine: ReturnType<typeof createPlayerMachine>;
     playerService: ActorRefFrom<ReturnType<typeof createPlayerMachine>>;
@@ -318,6 +324,8 @@ export default class Player extends Character {
         this.defendDirection = 0;
         this.defendDrainRate = 5;   // per second while defending
         this.coins = 10; // Start with 10 coins
+        this.inventory = []; // Initialize inventory
+        this.equippedWeapon = null; // No weapon equipped initially
 
         // Set up player input
         if (scene.input.keyboard) {
@@ -344,6 +352,9 @@ export default class Player extends Character {
                 coins: this.coins // Include coins in initial context
             }
         });
+        
+        // Initialize player inventory with starter items
+        this.initializeInventory();
             
         // Subscribe to state changes
         this.playerService.subscribe((snapshot) => {
@@ -797,6 +808,8 @@ export default class Player extends Character {
         
         this.energy = this.maxEnergy;
         this.coins = 10; // Reset coins to 10
+        this.inventory = []; // Clear inventory
+        this.equippedWeapon = null; // Unequip weapon
         this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
         this.scene.events.emit('player-stamina-changed', this.energy, this.maxEnergy);
         this.scene.events.emit('player-coins-changed', this.coins); // Emit coin update
@@ -861,5 +874,207 @@ export default class Player extends Character {
      */
     getCoins(): number {
         return this.coins;
+    }
+
+    /**
+     * Add an item to the player's inventory
+     * @param itemId The ID of the item to add
+     * @param quantity The quantity to add (defaults to 1)
+     * @returns boolean True if item was added successfully
+     */
+    addItem(itemId: string, quantity: number = 1): boolean {
+        // Get the item from the inventory manager
+        const inventoryManager = InventoryManager.getInstance();
+        const itemToAdd = inventoryManager.getItem(itemId);
+        
+        if (!itemToAdd) {
+            console.error(`Item with ID ${itemId} does not exist`);
+            return false;
+        }
+        
+        // Check if the item is already in the inventory
+        const existingItemIndex = this.inventory.findIndex(item => item.id === itemId);
+        
+        if (existingItemIndex >= 0) {
+            // Item exists, increase quantity
+            this.inventory[existingItemIndex].quantity += quantity;
+        } else {
+            // Item doesn't exist, add it as new
+            const inventoryItem: InventoryItem = {
+                ...itemToAdd,
+                quantity
+            };
+            this.inventory.push(inventoryItem);
+        }
+        
+        // Emit event for UI update
+        this.scene.events.emit('player-inventory-changed', this.inventory);
+        return true;
+    }
+    
+    /**
+     * Remove an item from the player's inventory
+     * @param itemId The ID of the item to remove
+     * @param quantity The quantity to remove (defaults to 1)
+     * @returns boolean True if item was removed successfully
+     */
+    removeItem(itemId: string, quantity: number = 1): boolean {
+        const existingItemIndex = this.inventory.findIndex(item => item.id === itemId);
+        
+        if (existingItemIndex < 0) {
+            console.error(`Item with ID ${itemId} not found in inventory`);
+            return false;
+        }
+        
+        const inventoryItem = this.inventory[existingItemIndex];
+        
+        if (inventoryItem.quantity < quantity) {
+            console.error(`Not enough ${inventoryItem.name} in inventory`);
+            return false;
+        }
+        
+        // Reduce quantity
+        inventoryItem.quantity -= quantity;
+        
+        // Remove item from inventory if quantity reaches 0
+        if (inventoryItem.quantity <= 0) {
+            // If removing equipped weapon, unequip it
+            if (this.equippedWeapon && this.equippedWeapon.id === itemId) {
+                this.equippedWeapon = null;
+            }
+            this.inventory.splice(existingItemIndex, 1);
+        }
+        
+        // Emit event for UI update
+        this.scene.events.emit('player-inventory-changed', this.inventory);
+        return true;
+    }
+    
+    /**
+     * Equip a weapon from the player's inventory
+     * @param itemId The ID of the weapon to equip
+     * @returns boolean True if weapon was equipped successfully
+     */
+    equipWeapon(itemId: string): boolean {
+        const inventoryManager = InventoryManager.getInstance();
+        const inventoryItem = this.inventory.find(item => item.id === itemId);
+        
+        if (!inventoryItem) {
+            console.error(`Item with ID ${itemId} not found in inventory`);
+            return false;
+        }
+        
+        if (!inventoryManager.isWeapon(inventoryItem)) {
+            console.error(`Item with ID ${itemId} is not a weapon`);
+            return false;
+        }
+        
+        // Equip the weapon
+        this.equippedWeapon = inventoryItem;
+        
+        // Update attack damage based on equipped weapon
+        if (inventoryItem.damage) {
+            this.attackDamage = inventoryItem.damage;
+        }
+        
+        // Emit event for UI update
+        this.scene.events.emit('player-weapon-equipped', this.equippedWeapon);
+        return true;
+    }
+    
+    /**
+     * Use an item from the player's inventory
+     * @param itemId The ID of the item to use
+     * @returns boolean True if item was used successfully
+     */
+    useItem(itemId: string): boolean {
+        const inventoryManager = InventoryManager.getInstance();
+        const inventoryItem = this.inventory.find(item => item.id === itemId);
+        
+        if (!inventoryItem) {
+            console.error(`Item with ID ${itemId} not found in inventory`);
+            return false;
+        }
+        
+        if (!inventoryItem.usable) {
+            console.error(`Item with ID ${itemId} cannot be used`);
+            return false;
+        }
+        
+        // Handle item use based on type
+        if (inventoryManager.isHealthItem(inventoryItem)) {
+            // Use health item
+            if (this.health >= this.maxHealth) {
+                console.log("Health is already at maximum");
+                return false;
+            }
+            
+            // Apply health restoration
+            if (inventoryItem.health) {
+                this.health += inventoryItem.health;
+                if (this.health > this.maxHealth) {
+                    this.health = this.maxHealth;
+                }
+                
+                // Emit health changed event
+                this.scene.events.emit('player-health-changed', this.health, this.maxHealth);
+                
+                // Remove the used item
+                return this.removeItem(itemId, 1);
+            }
+        } else if (inventoryManager.isQuestItem(inventoryItem)) {
+            // Handle quest item usage
+            console.log(`Using quest item: ${inventoryItem.name}`);
+            
+            // Emit quest item used event
+            this.scene.events.emit('player-quest-item-used', inventoryItem);
+            
+            // Don't remove quest items after use unless required
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Get all available items in the inventory
+     * @returns InventoryItem[] Array of inventory items
+     */
+    getInventory(): InventoryItem[] {
+        return [...this.inventory];
+    }
+    
+    /**
+     * Get the currently equipped weapon
+     * @returns Item | null The equipped weapon or null
+     */
+    getEquippedWeapon(): Item | null {
+        return this.equippedWeapon;
+    }
+    
+    /**
+     * Get damage value modified by equipped weapon
+     * @returns number The damage value to apply
+     */
+    getAttackDamage(): number {
+        // If weapon is equipped, use its damage value, otherwise use base damage
+        return this.equippedWeapon?.damage || this.attackDamage;
+    }
+
+    /**
+     * Initialize the player's inventory with starter items
+     */
+    initializeInventory(): void {
+        // Add a basic sword as the default weapon
+        this.addItem('sword', 1);
+        
+        // Add a few health potions
+        this.addItem('health_potion', 2);
+        
+        // Equip the starter sword automatically
+        this.equipWeapon('sword');
+        
+        // Emit inventory changed event to update UI if needed
+        this.scene.events.emit('player-inventory-changed', this.inventory);
     }
 }
