@@ -23,10 +23,10 @@
         },
         "map.tmj#ground": {
             "scaleInDock": 2.51,
-            "scaleInEditor": 1
+            "scaleInEditor": 3
         }
     },
-    "last.imagePath": "/Users/mikeiog/Development/Phaser/attack/assets/maps",
+    "last.imagePath": "/Users/mike/Development/attack/assets/maps",
     "map.height": 50,
     "map.lastUsedFormat": "json",
     "map.tileHeight": 16,

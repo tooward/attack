@@ -23,6 +23,11 @@ export default class GameScene extends Scene {
     treeGroup!: Phaser.GameObjects.Group;
     treeLocations: Phaser.Math.Vector2[] = [];
     treeLoadMargin: number = 500; // Load trees 500px beyond camera view
+    
+    // Flag properties
+    flagGroup!: Phaser.GameObjects.Group;
+    flagLocations: Phaser.Math.Vector2[] = [];
+    flagLoadMargin: number = 500; // Load flags 500px beyond camera view
 
     constructor() {
         super({ key: 'GameScene' });
@@ -60,6 +65,23 @@ export default class GameScene extends Scene {
 
         // Initial tree visibility check
         this.updateTreeVisibility();
+        
+        // Create flag animation
+        this.anims.create({
+            key: 'flag-wave',
+            frames: this.anims.generateFrameNumbers('flag', { start: 0, end: 5 }),
+            frameRate: 8,
+            repeat: -1
+        });
+        
+        // Initialize flag group for object pooling
+        this.flagGroup = this.add.group({
+            classType: Phaser.GameObjects.Sprite,
+            runChildUpdate: false
+        });
+        
+        // Initial flag visibility check
+        this.updateFlagVisibility();
 
         // Initialize map objects (well, arch, lamp)
         this.load.atlas('objects', 'Objects.png', 'Objects.json');
@@ -218,6 +240,9 @@ export default class GameScene extends Scene {
 
         // Update tree visibility based on camera scroll
         this.updateTreeVisibility();
+        
+        // Update flag visibility based on camera scroll
+        this.updateFlagVisibility();
     }
     
     /**
@@ -278,6 +303,10 @@ export default class GameScene extends Scene {
         
         const tileset = map.addTilesetImage('ground', 'ground');
         if (!tileset) throw new Error('Tileset not found');
+        
+        // Add the ground-markers tileset
+        const markersTileset = map.addTilesetImage('ground-markers', 'ground-markers');
+        if (!markersTileset) console.warn('Ground markers tileset not found');
 
         // Calculate the Y position to place the layer at the bottom
         const gameHeight = this.sys.game.config.height as number;
@@ -285,18 +314,30 @@ export default class GameScene extends Scene {
         const bottomY = gameHeight - mapHeight;
 
         // Create the layer at the bottom position
-        const platformLayer = map.createLayer('ground', tileset, 0, bottomY);
+        // Only include markersTileset in the array if it's not null
+        const platformLayer = map.createLayer('ground', 
+            markersTileset ? [tileset, markersTileset] : [tileset], 
+            0, bottomY);
+            
         if (!platformLayer) throw new Error('Layer not found');
         this.platforms = platformLayer;
         this.platforms.setCollisionByExclusion([-1]);
         
         // Store locations for trees based on custom tile property
         this.treeLocations = [];
+        this.flagLocations = []; // Initialize flag locations array
+        
         this.platforms.forEachTile(tile => {
             if (tile.properties.health) { // Check for your custom property
                 const worldX = this.platforms.x + tile.pixelX + tile.width / 2;
                 const worldY = this.platforms.y + tile.pixelY + tile.height;
                 this.treeLocations.push(new Phaser.Math.Vector2(worldX, worldY));
+            }
+            
+            if (tile.properties.flag) { // Check for flag property
+                const worldX = this.platforms.x + tile.pixelX + tile.width / 2;
+                const worldY = this.platforms.y + tile.pixelY + tile.height;
+                this.flagLocations.push(new Phaser.Math.Vector2(worldX, worldY));
             }
         });
                 
@@ -352,6 +393,60 @@ export default class GameScene extends Scene {
                             .setVisible(true)
                             .setOrigin(0.5, 1) // Set origin to bottom-center
                             .setDepth(this.platforms.depth > 0 ? this.platforms.depth -1 : -1); // Place behind platforms or at a default depth like -1
+                    }
+                }
+            }
+        });
+    }
+    
+    updateFlagVisibility() {
+        if (!this.flagGroup || !this.map || !this.cameras.main) return;
+
+        const camera = this.cameras.main;
+        const cameraView = camera.worldView;
+
+        // Define an extended view rectangle for loading/unloading flags
+        const extendedView = new Phaser.Geom.Rectangle(
+            cameraView.x - this.flagLoadMargin,
+            cameraView.y - this.flagLoadMargin,
+            cameraView.width + (2 * this.flagLoadMargin),
+            cameraView.height + (2 * this.flagLoadMargin)
+        );
+
+        // Deactivate flags outside the extended view
+        this.flagGroup.getChildren().forEach(child => {
+            const flag = child as Phaser.GameObjects.Sprite;
+            // Use getBottomCenter() for checking if the flag's base is in view
+            const flagBottomCenter = flag.getBottomCenter();
+            if (flag.active && !extendedView.contains(flagBottomCenter.x, flagBottomCenter.y)) {
+                this.flagGroup.killAndHide(flag);
+                flag.anims.stop();
+            }
+        });
+        
+        // Activate or create flags within the extended view
+        this.flagLocations.forEach(location => {
+            // Check if the location is within extended view
+            if (Phaser.Geom.Rectangle.Contains(extendedView, location.x, location.y)) {
+                let flagExistsAndActiveAtLocation = false;
+                this.flagGroup.getChildren().forEach(child => {
+                    const existingFlag = child as Phaser.GameObjects.Sprite;
+                    if (existingFlag.active && existingFlag.x === location.x && existingFlag.y === location.y - 16) { // Adjusted Y check
+                        flagExistsAndActiveAtLocation = true;
+                    }
+                });
+
+                if (!flagExistsAndActiveAtLocation) {
+                    // Position flag with bottom at the top of the cell (subtract tile height)
+                    const flag = this.flagGroup.get(location.x, location.y - 16, 'flag') as Phaser.GameObjects.Sprite;
+                    if (flag) {
+                        flag.setActive(true)
+                            .setVisible(true)
+                            .setOrigin(0.5, 1) // Set origin to bottom-center
+                            .setDepth(this.platforms.depth > 0 ? this.platforms.depth - 1 : -1); // Place behind platforms
+                        
+                        // Start the flag animation
+                        flag.play('flag-wave');
                     }
                 }
             }

@@ -17,6 +17,7 @@ export default class BootScene extends Scene {
         this.load.json('items', 'src/data/items.json');
         
         // Load maps and tiles
+        this.load.image('ground-markers', 'assets/maps/Tiles-ground-markers.png');
         this.load.image('ground', 'assets/maps/Tileset.png');
         this.load.tilemapTiledJSON('map', 'assets/maps/map.tmj');
 
@@ -28,6 +29,9 @@ export default class BootScene extends Scene {
         this.load.image('bg2', 'assets/background/2.png');
         this.load.image('bg1', 'assets/background/1.png');
         this.load.image('tree', 'assets/maps/Tree.png');
+        
+        // Load flag spritesheet with 6 frames
+        this.load.spritesheet('flag', 'assets/maps/Flag.png', { frameWidth: 29, frameHeight: 64 });
 
         // Load player assets using the static method from Player class
         Player.preload(this);
