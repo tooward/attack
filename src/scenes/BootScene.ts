@@ -2,7 +2,9 @@ import { Scene } from 'phaser';
 import Player from '../entities/Player.js';
 import Explosion from '../entities/Explosion.js';
 import Bot from '../entities/Bot.js';
+import BotTrader from '../entities/BotTrader.js';
 import InventoryManager from '../data/InventoryManager';
+import Coin from '../entities/Coin.js';
 
 export default class BootScene extends Scene {
     constructor() {
@@ -32,7 +34,13 @@ export default class BootScene extends Scene {
         
         // Load flag spritesheet with 6 frames
         this.load.spritesheet('flag', 'assets/maps/Flag.png', { frameWidth: 29, frameHeight: 64 });
+        
+        // Load objects atlas for trade stands, lamps, wells, etc.
+        this.load.atlas('objects', 'assets/maps/Objects.png', 'assets/maps/objects.json');
 
+        // Load explosion
+        this.load.spritesheet('explosion', 'assets/explosion.png', { frameWidth: 64, frameHeight: 64 });
+        
         // Load player assets using the static method from Player class
         Player.preload(this);
         
@@ -41,6 +49,12 @@ export default class BootScene extends Scene {
         
         // Load bot assets using the static method from Bot class
         Bot.preload(this);
+        
+        // Load trader assets using the static method from BotTrader class
+        BotTrader.preload(this);
+        
+        // Load coin sprite
+        Coin.preload(this);
     }
 
     async create() {
@@ -48,6 +62,7 @@ export default class BootScene extends Scene {
         Player.createAnims(this);
         Explosion.createAnims(this);
         Bot.createAnims(this);
+        BotTrader.createAnims(this);
         
         // Initialize and load inventory items
         const inventoryManager = InventoryManager.getInstance();

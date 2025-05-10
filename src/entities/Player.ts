@@ -272,7 +272,7 @@ export default class Player extends Character {
 
         scene.anims.create({
             key: 'die',
-            frames: scene.anims.generateFrameNumbers('dude-die', { start: 0, end: 9 }),
+            frames: scene.anims.generateFrameNumbers('dude-die', { start: 0, end: 8 }),
             frameRate: 20,
             repeat: 0
         });
@@ -363,8 +363,6 @@ export default class Player extends Character {
             // Only process state entry actions if the state has actually changed
             // This prevents repeated calls to performAttack() while in the attacking state
             if (this.currentState !== newState) {
-                console.log(`Player state transition: ${this.currentState} -> ${newState}`);
-                
                 // Save the previous state before updating
                 const previousState = this.currentState;
                 this.currentState = newState;
@@ -429,7 +427,6 @@ export default class Player extends Character {
             
             // If we're in the jumping state and we've landed, transition to the correct state
             if (this.currentState === 'jumping') {
-                console.log("Player landed on ground, transitioning from jumping state");
                 
                 // If horizontal movement keys are pressed, go to moving state
                 if (this.cursors.left?.isDown || this.cursors.right?.isDown) {
@@ -537,10 +534,8 @@ export default class Player extends Character {
         }
 
         // Jumping - process the jump if we're on the floor and allowed to jump
-        // Allow jumping from any state where the player can move and is on the floor
         if (this.cursors.up?.isDown && body.onFloor() && this.canJump) {
             if (['idle', 'moving'].includes(this.currentState)) {
-                console.log("Jump key pressed, sending JUMP event");
                 this.playerService.send({ type: 'JUMP' });
                 this.playerJump();
             }
@@ -560,6 +555,30 @@ export default class Player extends Character {
         else if (this.defendKey?.isUp && this.currentState === 'defending') {
             this.playerService.send({ type: 'DEFEND_RELEASED' });
         }
+
+        // Debug E key press - show it on screen for visibility
+        const eKey = this.scene.input.keyboard?.addKey('E');
+        if (eKey?.isDown) {
+            // Visual feedback for E key press directly on the player
+            const eKeyDebugText = this.scene.add.text(
+                this.sprite.x,
+                this.sprite.y - 70,
+                'E KEY PRESSED!',
+                {
+                    fontSize: '14px',
+                    color: '#ff0000',
+                    backgroundColor: '#ffffff',
+                    padding: { x: 3, y: 2 }
+                }
+            ).setOrigin(0.5, 0).setDepth(1000);
+            
+            // Remove the text after a short time
+            this.scene.time.delayedCall(400, () => {
+                eKeyDebugText.destroy();
+            });
+            
+            console.log('Player detected E key press at position:', this.sprite.x, this.sprite.y);
+        }
     }
 
     // Player-specific jump implementation
@@ -574,17 +593,14 @@ export default class Player extends Character {
     }
 
     performAttack(): void {
-        console.log("Player.performAttack() called, attackCooldown:", this.attackCooldown, "energy:", this.energy, "state:", this.currentState);
         
         // IMPORTANT: Force reset the cooldown flag if we're in an attacking state
         // This ensures we don't get stuck with attackCooldown = true
         if (this.attackCooldown && ['attacking', 'airAttacking'].includes(this.currentState)) {
-            console.log("WARNING: Attack cooldown was still true in attacking state - forcing reset");
             this.attackCooldown = false;
         }
         
         if (this.attackCooldown || this.energy <= 0) {
-            console.log("Attack prevented - cooldown:", this.attackCooldown, "energy:", this.energy);
             return;
         }
 
@@ -597,8 +613,6 @@ export default class Player extends Character {
             type: 'UPDATE_CONTEXT', 
             context: { attackCooldownActive: true } 
         });
-        
-        console.log("Player attack started - cooldown set to TRUE");
         
         // Stop horizontal movement during attack
         this.sprite.setVelocityX(0);
@@ -618,8 +632,6 @@ export default class Player extends Character {
             // Only proceed if sprite is still valid
             if (!this.sprite || !this.sprite.active) return;
             
-            console.log("Player attack completion - resetting cooldown");
-            
             // Reset cooldown flags
             this.attackCooldown = false;
             this.isFighting = false;
@@ -637,7 +649,6 @@ export default class Player extends Character {
         // Add backup reset in case the main one fails
         this.scene.time.delayedCall(1000, () => {
             if (this.attackCooldown && this.sprite && this.sprite.active) {
-                console.log("BACKUP: Attack cooldown still true after 1000ms - forcing reset");
                 this.attackCooldown = false;
                 this.isFighting = false;
                 
@@ -662,14 +673,10 @@ export default class Player extends Character {
         
         if (!player.sprite || !player.sprite.active) return;
         
-        console.log("Player attack damage check triggered");
-        
         // Find all bots in the scene that could be hit
         const gameObjects = player.scene.physics.world.bodies.getArray()
             .map(body => body.gameObject)
             .filter(obj => obj && obj.active);
-        
-        console.log("Checking", gameObjects.length, "possible targets");
         
         // Calculate attack position based on player direction
         const attackX = player.sprite.x + (player.direction * player.attackRange/2);
@@ -687,14 +694,15 @@ export default class Player extends Character {
                 targetSprite.x, targetSprite.y
             );
             
-            console.log("Bot found at distance:", distance, "attackRange:", player.attackRange);
-            
             // If in range, get the bot reference and damage it
             if (distance <= player.attackRange) {
                 const bot = obj.getData('botRef');
                 if (bot && typeof bot.takeDamage === 'function') {
-                    console.log("Damaging bot");
-                    bot.takeDamage(player.attackDamage * player.getAttackPower());
+                    // Pass player position so bot knows who attacked it
+                    bot.takeDamage(
+                        player.attackDamage * player.getAttackPower(),
+                        { x: player.sprite.x, y: player.sprite.y }
+                    );
                 }
             }
         });
@@ -736,7 +744,6 @@ export default class Player extends Character {
             
             // If defending in the right direction, block the damage
             if (attackerDirection === this.defendDirection) {
-                console.log("Attack blocked by defense!");
                 
                 // Play a block feedback animation/effect
                 this.sprite.setTintFill(0xffffff);

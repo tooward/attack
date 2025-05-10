@@ -37,10 +37,10 @@ export default class Explosion {
         // Debug the explosion animation
         const explosionAnim = scene.anims.get('explode');
         if (explosionAnim) {
-            console.log("DEBUG: 'explode' animation details:", explosionAnim);
-            explosionAnim.frames.forEach((frame, index) => {
-                console.log(`Frame ${index}: key = ${frame.textureKey}, frame = ${frame.frame}`);
-            });
+            // console.log("DEBUG: 'explode' animation details:", explosionAnim);
+            // explosionAnim.frames.forEach((frame, index) => {
+            //     console.log(`Frame ${index}: key = ${frame.textureKey}, frame = ${frame.frame}`);
+            // });
         } else {
             console.error("DEBUG: 'explode' animation was not created properly!");
         }

@@ -2,8 +2,11 @@ import { Scene } from 'phaser';
 import Player from '../entities/Player.js';
 import Explosion from '../entities/Explosion.js';
 import Bot from '../entities/Bot.js';
+import BotTrader from '../entities/BotTrader.js';
 import SpriteUtils from '../utils/SpriteUtils.js';
 import InventoryManager from '../data/InventoryManager.js';
+import TradeScene from './TradeScene.js';
+import Coin from '../entities/Coin.js';
 
 export default class GameScene extends Scene {
     player!: Player;
@@ -12,6 +15,7 @@ export default class GameScene extends Scene {
     explosions!: Explosion;
     explosionDebugText!: Phaser.GameObjects.Text;
     backgrounds!: Phaser.GameObjects.TileSprite[];
+    backgroundLayers!: Phaser.GameObjects.Image[];
     map!: Phaser.Tilemaps.Tilemap;
     debugGraphics!: Phaser.GameObjects.Graphics; // Debug graphics for hitboxes
 
@@ -28,6 +32,18 @@ export default class GameScene extends Scene {
     flagGroup!: Phaser.GameObjects.Group;
     flagLocations: Phaser.Math.Vector2[] = [];
     flagLoadMargin: number = 500; // Load flags 500px beyond camera view
+    
+    // Trade stand properties
+    tradeGroup!: Phaser.GameObjects.Group;
+    tradeLocations: Phaser.Math.Vector2[] = [];
+    tradeLoadMargin: number = 500; // Load trade stands 500px beyond camera view
+
+    // Add activeTrader property at the top of the class
+    activeTrader: BotTrader | null = null;
+
+    // Debug graphics for trade zones
+    tradeDebugGraphics!: Phaser.GameObjects.Graphics;
+    tradeDebugTexts: Phaser.GameObjects.Text[] = [];
 
     constructor() {
         super({ key: 'GameScene' });
@@ -38,22 +54,34 @@ export default class GameScene extends Scene {
         const gameWidth = this.sys.game.config.width as number;
         const gameHeight = this.sys.game.config.height as number;
 
-        // Parallax backgrounds - create with proper size and depth
-        this.backgrounds = [
-            this.add.tileSprite(0, 0, gameWidth, gameHeight, 'bg3')
-                .setOrigin(0, 0)
-                .setScrollFactor(0)
-                .setDepth(-30),
-            this.add.tileSprite(0, 0, gameWidth, gameHeight, 'bg2')
-                .setOrigin(0, 0)
-                .setScrollFactor(0)
-                .setDepth(-20),
-            this.add.tileSprite(0, 0, gameWidth, gameHeight, 'bg1')
-                .setOrigin(0, 0)
-                .setScrollFactor(0)
-                .setDepth(-10)
-        ];
-                        
+        // Create backgrounds as standard images to avoid vertical tiling
+        const bg3 = this.add.image(0, 0, 'bg3')
+            .setOrigin(0, 0)
+            .setScrollFactor(0)
+            .setDepth(-30);
+            
+        const bg2 = this.add.image(0, 0, 'bg2')
+            .setOrigin(0, 0)
+            .setScrollFactor(0)
+            .setDepth(-20);
+            
+        const bg1 = this.add.image(0, 0, 'bg1')
+            .setOrigin(0, 0)
+            .setScrollFactor(0)
+            .setDepth(-10);
+            
+        // Size the backgrounds to fit the screen height while maintaining aspect ratio
+        const layers = [bg3, bg2, bg1];
+        layers.forEach(bg => {
+            // Scale the image to match the game height while maintaining aspect ratio
+            const scaleRatio = gameHeight / bg.height;
+            bg.setScale(scaleRatio);
+        });
+        
+        // Store references to background images for parallax scrolling
+        this.backgrounds = [];
+        this.backgroundLayers = layers;
+        
         // Create the tilemap
         this.createMap();
 
@@ -83,11 +111,15 @@ export default class GameScene extends Scene {
         // Initial flag visibility check
         this.updateFlagVisibility();
 
-        // Initialize map objects (well, arch, lamp)
-        this.load.atlas('objects', 'Objects.png', 'Objects.json');
-        // this.add.image(x, y, 'objects', 'lamp');
-        // this.add.image(x, y, 'objects', 'arch');
-        // this.add.image(x, y, 'objects', 'well');
+        // Initialize trade group for object pooling
+        this.tradeGroup = this.add.group({
+            classType: Phaser.GameObjects.Image,
+            runChildUpdate: false,
+            maxSize: 5 // Limit to 5 instances as requested
+        });
+        
+        // Initial trade stand visibility check
+        this.updateTradeVisibility();
 
         // Calculate the position for player and bots
         const mapHeight = this.map.heightInPixels;
@@ -98,7 +130,7 @@ export default class GameScene extends Scene {
         
         // Set up platform collision using Character's shared method
         this.player.setupPlatformCollision(this.platforms);
-        
+                
         // Create enemy bots at different positions
         this.createBots(bottomY);
         
@@ -202,6 +234,22 @@ export default class GameScene extends Scene {
         });
     }
     
+    createTrader(bottomY: number) {
+        // Create a trader at a specific position
+        const traderPosition = { x: 350, y: bottomY - 50 };
+        
+        // Create the trader
+        const trader = new BotTrader(this, traderPosition.x, traderPosition.y, this.player);
+        
+        // Set up platform collision using Character's shared method
+        trader.setupPlatformCollision(this.platforms);
+        
+        // Set up interaction with player
+        trader.setupPlayerCollision(this.player);
+        
+        return trader;
+    }
+
     update(time: number, delta: number) {
         // Update player
         this.player.update(time, delta);
@@ -212,6 +260,12 @@ export default class GameScene extends Scene {
                 bot.update(time, delta); // Pass time and delta here
             }
         });
+
+        // Check if player is on a trade tile
+        this.checkTradeInteraction();
+
+        // Draw trade debug visualization
+        this.drawTradeDebugVisualization();
 
         // Parallax background scroll
         this.updateParallaxBackgrounds();
@@ -243,6 +297,9 @@ export default class GameScene extends Scene {
         
         // Update flag visibility based on camera scroll
         this.updateFlagVisibility();
+        
+        // Update trade stand visibility based on camera scroll
+        this.updateTradeVisibility();
     }
     
     /**
@@ -326,6 +383,7 @@ export default class GameScene extends Scene {
         // Store locations for trees based on custom tile property
         this.treeLocations = [];
         this.flagLocations = []; // Initialize flag locations array
+        this.tradeLocations = []; // Initialize trade locations array
         
         this.platforms.forEachTile(tile => {
             if (tile.properties.health) { // Check for your custom property
@@ -339,7 +397,18 @@ export default class GameScene extends Scene {
                 const worldY = this.platforms.y + tile.pixelY + tile.height;
                 this.flagLocations.push(new Phaser.Math.Vector2(worldX, worldY));
             }
+            
+            if (tile.properties.Trade) { // Check for Trade property (capitalized)
+                const worldX = this.platforms.x + tile.pixelX + tile.width / 2;
+                const worldY = this.platforms.y + tile.pixelY + tile.height;
+                this.tradeLocations.push(new Phaser.Math.Vector2(worldX, worldY));
+                // Add debug log to verify trade tiles are being found
+                console.log(`Found trade tile at position: ${worldX}, ${worldY}`);
+            }
         });
+        
+        // Add debug log to show total trade locations found
+        console.log(`Total trade locations found: ${this.tradeLocations.length}`);
                 
         // Debug tilemap
         console.log("Number of tiles in the layer:", this.platforms.layer.data.length);
@@ -453,6 +522,56 @@ export default class GameScene extends Scene {
         });
     }
     
+    updateTradeVisibility() {
+        if (!this.tradeGroup || !this.map || !this.cameras.main) return;
+
+        const camera = this.cameras.main;
+        const cameraView = camera.worldView;
+
+        // Define an extended view rectangle for loading/unloading trade stands
+        const extendedView = new Phaser.Geom.Rectangle(
+            cameraView.x - this.tradeLoadMargin,
+            cameraView.y - this.tradeLoadMargin,
+            cameraView.width + (2 * this.tradeLoadMargin),
+            cameraView.height + (2 * this.tradeLoadMargin)
+        );
+
+        // Deactivate trade stands outside the extended view
+        this.tradeGroup.getChildren().forEach(child => {
+            const tradeStand = child as Phaser.GameObjects.Image;
+            const tradeStandBottomCenter = tradeStand.getBottomCenter();
+            if (tradeStand.active && !extendedView.contains(tradeStandBottomCenter.x, tradeStandBottomCenter.y)) {
+                this.tradeGroup.killAndHide(tradeStand);
+            }
+        });
+        
+        // Activate or create trade stands within the extended view
+        this.tradeLocations.forEach(location => {
+            if (Phaser.Geom.Rectangle.Contains(extendedView, location.x, location.y)) {
+                let tradeStandExistsAndActiveAtLocation = false;
+                this.tradeGroup.getChildren().forEach(child => {
+                    const existingTradeStand = child as Phaser.GameObjects.Image;
+                    if (existingTradeStand.active && existingTradeStand.x === location.x && existingTradeStand.y === location.y) {
+                        tradeStandExistsAndActiveAtLocation = true;
+                    }
+                });
+
+                if (!tradeStandExistsAndActiveAtLocation) {
+                    // Create a trade stand from the objects atlas using the 'trade' frame
+                    const tradeStand = this.tradeGroup.get(location.x, location.y) as Phaser.GameObjects.Image;
+                    if (tradeStand) {
+                        // Configure the trade stand with the atlas frame
+                        tradeStand.setTexture('objects', 'trade')
+                            .setActive(true)
+                            .setVisible(true)
+                            .setOrigin(0.5, 1) // Set origin to bottom-center
+                            .setDepth(this.platforms.depth > 0 ? this.platforms.depth - 1 : -1);
+                    }
+                }
+            }
+        });
+    }
+    
     setupCamera() {
         // Configure camera to follow the player
         const camera = this.cameras.main;
@@ -474,12 +593,12 @@ export default class GameScene extends Scene {
     updateParallaxBackgrounds() {
         const cam = this.cameras.main;
         
-        if (this.backgrounds) {
-            // Update tilePosition for parallax scrolling effect
+        if (this.backgroundLayers) {
+            // Update position for parallax scrolling effect - use negative values to scroll correctly
             // Different rates create the parallax depth effect
-            this.backgrounds[0].tilePositionX = cam.scrollX * 0.2;
-            this.backgrounds[1].tilePositionX = cam.scrollX * 0.5;
-            this.backgrounds[2].tilePositionX = cam.scrollX * 0.8;
+            this.backgroundLayers[0].x = -cam.scrollX * 0.2;
+            this.backgroundLayers[1].x = -cam.scrollX * 0.5;
+            this.backgroundLayers[2].x = -cam.scrollX * 0.8;
         }
     }
     
@@ -512,6 +631,222 @@ export default class GameScene extends Scene {
         // Debug physics
         if (this.physics.world.drawDebug) {
             this.platforms.renderDebug(this.add.graphics());
+        }
+    }
+
+    /**
+     * Check if player is on a trade tile and handle trade scene activation
+     */
+    checkTradeInteraction(): void {
+        // Return if player isn't initialized or is dead
+        if (!this.player || this.player.dead) return;
+        
+        // Get player position
+        const playerX = this.player.sprite.x;
+        const playerY = this.player.sprite.y;
+        
+        // Check distance to all trade locations
+        const horizontalInteractionDistance = 50; // Distance in pixels horizontally to trigger trade
+        const verticalInteractionDistance = 100; // Allow more vertical distance to account for jumping/falling
+        
+        let nearestTradeLocation: Phaser.Math.Vector2 | null = null;
+        let nearestHorizontalDistance = Infinity;
+        let validVerticalDistance = false;
+        
+        // Find nearest trade location
+        this.tradeLocations.forEach(location => {
+            // Calculate horizontal and vertical distances separately
+            const horizontalDistance = Math.abs(playerX - location.x);
+            const verticalDistance = Math.abs(playerY - location.y);
+            
+            // Check if player is within the vertical distance limit
+            if (verticalDistance <= verticalInteractionDistance) {
+                // Only consider this location if within vertical range
+                if (horizontalDistance < nearestHorizontalDistance) {
+                    nearestHorizontalDistance = horizontalDistance;
+                    nearestTradeLocation = location;
+                    validVerticalDistance = true;
+                }
+            }
+        });
+        
+        // Debug log distance information
+        // if (nearestTradeLocation) {
+        //     console.log(`Distance to trade location: Horizontal=${nearestHorizontalDistance}, Vertical=${Math.abs(playerY - nearestTradeLocation.y)}`);
+        // }
+        
+        // Check if player is close enough to the nearest trade location
+        if (nearestTradeLocation && nearestHorizontalDistance <= horizontalInteractionDistance && validVerticalDistance) {
+            // Only check for key press if trade scene isn't already active
+            if (!this.scene.isActive('TradeScene')) {
+                // Check if E key is pressed to open trade (one-shot detection)
+                const eKey = this.input.keyboard?.addKey('E');
+                // Use JustDown for more reliable single-press detection
+                if (eKey && Phaser.Input.Keyboard.JustDown(eKey)) {
+                    console.log('E key pressed near trade location! Starting trade...');
+                    this.handleTradeStart(nearestTradeLocation);
+                    
+                    // Show interaction hint
+                    this.showTradeInteractionHint(false);
+                } else {
+                    // Show interaction hint if not already trading
+                    this.showTradeInteractionHint(true);
+                }
+            }
+        } else {
+            // Hide interaction hint when moving away
+            this.showTradeInteractionHint(false);
+        }
+    }
+    
+    /**
+     * Start the trading process
+     * @param tradeLocation The location where trading is happening
+     */
+    handleTradeStart(tradeLocation: Phaser.Math.Vector2): void {
+        // Create the trader if it doesn't exist
+        if (!this.activeTrader) {
+            console.log('Creating trader at location:', tradeLocation.x, tradeLocation.y);
+            
+            // The tradeLocation Y is already at the proper world position since it's derived 
+            // from the tilemap which has already been positioned correctly
+            
+            // Create the trader at the trade tile position (with proper Y offset for standing)
+            this.activeTrader = new BotTrader(
+                this, 
+                tradeLocation.x,  // X position at trade tile
+                tradeLocation.y - 48, // Y position above the ground (sprite is taller than tile)
+                this.player
+            );
+            
+            console.log('Trader sprite position:', this.activeTrader.sprite.x, this.activeTrader.sprite.y);
+            
+            // Set up platform collision using Character's shared method
+            this.activeTrader.setupPlatformCollision(this.platforms);
+            
+            // Set up interaction with player
+            this.activeTrader.setupPlayerCollision(this.player);
+        }
+        
+        // Show a temporary message
+        const statusText = this.add.text(
+            (this.sys.game.config.width as number) / 2,
+            100,
+            'Starting Trade',
+            { fontSize: '24px', color: '#ffff00', backgroundColor: '#0008' }
+        ).setOrigin(0.5).setScrollFactor(0).setDepth(100);
+        
+        // Remove the text after 1 second
+        this.time.delayedCall(1000, () => {
+            statusText.destroy();
+        });
+        
+        // Launch the trade scene
+        this.scene.launch('TradeScene', { 
+            player: this.player,
+            trader: this.activeTrader 
+        });
+    }
+    
+    /**
+     * Show or hide the "Press E to trade" hint
+     * @param show Whether to show or hide the hint
+     */
+    showTradeInteractionHint(show: boolean): void {
+        // Find existing hint if there is one
+        const existingHint = this.children.getChildren().find(
+            child => child.name === 'tradeHint'
+        ) as Phaser.GameObjects.Text;
+        
+        // If we need to hide and there's a hint, destroy it
+        if (!show && existingHint) {
+            existingHint.destroy();
+            return;
+        }
+        
+        // If we need to show and there's no hint yet, create it
+        if (show && !existingHint && this.player) {
+            console.log("Showing trade hint at position:", this.player.sprite.x, this.player.sprite.y);
+            
+            const hint = this.add.text(
+                this.player.sprite.x,
+                this.player.sprite.y - 50,
+                'Press E to trade',
+                {
+                    fontSize: '16px',
+                    color: '#ffffff',
+                    backgroundColor: '#00000080',
+                    padding: { x: 5, y: 3 }
+                }
+            ).setOrigin(0.5, 0);
+            
+            hint.name = 'tradeHint';
+            hint.setDepth(100);
+        } else if (show && existingHint && this.player) {
+            // Update position if player moved
+            existingHint.setPosition(this.player.sprite.x, this.player.sprite.y - 50);
+        }
+    }
+
+    /**
+     * Draws debug visualization for trade zones to help with debugging
+     */
+    drawTradeDebugVisualization(): void {
+        // Clear previous debug graphics for trade zones
+        if (!this.tradeDebugGraphics) {
+            this.tradeDebugGraphics = this.add.graphics();
+        } else {
+            this.tradeDebugGraphics.clear();
+        }
+        
+        // Set style for trade zones visualization
+        this.tradeDebugGraphics.lineStyle(2, 0xff00ff, 1);
+        this.tradeDebugGraphics.fillStyle(0xff00ff, 0.3);
+        
+        // Draw circles at all trade locations
+        this.tradeLocations.forEach(location => {
+            // Draw circle with radius equal to the interaction distance
+            const tradeInteractionDistance = 50;
+            this.tradeDebugGraphics.strokeCircle(location.x, location.y, tradeInteractionDistance);
+            this.tradeDebugGraphics.fillCircle(location.x, location.y, 10);
+            
+            // Draw text showing the coordinates
+            if (!this.tradeDebugTexts) {
+                this.tradeDebugTexts = [];
+            }
+            
+            // Find or create debug text for this location
+            let debugText = this.tradeDebugTexts.find(text => 
+                text.getData('locationX') === location.x && 
+                text.getData('locationY') === location.y
+            );
+            
+            if (!debugText) {
+                debugText = this.add.text(
+                    location.x,
+                    location.y - 25,
+                    `Trade Zone\n(${Math.floor(location.x)},${Math.floor(location.y)})`,
+                    {
+                        fontSize: '12px',
+                        color: '#ff00ff',
+                        backgroundColor: '#00000080',
+                        padding: { x: 3, y: 2 }
+                    }
+                ).setOrigin(0.5, 1).setDepth(1000);
+                
+                debugText.setData('locationX', location.x);
+                debugText.setData('locationY', location.y);
+                this.tradeDebugTexts.push(debugText);
+            } else {
+                // Update existing text position if needed
+                debugText.setPosition(location.x, location.y - 25);
+            }
+        });
+        
+        // Also visualize player's position for reference
+        if (this.player && this.player.sprite) {
+            this.tradeDebugGraphics.lineStyle(2, 0x00ffff, 1);
+            this.tradeDebugGraphics.strokeCircle(this.player.sprite.x, this.player.sprite.y, 10);
         }
     }
 }

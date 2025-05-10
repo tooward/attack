@@ -3,6 +3,7 @@ import Character from './Character';
 import Player from './Player';
 import SpriteUtils from '../utils/SpriteUtils';
 import { createMachine, createActor, type ActorRefFrom } from 'xstate';
+import Coin from './Coin';
 
 // Define the context and events for the bot state machine
 type BotContext = {
@@ -347,7 +348,7 @@ export default class Bot extends Character {
             // Only process state entry actions if the state has actually changed
             // This prevents repeated calls to performAttack() while in the attacking state
             if (this.currentState !== newState) {
-                console.log(`Bot state transition: ${this.currentState} -> ${newState}`);
+//                console.log(`Bot state transition: ${this.currentState} -> ${newState}`);
                 
                 // Save the previous state before updating
                 const previousState = this.currentState;
@@ -533,15 +534,15 @@ export default class Bot extends Character {
                 const allConditionsMet = conditions.distance && conditions.cooldown && conditions.delayActive && conditions.preparing && conditions.interval && conditions.energy && conditions.stable;
 
                 // Log conditions only if close enough to potentially attack
-                if (distanceToPlayer <= this.attackRange * 1.5) { // Log slightly outside attack range too
-                    // Add checks to prevent toFixed error on undefined values
-                    const logTime = typeof attackCheckTime === 'number' ? attackCheckTime.toFixed(0) : 'undef';
-                    const logDist = typeof distanceToPlayer === 'number' ? distanceToPlayer.toFixed(1) : 'undef';
-                    const logInterval = typeof timeSinceLastAttack === 'number' ? timeSinceLastAttack.toFixed(0) : 'undef';
-                    const logEnergy = typeof this.energy === 'number' ? this.energy.toFixed(0) : 'undef';
+                // if (distanceToPlayer <= this.attackRange * 1.5) { // Log slightly outside attack range too
+                //     // Add checks to prevent toFixed error on undefined values
+                //     const logTime = typeof attackCheckTime === 'number' ? attackCheckTime.toFixed(0) : 'undef';
+                //     const logDist = typeof distanceToPlayer === 'number' ? distanceToPlayer.toFixed(1) : 'undef';
+                //     const logInterval = typeof timeSinceLastAttack === 'number' ? timeSinceLastAttack.toFixed(0) : 'undef';
+                //     const logEnergy = typeof this.energy === 'number' ? this.energy.toFixed(0) : 'undef';
 
-                    console.log(`[${logTime}] Attack Check: Met=${allConditionsMet}, Dist=${logDist}/${attackInitiationRange.toFixed(1)} (actual: ${this.attackRange}), CD=${!this.attackCooldown}, Delay=${!this.attackDelayActive}, Prep=${!this.attackPreparing}, Interval=${logInterval}/${this.minimumAttackInterval}, Energy=${logEnergy}/10, Stable=${directionStable}`);
-                }
+                //     console.log(`[${logTime}] Attack Check: Met=${allConditionsMet}, Dist=${logDist}/${attackInitiationRange.toFixed(1)} (actual: ${this.attackRange}), CD=${!this.attackCooldown}, Delay=${!this.attackDelayActive}, Prep=${!this.attackPreparing}, Interval=${logInterval}/${this.minimumAttackInterval}, Energy=${logEnergy}/10, Stable=${directionStable}`);
+                // }
                 // --- END ADDED DEBUG LOG ---
 
                 // Attack when close enough, energy available, not on cooldown, and direction is stable
@@ -644,7 +645,7 @@ export default class Bot extends Character {
                 // Listen for animation completion
                 this.sprite.once('animationcomplete', (animation: any) => {
                     if (animation.key === 'bot-attack') {
-                        console.log("Bot attack animation complete event fired");
+//                        console.log("Bot attack animation complete event fired");
                         this.completeAttack();
                     }
                 });
@@ -739,6 +740,22 @@ export default class Bot extends Character {
         // Set hit state to prevent multiple rapid damage events
         this.isHit = true;
 
+        // Track if damage came from player (for coin dropping)
+        // Use a distance-based check instead of exact position matching
+        let attackerIsPlayer = false;
+        if (attackerPosition && this.player && this.player.sprite && this.player.sprite.active) {
+            // Check if attacker position is close to player position
+            const distanceToPlayer = PhaserMath.Distance.Between(
+                attackerPosition.x, attackerPosition.y,
+                this.player.sprite.x, this.player.sprite.y
+            );
+            // Consider it a player attack if within 100 pixels
+            attackerIsPlayer = distanceToPlayer < 100;
+        }
+        
+        // Store this information on the sprite for use when dying
+        this.sprite.setData('killedByPlayer', attackerIsPlayer);
+
         // Call the parent takeDamage method
         super.takeDamage(amount, attackerPosition);
 
@@ -760,9 +777,6 @@ export default class Bot extends Character {
                 this.player.sprite.x, this.player.sprite.y
             ) : Infinity;
         
-        // Log the distance before recovery decision
-        console.log(`Bot takeDamage: health=${this.health}, distanceToPlayer=${distanceToPlayer}`);
-
         // Reset the hit state and determine next state after delay
         this.scene.time.delayedCall(500, () => {
             if (!this.sprite || !this.sprite.active || this.dead) return;
@@ -787,7 +801,7 @@ export default class Bot extends Character {
             });
             
             // Send RECOVER event to the state machine
-            console.log(`Bot sending RECOVER: Health=${this.health}, Distance=${distanceToPlayer}`);
+//            console.log(`Bot sending RECOVER: Health=${this.health}, Distance=${distanceToPlayer}`);
             this.botService.send({ type: 'RECOVER' });
             
             // Make sure we still have valid references before attempting animations
@@ -804,7 +818,7 @@ export default class Bot extends Character {
     die(): void {
         if (this.dead || this.isDeathAnimationPlaying) return;
         
-        console.log("Bot death started");
+//        console.log("Bot death started");
         
         // Set dying state tracking
         this.isDeathAnimationPlaying = true;
@@ -862,13 +876,13 @@ export default class Bot extends Character {
             
             // Start the death animation
             this.sprite.anims.play('bot-die', true);
-            console.log("Death animation started playing");
+//            console.log("Death animation started playing");
             
             // Fallback timer based on animation duration: 10 frames at 5fps = 2000ms
             const animDuration = 2500; // Add buffer for safety
             this.scene.time.delayedCall(animDuration, () => {
                 if (this.isDeathAnimationPlaying && this.sprite?.active) {
-                    console.log("Bot death safety timer triggered");
+//                    console.log("Bot death safety timer triggered");
                     this.destroyBot();
                 }
             });
@@ -881,11 +895,13 @@ export default class Bot extends Character {
     destroyBot(): void {
         if (!this.sprite?.active) return; // Prevent multiple destroy calls
         
-        console.log("Destroying bot");
         this.isDeathAnimationPlaying = false;
         
-        // Drop a coin at the bot's position
-        this.dropCoin();
+        // Check if the bot was killed by the player
+        const killedByPlayer = this.sprite.getData('killedByPlayer') === true;
+        
+        // Drop a coin only if killed by player
+        this.dropCoin(killedByPlayer);
         
         // Destroy the sprite
         this.sprite.destroy();
@@ -902,20 +918,46 @@ export default class Bot extends Character {
     
     /**
      * Drops a coin at the bot's position when defeated
+     * @param attackerIsPlayer Optional flag indicating if the player was the attacker
      */
-    dropCoin(): void {
+    dropCoin(attackerIsPlayer: boolean = false): void {
         // Make sure player reference and sprite exist
-        if (!this.player || !this.sprite || !this.sprite.active) return;
+        if (!this.player || !this.sprite || !this.sprite.active) {
+            console.log("Bot.dropCoin: Player, sprite not available or inactive");
+            return;
+        }
         
         // Get bot's current position
         const x = this.sprite.x;
         const y = this.sprite.y;
         
-        // Directly add a coin to the player's purse
-        // This is a simple implementation without visual effects or animations
-        this.player.addCoins(1);
+        console.log(`Bot.dropCoin: Called with attackerIsPlayer=${attackerIsPlayer}, position=${x},${y}`);
         
-        console.log(`Bot destroyed, coin added to player purse. Player now has ${this.player.getCoins()} coins.`);
+        // Only drop a coin if the player killed the bot
+        if (attackerIsPlayer) {
+            console.log("Bot.dropCoin: Player was attacker, creating coin");
+            try {
+                // Create a new coin at the bot's position
+                const coin = new Coin(this.scene, x, y);
+                
+                // Set up collection for this specific coin
+                coin.setupPlayerCollection(this.player);
+                
+                // Make sure the coin collides with platforms
+                const platforms = (this.scene as any).platforms as Phaser.Tilemaps.TilemapLayer;
+                if (platforms) {
+                    this.scene.physics.add.collider(coin, platforms);
+                } else {
+                    console.warn("Bot.dropCoin: Platforms not found for collision");
+                }
+                
+                console.log("Bot.dropCoin: Coin successfully created and configured");
+            } catch (error) {
+                console.error("Bot.dropCoin: Error creating coin:", error);
+            }
+        } else {
+            console.log("Bot.dropCoin: Player was not attacker, no coin dropped");
+        }
     }
 
     setupPlayerCollision(player: Player): void {

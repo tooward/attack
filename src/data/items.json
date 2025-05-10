@@ -7,7 +7,8 @@
       "tradeable": true,
       "usable": false,
       "damage": 20,
-      "description": "A basic sword"
+      "description": "A basic sword",
+      "price": 20
     },
     {
       "id": "axe",
@@ -16,7 +17,8 @@
       "tradeable": true,
       "usable": false,
       "damage": 30,
-      "description": "Heavy but powerful"
+      "description": "Heavy but powerful",
+      "price": 30
     },
     {
       "id": "dagger",
@@ -25,7 +27,8 @@
       "tradeable": true,
       "usable": false,
       "damage": 10,
-      "description": "Fast but less damage"
+      "description": "Fast but less damage",
+      "price": 15
     },
     {
       "id": "health_potion",
@@ -34,7 +37,8 @@
       "tradeable": true,
       "usable": true,
       "health": 25,
-      "description": "Restores 25 health"
+      "description": "Restores 25 health",
+      "price": 5
     },
     {
       "id": "large_health_potion",
@@ -43,7 +47,8 @@
       "tradeable": true,
       "usable": true,
       "health": 50,
-      "description": "Restores 50 health"
+      "description": "Restores 50 health",
+      "price": 10
     },
     {
       "id": "gem",
@@ -52,7 +57,8 @@
       "tradeable": true,
       "usable": false,
       "value": 50,
-      "description": "Valuable trading item"
+      "description": "Valuable trading item",
+      "price": 50
     },
     {
       "id": "map",
@@ -60,7 +66,8 @@
       "type": "quest",
       "tradeable": false,
       "usable": true,
-      "description": "Shows location of hidden treasure"
+      "description": "Shows location of hidden treasure",
+      "price": 50
     }
   ]
 }

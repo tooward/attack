@@ -78,18 +78,21 @@ export default class UIScene extends Scene {
             color: '#fff'
         });
 
+        // Position for coin count display (aligned horizontally with COINS text)
+        const coinDisplayX = rightColumnX + 100;
+        
         // Coin display background
         this.add.graphics()
             .fillStyle(0x222222, 0.8)
-            .fillRect(rightColumnX, 50, 150, 40);
+            .fillRect(coinDisplayX, 20, 150, 30);
 
         // Coin icon - replacing image with a drawn circle
         this.coinIcon = this.add.graphics();
         this.coinIcon.fillStyle(0xCCAA00, 1); // Dark gold/yellow color
-        this.coinIcon.fillCircle(rightColumnX + 30, 70, 15);
+        this.coinIcon.fillCircle(coinDisplayX + 20, 35, 12);
 
         // Coin text
-        this.coinDisplay = this.add.text(rightColumnX + 60, 57, '10', {
+        this.coinDisplay = this.add.text(coinDisplayX + 40, 23, '10', {
             fontSize: '24px',
             color: '#ffff00' // Gold color for coins
         });
