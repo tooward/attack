@@ -265,7 +265,7 @@ export default class GameScene extends Scene {
         this.checkTradeInteraction();
 
         // Draw trade debug visualization
-        this.drawTradeDebugVisualization();
+//        this.drawTradeDebugVisualization();
 
         // Parallax background scroll
         this.updateParallaxBackgrounds();

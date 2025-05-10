@@ -42,33 +42,19 @@ export default class TradeScene extends Scene {
             groundY = platformBounds.y; // Top of the platform layer
             platformsExist = true;
             
-            // Debug logging
-            console.log('Trade Scene Debug - Platform bounds:', platformBounds);
-            console.log('Trade Scene Debug - Initial groundY:', groundY);
-            
             // Check for active trade locations
             if (gameScene.tradeLocations && gameScene.tradeLocations.length > 0) {
                 // Use the Y position of the first trade location instead
                 const tradeY = gameScene.tradeLocations[0].y;
-                console.log('Trade Scene Debug - Trade location Y:', tradeY);
-                
                 // Adjust groundY to be at the trade location rather than platform top
                 groundY = tradeY - 100; // Position UI above the trade location
             }
-        } else {
-            console.log('Trade Scene Debug - No platforms found in GameScene');
         }
-        
-        console.log('Trade Scene Debug - Final groundY:', groundY);
-        console.log('Trade Scene Debug - Screen height:', height);
         
         // Position UI relative to the ground level rather than screen center
         // Calculate a good position that doesn't go off screen
         const uiHeight = height * 0.7; // Reduce height to 70% of screen
         const uiY = Math.max(100, Math.min(groundY - (uiHeight / 2), height * 0.6)); // Keep UI in top 60% of screen
-        
-        console.log('Trade Scene Debug - UI position Y:', uiY);
-        console.log('Trade Scene Debug - UI height:', uiHeight);
         
         // Create semi-transparent background aligned with ground
         this.background = this.add.rectangle(
@@ -79,25 +65,6 @@ export default class TradeScene extends Scene {
             0x000000, 
             0.8
         );
-        
-        // Add a visual indicator to show where the ground level is (for debugging)
-        const groundIndicator = this.add.rectangle(
-            width / 2,
-            groundY,
-            width * 0.9,
-            4,
-            0xff0000,
-            1
-        );
-        groundIndicator.setDepth(1000); // Ensure it's visible on top
-        
-        // Add text label
-        this.add.text(
-            width / 2, 
-            groundY - 10, 
-            platformsExist ? 'Ground Level' : 'Estimated Ground',
-            { fontSize: '12px', color: '#ff0000' }
-        ).setOrigin(0.5, 1).setDepth(1000);
         
         // Position UI elements relative to the background
         const bgBounds = this.background.getBounds();
@@ -152,20 +119,23 @@ export default class TradeScene extends Scene {
             }
         );
         
-        // Create buy button (initially hidden)
+        // Create buy button with corrected positioning
         this.buyButton = this.add.text(
             bgBounds.centerX, 
-            bgBounds.bottom - 40, 
+            bgBounds.top + bgBounds.height * 0.8, // Position at 80% of background height
             'Buy Item', 
             {
-                fontSize: '20px',
+                fontSize: '24px', // Increased size for better visibility
                 color: '#ffffff',
                 backgroundColor: '#446644',
                 padding: { left: 15, right: 15, top: 8, bottom: 8 }
             }
         ).setOrigin(0.5);
         this.buyButton.setInteractive({ useHandCursor: true });
-        this.buyButton.on('pointerdown', this.buySelectedItem, this);
+        this.buyButton.setDepth(100); // Ensure it's always on top
+        
+        // Bind the method to ensure correct 'this' context when called
+        this.buyButton.on('pointerdown', () => this.buySelectedItem(), this);
         this.buyButton.setVisible(false);
         
         // Load and display items for sale
@@ -218,11 +188,26 @@ export default class TradeScene extends Scene {
                 }
             );
             
+            // Store item reference on the button for easier access
+            itemButton.setData('item', item);
+            
             // Make item selectable
             itemButton.setInteractive({ useHandCursor: true });
-            itemButton.on('pointerdown', () => this.selectItem(item), this);
-            itemButton.on('pointerover', () => itemButton.setBackgroundColor('#555555'));
-            itemButton.on('pointerout', () => itemButton.setBackgroundColor('#333333'));
+            
+            // Only set the hover effect, don't reset on pointerout
+            itemButton.on('pointerdown', () => this.selectItem(item, itemButton), this);
+            itemButton.on('pointerover', () => {
+                // Only change background on hover if this isn't the selected item
+                if (this.selectedItem !== item) {
+                    itemButton.setBackgroundColor('#555555');
+                }
+            });
+            itemButton.on('pointerout', () => {
+                // Only reset background on pointer out if this isn't the selected item
+                if (this.selectedItem !== item) {
+                    itemButton.setBackgroundColor('#333333');
+                }
+            });
             
             this.itemButtons.push(itemButton);
         });
@@ -238,7 +223,7 @@ export default class TradeScene extends Scene {
         }
     }
     
-    selectItem(item: Item): void {
+    selectItem(item: Item, clickedButton?: GameObjects.Text): void {
         // Clear previous selection highlight
         this.itemButtons.forEach(button => {
             button.setBackgroundColor('#333333');
@@ -247,12 +232,18 @@ export default class TradeScene extends Scene {
         // Set new selection
         this.selectedItem = item;
         
-        // Find and highlight the selected item button
-        const selectedButton = this.itemButtons.find(
-            button => button.text.includes(item.name)
-        );
+        // Find and highlight the selected item button - use the provided button if available
+        let selectedButton = clickedButton;
+        if (!selectedButton) {
+            selectedButton = this.itemButtons.find(
+                button => button.text.includes(item.name)
+            );
+        }
+        
         if (selectedButton) {
             selectedButton.setBackgroundColor('#665500');
+            // Make sure the button stands out visually
+            selectedButton.setDepth(100);
         }
         
         // Update description text
@@ -267,8 +258,9 @@ export default class TradeScene extends Scene {
         
         this.descriptionText.setText(description);
         
-        // Show buy button
+        // Show buy button and make sure it's visible on top
         this.buyButton.setVisible(true);
+        this.buyButton.setDepth(100);
         
         // Check if player can afford this item
         if (this.player && this.player.getCoins() < item.price) {
@@ -283,21 +275,33 @@ export default class TradeScene extends Scene {
     }
     
     buySelectedItem(): void {
-        if (!this.player || !this.selectedItem) return;
+        if (!this.player || !this.selectedItem) {
+            return;
+        }
         
         // Check if player has enough coins
-        if (this.player.getCoins() < this.selectedItem.price) {
+        const playerCoins = this.player.getCoins();
+        const itemPrice = this.selectedItem.price;
+        
+        if (playerCoins < itemPrice) {
             // Visual feedback for not enough coins
             this.showStatusMessage('Not enough coins!', '#ff0000');
             return;
         }
         
         // Process purchase
-        const success = this.player.removeCoins(this.selectedItem.price);
+        const success = this.player.removeCoins(itemPrice);
         
         if (success) {
             // Add item to player's inventory
-            this.player.addItem(this.selectedItem.id, 1);
+            const itemAdded = this.player.addItem(this.selectedItem.id, 1);
+            
+            if (!itemAdded) {
+                // Item wasn't added properly, refund the coins
+                this.player.addCoins(itemPrice);
+                this.showStatusMessage('Error adding item!', '#ff0000');
+                return;
+            }
             
             // Update coin display
             this.coinDisplay.setText(`Coins: ${this.player.getCoins()}`);
@@ -307,6 +311,8 @@ export default class TradeScene extends Scene {
             
             // Update buy button state for newly selected item (may no longer be affordable)
             this.selectItem(this.selectedItem);
+        } else {
+            this.showStatusMessage('Transaction failed!', '#ff0000');
         }
     }
     

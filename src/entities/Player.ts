@@ -860,7 +860,10 @@ export default class Player extends Character {
      */
     removeCoins(amount: number): boolean {
         if (amount <= 0) return true;
-        if (this.coins < amount) return false;
+        
+        if (this.coins < amount) {
+            return false;
+        }
         
         this.coins -= amount;
         
