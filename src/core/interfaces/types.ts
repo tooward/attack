@@ -93,12 +93,18 @@ export interface FighterState {
   
   // Combat Tracking
   comboCount: number;
+  comboScaling: number;        // Damage multiplier for current combo (starts at 1.0)
+  comboStartFrame: number;     // When current combo began
   lastHitFrame: number;        // When this fighter last landed a hit
   lastHitByFrame: number;      // When this fighter was last hit
   
   // Frame Data
   stunFramesRemaining: number; // Hitstun or blockstun countdown
   invincibleFrames: number;    // Invulnerability window
+  
+  // Cancel tracking
+  cancelAvailable: boolean;    // Can cancel current move?
+  lastCancelFrame: number;     // Frame of last cancel (prevent loops)
   
   // Hitboxes (computed per frame based on current move)
   hurtboxes: Rect[];           // Where this fighter can be hit
@@ -142,15 +148,24 @@ export interface MoveDefinition {
   superMeterGain: number;      // Meter gained on hit
   superMeterCost: number;      // For EX/Super moves
   
+  // Special move properties
+  isSpecial?: boolean;         // Is this a special/super move?
+  projectile?: ProjectileDefinition; // Spawns projectile on activation
+  invincibleFrames?: number[]; // Frame numbers with invincibility
+  
   // Cancel windows
   cancellableInto: string[];   // Move IDs this can cancel into
+  cancellableFrames?: {        // When canceling is allowed
+    start: number;
+    end: number;
+  };
   cancellableOnHit: boolean;
   cancellableOnBlock: boolean;
+  cancellableOnWhiff?: boolean; // Can cancel even on miss
   
   // Requirements
   requiresGrounded: boolean;
   requiresAirborne: boolean;
-  invincibleFrames?: number[]; // Frame numbers with invincibility
 }
 
 // ============================================================================
@@ -184,6 +199,61 @@ export interface CharacterDefinition {
 }
 
 // ============================================================================
+// PROJECTILES
+// ============================================================================
+
+export interface ProjectileDefinition {
+  id: string;
+  name: string;
+  
+  // Movement
+  speed: number;               // Pixels per frame
+  gravity: number;             // 0 for straight projectiles
+  acceleration: number;        // Speeding up/slowing down
+  
+  // Hit properties
+  damage: number;
+  chipDamage: number;
+  hitstun: number;
+  blockstun: number;
+  knockback: Vector2;
+  
+  // Lifetime
+  lifespan: number;            // Frames before auto-dissipate
+  hitLimit: number;            // Max hits (1 for single-hit, N for multi-hit)
+  
+  // Collision
+  hitbox: Rect;
+  destroyOnHit: boolean;       // False for multi-hit projectiles
+}
+
+export interface ProjectileState {
+  id: string;
+  ownerId: string;             // Fighter who created it
+  teamId: number;
+  position: Vector2;
+  velocity: Vector2;
+  
+  // Properties from definition
+  damage: number;
+  chipDamage: number;
+  hitstun: number;
+  blockstun: number;
+  knockback: Vector2;
+  
+  // Hitbox
+  hitbox: Rect;
+  
+  // Lifetime
+  lifespan: number;
+  frameCreated: number;
+  hitCount: number;            // How many times it's hit
+  hitLimit: number;
+  active: boolean;             // Still able to hit
+  destroyOnHit: boolean;
+}
+
+// ============================================================================
 // GAME STATE
 // ============================================================================
 
@@ -210,6 +280,7 @@ export interface ArenaConfig {
 export interface GameState {
   frame: number;               // Current frame count
   entities: FighterState[];    // All active fighters
+  projectiles: ProjectileState[]; // Active projectiles
   round: RoundState;
   match: MatchState;
   arena: ArenaConfig;

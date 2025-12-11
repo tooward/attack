@@ -260,6 +260,124 @@ const AIR_PUNCH: MoveDefinition = {
   requiresAirborne: true,
 };
 
+// Special Moves
+
+const HADOKEN: MoveDefinition = {
+  id: 'hadoken',
+  name: 'Spiritual Wave',
+  input: [InputAction.LIGHT_PUNCH], // Will be checked via motion input
+  motionInput: '236P', // Quarter-circle forward + Punch
+  frameData: {
+    startup: 12,
+    active: 0, // Projectile is active, not fighter
+    recovery: 18,
+    totalFrames: 30,
+  },
+  damage: 0, // Projectile does damage
+  chipDamage: 0,
+  hitstun: 0,
+  blockstun: 8,
+  knockback: { x: 0, y: 0 },
+  hitboxFrames: new Map(), // No fighter hitboxes
+  energyCost: 25,
+  superMeterGain: 0,
+  superMeterCost: 0,
+  isSpecial: true,
+  projectile: {
+    id: 'hadoken_projectile',
+    name: 'Spiritual Wave Projectile',
+    speed: 8,
+    gravity: 0,
+    acceleration: 0,
+    damage: 15,
+    chipDamage: 3,
+    hitstun: 18,
+    blockstun: 12,
+    knockback: { x: 4, y: 0 },
+    lifespan: 120, // 2 seconds at 60fps
+    hitLimit: 1,
+    hitbox: { x: -16, y: -16, width: 32, height: 32 },
+    destroyOnHit: true,
+  },
+  cancellableInto: ['super_combo'],
+  cancellableFrames: { start: 12, end: 12 }, // Can cancel on projectile spawn
+  cancellableOnHit: false,
+  cancellableOnBlock: false,
+  cancellableOnWhiff: false,
+  requiresGrounded: true,
+  requiresAirborne: false,
+};
+
+const SHORYUKEN: MoveDefinition = {
+  id: 'shoryuken',
+  name: 'Dragon Ascent',
+  input: [InputAction.HEAVY_PUNCH], // Will be checked via motion input
+  motionInput: '623P', // Dragon punch motion
+  frameData: {
+    startup: 3, // VERY fast
+    active: 8,
+    recovery: 25, // VERY punishable
+    totalFrames: 36,
+  },
+  damage: 35,
+  chipDamage: 0, // Can't be blocked
+  hitstun: 30,
+  blockstun: 0,
+  knockback: { x: 2, y: -12 }, // Launch upward
+  hitboxFrames: new Map([
+    [3, [{ x: 10, y: -40, width: 40, height: 80 }]],
+    [4, [{ x: 10, y: -60, width: 40, height: 100 }]],
+    [5, [{ x: 10, y: -80, width: 40, height: 120 }]],
+    [6, [{ x: 10, y: -80, width: 40, height: 120 }]],
+    [7, [{ x: 10, y: -60, width: 40, height: 100 }]],
+    [8, [{ x: 10, y: -40, width: 40, height: 80 }]],
+  ]),
+  energyCost: 50,
+  superMeterGain: 0,
+  superMeterCost: 0,
+  isSpecial: true,
+  invincibleFrames: [1, 2, 3, 4, 5, 6, 7, 8], // Fully invincible during active frames
+  cancellableInto: ['super_combo'],
+  cancellableFrames: { start: 8, end: 11 },
+  cancellableOnHit: true,
+  cancellableOnBlock: false,
+  cancellableOnWhiff: false,
+  requiresGrounded: true,
+  requiresAirborne: false,
+};
+
+const SUPER_COMBO: MoveDefinition = {
+  id: 'super_combo',
+  name: 'Five Rings Barrage',
+  input: [InputAction.HEAVY_PUNCH], // Will be checked via motion input
+  motionInput: '236236P', // Double quarter-circle forward
+  frameData: {
+    startup: 5,
+    active: 60, // Long cinematic attack
+    recovery: 15,
+    totalFrames: 80,
+  },
+  damage: 80, // MASSIVE damage
+  chipDamage: 20,
+  hitstun: 60,
+  blockstun: 40,
+  knockback: { x: 8, y: -4 },
+  hitboxFrames: new Map([
+    [5, [{ x: 0, y: -100, width: 200, height: 200 }]], // Screen-filling hitbox
+  ]),
+  energyCost: 0,
+  superMeterGain: 0,
+  superMeterCost: 100, // Full meter
+  isSpecial: true,
+  invincibleFrames: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // Long invincibility
+  cancellableInto: [],
+  cancellableOnHit: false,
+  cancellableOnBlock: false,
+  cancellableOnWhiff: false,
+  requiresGrounded: true,
+  requiresAirborne: false,
+};
+
 // Musashi Character
 export const MUSASHI: CharacterDefinition = {
   id: 'musashi',
@@ -281,5 +399,8 @@ export const MUSASHI: CharacterDefinition = {
     ['light_kick', LIGHT_KICK],
     ['heavy_kick', HEAVY_KICK],
     ['air_punch', AIR_PUNCH],
+    ['hadoken', HADOKEN],
+    ['shoryuken', SHORYUKEN],
+    ['super_combo', SUPER_COMBO],
   ]),
 };

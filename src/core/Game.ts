@@ -14,10 +14,13 @@ import {
   ArenaConfig,
   Vector2,
   CharacterDefinition,
+  ProjectileState,
 } from './interfaces/types';
-import { updateFighterState } from './entities/Fighter';
+import { updateFighterState, regenerateEnergy, regenerateSuperMeter } from './entities/Fighter';
 import { stepAllPhysics } from './systems/Physics';
-import { scanForHits, updateHurtboxes } from './systems/Combat';
+import { scanForHits, updateHurtboxes, checkComboTimeout } from './systems/Combat';
+import { createInputBuffer, addInput, InputBuffer } from './systems/InputBuffer';
+import { createProjectile, updateProjectile, checkProjectileHit, applyProjectileHit } from './entities/Projectile';
 
 /**
  * Create the initial game state from configuration
@@ -52,12 +55,18 @@ export function createInitialState(config: GameConfig): GameState {
     
     // Combat Tracking
     comboCount: 0,
+    comboScaling: 1.0,
+    comboStartFrame: 0,
     lastHitFrame: 0,
     lastHitByFrame: 0,
     
     // Frame Data
     stunFramesRemaining: 0,
     invincibleFrames: 0,
+    
+    // Cancel tracking
+    cancelAvailable: false,
+    lastCancelFrame: 0,
     
     // Hitboxes (empty initially)
     hurtboxes: [],
@@ -66,9 +75,13 @@ export function createInitialState(config: GameConfig): GameState {
 
   const roundTimeFrames = config.roundTimeSeconds * 60; // 60 fps
 
+  // Note: InputBuffers need to be tracked separately per entity by the calling code
+  // We don't store them in GameState to keep it serializable
+
   return {
     frame: 0,
     entities,
+    projectiles: [], // Initialize empty projectiles array
     round: {
       roundNumber: 1,
       timeRemaining: roundTimeFrames,
@@ -95,12 +108,15 @@ export function createInitialState(config: GameConfig): GameState {
  * 
  * @param state Current game state (will NOT be mutated)
  * @param inputs Map of entity ID to their input for this frame
+ * @param characterDefs Character definitions for move lookups
+ * @param inputBuffers Map of entity ID to their input buffer (for special moves)
  * @returns New game state (immutable update)
  */
 export function tick(
   state: GameState,
   inputs: Map<string, InputFrame>,
-  characterDefs?: Map<string, CharacterDefinition>
+  characterDefs?: Map<string, CharacterDefinition>,
+  inputBuffers?: Map<string, InputBuffer>
 ): GameState {
   // Don't advance if paused or round is over
   if (state.isPaused || state.isRoundOver) {
@@ -114,13 +130,29 @@ export function tick(
     entities: state.entities.map(entity => ({ ...entity })),
   };
 
+  // Track new projectiles spawned this frame
+  const newProjectiles: ProjectileState[] = [];
+
   // 1. Update fighter states (input processing + state machine)
   newState.entities = newState.entities.map(fighter => {
     const input = inputs.get(fighter.id) || { actions: new Set(), timestamp: state.frame };
     const characterDef = characterDefs?.get(fighter.characterId);
     const moves = characterDef?.moves || new Map();
+    const inputBuffer = inputBuffers?.get(fighter.id);
     
-    return updateFighterState(fighter, input, moves);
+    const updatedFighter = updateFighterState(fighter, input, moves, inputBuffer, newState.frame);
+    
+    // Check if fighter just started a special move that spawns a projectile
+    if (updatedFighter.currentMove && updatedFighter.moveFrame === 0) {
+      const move = moves.get(updatedFighter.currentMove);
+      if (move?.projectile) {
+        // Spawn projectile
+        const projectile = createProjectile(move.projectile, updatedFighter, newState.frame);
+        newProjectiles.push(projectile);
+      }
+    }
+    
+    return updatedFighter;
   });
 
   // 2. Apply physics to all fighters
@@ -133,10 +165,65 @@ export function tick(
     characterDefs.forEach((charDef, charId) => {
       moveMaps.set(charId, charDef.moves);
     });
-    newState.entities = scanForHits(newState.entities, moveMaps);
+    newState.entities = scanForHits(newState.entities, moveMaps, newState.frame);
   }
 
-  // 4. Update hurtboxes based on stance
+  // 3b. Check for combo timeouts
+  newState.entities = newState.entities.map(fighter => 
+    checkComboTimeout(fighter, newState.frame)
+  );
+
+  // 3c. Regenerate energy and super meter
+  newState.entities = newState.entities.map(fighter => {
+    let updated = regenerateEnergy(fighter);
+    updated = regenerateSuperMeter(updated);
+    return updated;
+  });
+
+  // 4. Update projectiles
+  // Update existing projectiles
+  let activeProjectiles = state.projectiles.map(proj => 
+    updateProjectile(proj, newState.frame, newState.arena.width)
+  ).filter(proj => proj !== null) as ProjectileState[];
+  
+  // Add newly spawned projectiles
+  activeProjectiles = [...activeProjectiles, ...newProjectiles];
+  
+  // Check projectile-fighter collisions
+  for (const projectile of activeProjectiles) {
+    for (let i = 0; i < newState.entities.length; i++) {
+      const fighter = newState.entities[i];
+      
+      // Can't hit yourself or teammates
+      if (fighter.id === projectile.ownerId || fighter.teamId === projectile.teamId) {
+        continue;
+      }
+      
+      // Check collision
+      if (checkProjectileHit(projectile, fighter)) {
+        const wasBlocked = fighter.status === FighterStatus.BLOCK;
+        const result = applyProjectileHit(projectile, fighter, wasBlocked);
+        
+        // Update fighter
+        newState.entities[i] = result.fighter;
+        
+        // Update or remove projectile
+        const projIndex = activeProjectiles.indexOf(projectile);
+        if (result.projectile) {
+          activeProjectiles[projIndex] = result.projectile;
+        } else {
+          // Projectile destroyed
+          activeProjectiles.splice(projIndex, 1);
+        }
+        
+        break; // Projectile hit someone, stop checking
+      }
+    }
+  }
+  
+  newState.projectiles = activeProjectiles;
+  
+  // 5. Update hurtboxes based on stance
   newState.entities = newState.entities.map(fighter => {
     const characterDef = characterDefs?.get(fighter.characterId);
     if (characterDef) {
@@ -150,13 +237,13 @@ export function tick(
     return fighter;
   });
   
-  // 5. Decrement round timer
+  // 6. Decrement round timer
   newState.round = {
     ...newState.round,
     timeRemaining: Math.max(0, newState.round.timeRemaining - 1),
   };
 
-  // 6. Check for round end conditions
+  // 7. Check for round end conditions
   newState = checkRoundEnd(newState);
 
   return newState;
@@ -274,8 +361,12 @@ export function startNextRound(
     currentMove: null,
     moveFrame: 0,
     comboCount: 0,
+    comboScaling: 1.0,
+    comboStartFrame: 0,
     stunFramesRemaining: 0,
     invincibleFrames: 0,
+    cancelAvailable: false,
+    lastCancelFrame: 0,
     hurtboxes: [],
     hitboxes: [],
   }));

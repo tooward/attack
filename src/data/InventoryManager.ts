@@ -10,6 +10,7 @@ export interface Item {
     health?: number;
     value?: number;
     description: string;
+    price?: number;
 }
 
 export interface InventoryItem extends Item {

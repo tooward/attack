@@ -240,14 +240,17 @@ export class NeuralPolicy {
    * Save model to file system (IndexedDB in browser, file in Node)
    */
   async save(path: string): Promise<void> {
-    await this.model.save(`localstorage://${path}`);
+    // Use the path as-is - caller should specify correct scheme
+    // (file:// for Node.js, localstorage:// for browser)
+    await this.model.save(path);
   }
 
   /**
    * Load model from file system
    */
   async load(path: string): Promise<void> {
-    this.model = await tf.loadLayersModel(`localstorage://${path}`) as tf.LayersModel;
+    // Use the path as-is - caller should specify correct scheme
+    this.model = await tf.loadLayersModel(path) as tf.LayersModel;
   }
 
   /**

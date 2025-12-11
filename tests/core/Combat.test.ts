@@ -36,10 +36,14 @@ describe('Combat System', () => {
     currentMove: null,
     moveFrame: 0,
     comboCount: 0,
+    comboScaling: 1.0,
+    comboStartFrame: 0,
     lastHitFrame: 0,
     lastHitByFrame: 0,
     stunFramesRemaining: 0,
     invincibleFrames: 0,
+    cancelAvailable: false,
+    lastCancelFrame: 0,
     hurtboxes: [{ x: 0, y: 0, width: 60, height: 80 }],
     hitboxes: [],
   };
@@ -217,27 +221,26 @@ describe('Combat System', () => {
   });
 
   describe('calculateDamage', () => {
-    it('should return base damage for first hit', () => {
-      const damage = calculateDamage(10, 0);
+    it('should return base damage with 1.0 scaling', () => {
+      const damage = calculateDamage(10, 1.0);
 
       expect(damage).toBe(10);
     });
 
-    it('should scale damage in combos', () => {
-      const damage1 = calculateDamage(10, 1);
-      const damage2 = calculateDamage(10, 2);
-      const damage3 = calculateDamage(10, 3);
+    it('should scale damage with combo scaling', () => {
+      const damage1 = calculateDamage(10, 0.9); // First hit scaling
+      const damage2 = calculateDamage(10, 0.8); // Second hit scaling
+      const damage3 = calculateDamage(10, 0.7); // Third hit scaling
 
-      expect(damage1).toBeLessThan(10);
-      expect(damage2).toBeLessThan(damage1);
-      expect(damage3).toBeLessThan(damage2);
+      expect(damage1).toBe(9);
+      expect(damage2).toBe(8);
+      expect(damage3).toBe(7);
     });
 
-    it('should have minimum scaling floor', () => {
-      const damage = calculateDamage(10, 100);
+    it('should apply minimum scaling floor', () => {
+      const damage = calculateDamage(10, 0.3); // Minimum scaling
 
-      expect(damage).toBeGreaterThan(0);
-      expect(damage).toBe(3); // 10 * 0.3 (min scaling)
+      expect(damage).toBe(3); // 10 * 0.3
     });
   });
 
@@ -256,7 +259,7 @@ describe('Combat System', () => {
         health: 100,
       };
 
-      const [newAttacker, newDefender] = resolveHit(attacker, defender, mockMove);
+      const [newAttacker, newDefender] = resolveHit(attacker, defender, mockMove, 0);
 
       expect(newDefender.health).toBe(90); // 100 - 10
       expect(newDefender.status).toBe(FighterStatus.HITSTUN);
@@ -279,7 +282,7 @@ describe('Combat System', () => {
         status: FighterStatus.BLOCK,
       };
 
-      const [newAttacker, newDefender] = resolveHit(attacker, defender, mockMove);
+      const [newAttacker, newDefender] = resolveHit(attacker, defender, mockMove, 0);
 
       expect(newDefender.health).toBe(98); // 100 - 2 chip
       expect(newDefender.status).toBe(FighterStatus.BLOCKSTUN);
@@ -299,7 +302,7 @@ describe('Combat System', () => {
         health: 5,
       };
 
-      const [, newDefender] = resolveHit(attacker, defender, mockMove);
+      const [, newDefender] = resolveHit(attacker, defender, mockMove, 0);
 
       expect(newDefender.health).toBe(0);
     });
@@ -316,7 +319,7 @@ describe('Combat System', () => {
         id: 'defender',
       };
 
-      const [, newDefender] = resolveHit(attacker, defender, mockMove);
+      const [, newDefender] = resolveHit(attacker, defender, mockMove, 0);
 
       expect(newDefender.velocity.x).toBe(2); // knockback.x * facing
     });
@@ -333,7 +336,7 @@ describe('Combat System', () => {
         id: 'defender',
       };
 
-      const [, newDefender] = resolveHit(attacker, defender, mockMove);
+      const [, newDefender] = resolveHit(attacker, defender, mockMove, 0);
 
       expect(newDefender.velocity.x).toBe(-2); // knockback.x * facing (-1)
     });

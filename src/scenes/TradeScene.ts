@@ -263,7 +263,7 @@ export default class TradeScene extends Scene {
         this.buyButton.setDepth(100);
         
         // Check if player can afford this item
-        if (this.player && this.player.getCoins() < item.price) {
+        if (this.player && item.price !== undefined && this.player.getCoins() < item.price) {
             this.buyButton.setBackgroundColor('#664444');
             this.buyButton.setText('Not enough coins');
             this.buyButton.disableInteractive();
@@ -279,9 +279,15 @@ export default class TradeScene extends Scene {
             return;
         }
         
+        // Check if item has a price
+        const itemPrice = this.selectedItem.price;
+        if (itemPrice === undefined) {
+            this.showStatusMessage('Item cannot be purchased!', '#ff0000');
+            return;
+        }
+        
         // Check if player has enough coins
         const playerCoins = this.player.getCoins();
-        const itemPrice = this.selectedItem.price;
         
         if (playerCoins < itemPrice) {
             // Visual feedback for not enough coins

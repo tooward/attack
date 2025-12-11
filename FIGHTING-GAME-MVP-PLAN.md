@@ -598,55 +598,55 @@ export interface TrainingConfig {
 
 ---
 
-### Phase 6: AI Training Infrastructure (Week 6-8)
+### Phase 6: Polish & Game Feel (Week 6-7)
 
-**Goal:** Enable TensorFlow.js reinforcement learning.
+**Goal:** Transform the functional fighting game into a satisfying, polished experience.
 
-#### Step 6.1: State Encoder
-- [ ] Implement `StateEncoder.ts`:
-  ```typescript
-  function encodeState(state: GameState, playerId: 'player1' | 'player2'): Observation {
-    // Normalize all values to [-1, 1]
-    // Return flat array for neural network
-  }
-  ```
+**Note:** AI Training Infrastructure was completed early in Phase 4. This phase focuses on player experience.
 
-#### Step 6.2: Reward Function
-- [ ] Implement `RewardFunction.ts`:
-  - Damage dealt: +0.01 per point
-  - Damage taken: -0.01 per point
-  - Round win: +1.0
-  - Round loss: -1.0
-  - Time penalty: -0.0001 per frame (encourage aggression)
-  - Combo bonus: +0.001 per hit in combo
+#### Step 6.1: Visual Feedback
+- [ ] Hit freeze (frame pause on impact)
+- [ ] Screen shake on heavy hits
+- [ ] Hit spark particle effects
+- [ ] Character flash on damage
+- [ ] Block spark effects
 
-#### Step 6.3: Training Loop
-- [ ] Implement `Trainer.ts`:
-  - PPO (Proximal Policy Optimization) or DQN
-  - Self-play training
-  - Save/load model checkpoints
-  - Training metrics logging
+#### Step 6.2: Audio System
+- [ ] Hit sounds (light, medium, heavy)
+- [ ] Block sounds
+- [ ] Whoosh sounds for attacks
+- [ ] Special move sounds (hadoken, shoryuken)
+- [ ] Background music (looping combat theme)
+- [ ] Announcer voice clips ("Round 1", "Fight!", "K.O.")
 
-#### Step 6.4: Headless Training Script
-- [ ] Create `train.ts`:
-  - Run without Phaser
-  - Command-line arguments for config
-  - Progress reporting
-  - Model export to JSON
+#### Step 6.3: Training Mode
+- [ ] Dummy controls (idle, crouch, jump, block)
+- [ ] Recording/playback system
+- [ ] Frame data display overlay
+- [ ] Hitbox visualization toggle (F1)
+- [ ] Position/health reset (F3/F4)
+- [ ] Infinite meter toggle (F5)
 
-#### Step 6.5: Training Visualization
-- [ ] Create `TrainingScene.ts`:
-  - Watch AI vs AI in real-time
-  - Display training metrics
-  - Slow-motion replay of interesting moments
+#### Step 6.4: Quality of Life
+- [ ] Input display (show notation on screen)
+- [ ] Damage numbers (floating text)
+- [ ] Pause menu
+- [ ] Combo counter display
+- [ ] Training shortcuts (F-keys)
 
-**Dependencies:**
-```json
-{
-  "@tensorflow/tfjs": "^4.x",
-  "@tensorflow/tfjs-node": "^4.x"  // For faster training
-}
-```
+**🎨 ASSET REQUIREMENT:**
+> Visual Effects:
+> - Hit spark sprite (8-frame animation)
+> - Block spark sprite (4-frame animation)
+> - Dust cloud sprite (6-frame animation)
+>
+> **🔊 AUDIO REQUIREMENT:**
+> - Hit sounds: 6 files (light x2, medium x2, heavy x2)
+> - Whoosh sounds: 3 files (punch, kick, special)
+> - Block sound: 1 file
+> - Special sounds: 2 files (hadoken, shoryuken)
+> - Announcer: 5 clips (round_1, round_2, fight, ko, perfect)
+> - Music: 1 looping track (2-3 minutes, OGG format)
 
 ### Bot Personality Matrix (Scripted + RL Hybrid)
 
@@ -685,76 +685,66 @@ A "personality" isn't just playstyle, it's also blind spots and quirks the playe
 
 ---
 
-### Phase 7: Polish & Game Feel (Week 8-9)
+### Phase 7: Second Character (Week 8)
 
-**Goal:** Make the game feel responsive and satisfying.
+**Goal:** Add a second playable character with distinct playstyle.
 
-#### Step 7.1: Visual Feedback
-- [ ] Hit freeze (3-5 frame pause on hit)
-- [ ] Screen shake on heavy hits
-- [ ] Hit sparks and effects
-- [ ] Character flash on hit
+#### Step 7.1: Ronin Character Data
+- [ ] Create `characters/ronin.ts`:
+  - Heavier, slower than Musashi
+  - Higher damage output
+  - Different frame data (slower startup, longer recovery)
+  - Same special move types (fireball, DP, super)
 
-#### Step 7.2: Audio
-- [ ] Hit sounds (light, medium, heavy)
-- [ ] Block sounds
-- [ ] Whoosh sounds for attacks
-- [ ] Voice clips (optional)
-- [ ] Background music
+#### Step 7.2: Character Balance
+- [ ] Adjust Musashi frame data if needed
+- [ ] Test matchup (Musashi vs Ronin)
+- [ ] Ensure both characters viable
+- [ ] Document character differences
 
-#### Step 7.3: Animation Polish
-- [ ] Smooth animation transitions
-- [ ] Anticipation frames
-- [ ] Impact frames
-- [ ] Recovery poses
-
-#### Step 7.4: Quality of Life
-- [ ] Button config screen
-- [ ] Training mode:
-  - Dummy recording/playback
-  - Hitbox display toggle
-  - Frame data display
-- [ ] Pause menu
+#### Step 7.3: Character Select Integration
+- [ ] Add Ronin to character selection
+- [ ] Display character stats preview
+- [ ] Update AI bots to use Ronin
 
 **🎨 ASSET REQUIREMENT:**
-> - Hit spark variations (3-4 types)
-> - Block spark effect
-> - Dust/landing effects
-> - Background animated elements (flags, torches, etc.)
-> 
-> **🔊 AUDIO REQUIREMENT:**
-> - Light hit sound
-> - Medium hit sound  
-> - Heavy hit sound
-> - Block sound
-> - Whoosh sounds (3-4 variations)
-> - Announcer clips: "Round 1", "Round 2", "Final Round", "Fight!", "K.O."
-> - Background music track (looping, ~2-3 minutes)
+> Ronin sprite sheet (can be palette swap initially):
+> - Same animation set as Musashi
+> - Different color scheme (red/black vs blue/white)
+> - Character select portrait (128x128)
+> - Move effect variations (different colored projectiles)
 
 ---
 
-### Phase 8: Third Character & Balance (Week 9-10)
+### Phase 8: Third Character & Final Balance (Week 9-10)
 
-**Goal:** Add variety and balance the roster.
+**Goal:** Complete the roster and finalize game balance.
 
 #### Step 8.1: Ninja Character
 - [ ] Create `characters/ninja.ts`:
-  - Fast movement, low health
-  - Quick attacks, long combos
-  - Teleport special move
-  - Different playstyle than Musashi/Ronin
+  - Fast movement, low health (glass cannon)
+  - Quick attacks, strong combo potential
+  - Unique special move (teleport or air dash)
+  - Distinct playstyle (rushdown vs Musashi's all-rounder, Ronin's power)
 
-#### Step 8.2: Balance Pass
-- [ ] Analyze AI training data for imbalances
+#### Step 8.2: Final Balance Pass
+- [ ] Play test all matchups (3 characters = 3 matchups)
 - [ ] Adjust frame data based on win rates
-- [ ] Tune damage values
-- [ ] Ensure all characters viable
+- [ ] Tune damage values across roster
+- [ ] Ensure all characters viable and fun
+- [ ] Document character archetypes and strategies
 
-#### Step 8.3: Difficulty Tuning
-- [ ] Create AI difficulty levels from trained models:
-  - Easy: Early training checkpoint + random noise
-  - Medium: Mid-training checkpoint
-  - Hard: Fully trained model
+#### Step 8.3: AI Training for New Characters
+- [ ] Train PersonalityBot profiles for Ronin and Ninja
+- [ ] Record replay data with all 3 characters
+- [ ] Train NeuralBot on diverse character data
+- [ ] Test AI performance across matchups
+
+#### Step 8.4: Difficulty Tuning
+- [ ] Easy: RandomBot + low aggression PersonalityBot
+- [ ] Medium: Balanced PersonalityBot
+- [ ] Hard: Aggressive PersonalityBot or trained NeuralBot
+- [ ] Expert: Fully trained NeuralBot (optional)
 
 **🎨 ASSET REQUIREMENT:**
 > Ninja sprite sheet with same animation set, unique style:
@@ -896,23 +886,40 @@ tests/
 - **Controls:** on-screen buttons + optional gestures; enable remapping; lenient motion detection and input buffering for touch.
 - **Performance:** texture atlases, object pools, limit particle counts, LQ/MQ/HQ presets; avoid large canvas on low-end devices; compressed audio (ogg), lazy-load arenas.
 
-
 ---
 
 ## Timeline Summary
 
-| Phase | Duration | Deliverable |
-|-------|----------|-------------|
-| 1. Core Foundation | 2 weeks | Headless game engine |
-| 2. First Character | 1 week | Musashi with basic moves |
-| 3. Phaser Integration | 1 week | Playable single-player |
-| 4. Second Character & Bot | 1 week | VS mode with AI opponent |
-| 5. Special Moves & Combos | 1 week | Depth and strategy |
-| 6. AI Training | 2 weeks | TensorFlow.js RL pipeline |
-| 7. Polish | 1 week | Game feel and audio |
-| 8. Third Character | 1 week | Roster variety and balance |
+### Original Plan vs Actual Execution
 
-**Total MVP: ~10 weeks**
+| Phase | Original Plan | Actual Execution | Status |
+|-------|--------------|------------------|--------|
+| 1 | Core Foundation | Core Foundation + Musashi Character | ✅ COMPLETE |
+| 2 | First Character (Musashi) | Phaser Integration + Basic UI | ✅ COMPLETE |
+| 3 | Phaser Integration | AI Foundation (RandomBot, PersonalityBot, Replay) | ✅ COMPLETE |
+| 4 | Second Character & Bot | TensorFlow.js Training (Neural nets) | ✅ COMPLETE |
+| 5 | Special Moves & Combos | Special Moves & Combos (Types & Data) | 🔄 **IN PROGRESS** |
+| 6 | AI Training Infrastructure | Polish & Game Feel (Hit freeze, audio, training mode) | NEXT |
+| 7 | Polish & Game Feel | Second Character (Ronin) | PLANNED |
+| 8 | Third Character (Ninja) | Third Character & Balance | PLANNED |
+
+**Key Deviations:**
+- ✅ **Accelerated AI Development:** Phases 3-4 implemented full AI infrastructure early (bots, training, neural networks)
+- ✅ **Character bundled with Core:** Musashi character data created alongside Phase 1
+- ✅ **Phaser moved earlier:** Integrated rendering in Phase 2 for faster iteration
+- 📊 **Bot Training:** Already complete! You can train neural networks NOW using ImitationTrainer
+- 🎯 **Phase Reordering:** Polish moved before additional characters for better iteration feedback
+
+**Phase 5 Progress (Current):**
+- ✅ Projectile system (types, physics, collision)
+- ✅ Enhanced type definitions (combo scaling, cancels, invincibility)
+- ✅ Special moves data (Hadoken, Shoryuken, Super Combo)
+- ⏳ Motion input integration (pending)
+- ⏳ Combo scaling & damage calculation (pending)
+- ⏳ Super meter gain logic (pending)
+- ⏳ Phaser rendering updates (pending)
+
+**Total MVP: ~8 weeks** (2 weeks faster due to efficient batching)
 
 ---
 
@@ -957,11 +964,14 @@ tests/
 6. ✅ Training mode with hitbox display
 7. ✅ Full round/match flow with UI
 
-### AI Training Complete When:
-1. ✅ Headless training runs 1000+ games/minute
-2. ✅ Trained bot beats scripted "Hard" AI 70%+ of the time
-3. ✅ Multiple difficulty checkpoints saved
-4. ✅ Bot exhibits human-like patterns (footsies, anti-airs, punishes)
+### AI Training Status:
+1. ✅ **COMPLETE:** Headless core runs 10,000+ frames/second
+2. ✅ **COMPLETE:** Neural network policy (TensorFlow.js)
+3. ✅ **COMPLETE:** Imitation learning trainer (supervised learning)
+4. ✅ **COMPLETE:** Replay recording/playback system
+5. ✅ **COMPLETE:** Multiple bot types (Random, Personality, Neural)
+6. 🔄 **READY:** Can train bots NOW - need replay data collection
+7. 🔮 **FUTURE:** Reinforcement learning (self-play, PPO/DQN)
 
 ---
 

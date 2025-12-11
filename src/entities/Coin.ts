@@ -4,7 +4,7 @@ import Player from './Player';
 export default class Coin extends GameObjects.Sprite {
     // Store reference to scene and physics body
     scene: Scene;
-    body: Physics.Arcade.Body;
+    body!: Physics.Arcade.Body;
     value: number;
     
     /**
@@ -29,10 +29,7 @@ export default class Coin extends GameObjects.Sprite {
         // Enable physics
         scene.physics.add.existing(this);
         
-        // Get body with proper type assertion
-        this.body = this.body as Physics.Arcade.Body;
-        
-        // Configure physics body
+        // Configure physics body (body is assigned by Phaser after physics.add.existing)
         this.body.setCollideWorldBounds(true);
         this.body.setBounce(0.4);
         this.body.setDrag(100, 0);
@@ -70,7 +67,7 @@ export default class Coin extends GameObjects.Sprite {
      */
     static preload(scene: Scene): void {
         // Create a simple coin texture programmatically using a different key
-        const coinGraphics = scene.make.graphics({ x: 0, y: 0, add: false });
+        const coinGraphics = scene.make.graphics({ x: 0, y: 0 });
         
         // Draw a gold coin with gradient fill
         coinGraphics.fillStyle(0xffcc00);

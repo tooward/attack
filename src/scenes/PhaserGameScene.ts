@@ -6,7 +6,7 @@
  */
 
 import { Scene } from 'phaser';
-import { GameState, CharacterDefinition, InputFrame } from '../core/interfaces/types';
+import { GameState, CharacterDefinition, InputFrame, FighterState } from '../core/interfaces/types';
 import { createInitialState, tick } from '../core/Game';
 import { MUSASHI } from '../core/data/musashi';
 import { FighterSprite } from '../phaser/FighterSprite';
@@ -25,6 +25,7 @@ export default class PhaserGameScene extends Scene {
 
   // Phaser rendering
   private fighterSprites!: Map<string, FighterSprite>;
+  private projectileSprites!: Map<string, Phaser.GameObjects.Rectangle>;
   private debugGraphics!: Phaser.GameObjects.Graphics;
   private debugMode: boolean = false;
 
@@ -43,6 +44,8 @@ export default class PhaserGameScene extends Scene {
   private timeText!: Phaser.GameObjects.Text;
   private fpsText!: Phaser.GameObjects.Text;
   private botTypeText!: Phaser.GameObjects.Text;
+  private comboTexts!: Map<string, Phaser.GameObjects.Text>;
+  private meterGraphics!: Map<string, Phaser.GameObjects.Graphics>;
 
   constructor() {
     super({ key: 'PhaserGameScene' });
@@ -111,6 +114,29 @@ export default class PhaserGameScene extends Scene {
       this.fighterSprites.set(fighter.id, sprite);
     }
 
+    // Create projectile sprites map
+    this.projectileSprites = new Map();
+
+    // Create combo texts and meter graphics for each fighter
+    this.comboTexts = new Map();
+    this.meterGraphics = new Map();
+    for (const fighter of this.gameState.entities) {
+      const comboText = this.add.text(0, 0, '', {
+        fontSize: '32px',
+        color: '#ffff00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 4,
+      });
+      comboText.setOrigin(0.5, 0.5);
+      comboText.setDepth(50);
+      this.comboTexts.set(fighter.id, comboText);
+
+      const meterGraphics = this.add.graphics();
+      meterGraphics.setDepth(40);
+      this.meterGraphics.set(fighter.id, meterGraphics);
+    }
+
     // Create debug graphics
     this.debugGraphics = this.add.graphics();
     this.debugGraphics.setDepth(100);
@@ -124,6 +150,9 @@ export default class PhaserGameScene extends Scene {
     this.aiBot = new RandomBot();
     this.neuralPolicy = new NeuralPolicy();
     this.botType = 'random';
+    
+    // Try to load trained model (async, doesn't block scene)
+    this.loadNeuralModel();
 
     // Create UI text
     this.roundText = this.add.text(500, 20, '', {
@@ -215,6 +244,12 @@ export default class PhaserGameScene extends Scene {
       }
     }
 
+    // Update projectiles
+    this.updateProjectiles();
+
+    // Update combo counters and meter bars
+    this.updateCombosAndMeters();
+
     // Update UI
     this.updateUI();
 
@@ -260,6 +295,121 @@ export default class PhaserGameScene extends Scene {
       if (winnerFighter) {
         this.roundText.setText(`${winnerFighter.id} WINS THE MATCH!`);
       }
+    }
+  }
+
+  /**
+   * Update projectile sprites to match game state
+   */
+  private updateProjectiles(): void {
+    // Remove projectiles that no longer exist
+    const currentProjectileIds = new Set(this.gameState.projectiles.map(p => p.id));
+    for (const [id, sprite] of this.projectileSprites.entries()) {
+      if (!currentProjectileIds.has(id)) {
+        sprite.destroy();
+        this.projectileSprites.delete(id);
+      }
+    }
+
+    // Create or update projectile sprites
+    for (const projectile of this.gameState.projectiles) {
+      let sprite = this.projectileSprites.get(projectile.id);
+      
+      if (!sprite) {
+        // Create new projectile sprite
+        const color = projectile.teamId === 0 ? 0x00ffff : 0xff00ff;
+        sprite = this.add.rectangle(
+          projectile.position.x,
+          projectile.position.y,
+          projectile.hitbox.width,
+          projectile.hitbox.height,
+          color,
+          0.8
+        );
+        sprite.setDepth(20);
+        this.projectileSprites.set(projectile.id, sprite);
+      } else {
+        // Update existing sprite position
+        sprite.setPosition(projectile.position.x, projectile.position.y);
+      }
+    }
+  }
+
+  /**
+   * Update combo counters and super meter bars
+   */
+  private updateCombosAndMeters(): void {
+    for (const fighter of this.gameState.entities) {
+      // Update combo counter
+      const comboText = this.comboTexts.get(fighter.id);
+      if (comboText) {
+        if (fighter.comboCount > 1) {
+          comboText.setText(`${fighter.comboCount} HIT COMBO!`);
+          comboText.setPosition(fighter.position.x, fighter.position.y - 150);
+          comboText.setAlpha(1.0);
+        } else {
+          comboText.setAlpha(0);
+        }
+      }
+
+      // Update super meter bar
+      const meterGraphics = this.meterGraphics.get(fighter.id);
+      if (meterGraphics) {
+        this.drawMeterBar(meterGraphics, fighter);
+      }
+    }
+  }
+
+  /**
+   * Draw super meter bar for a fighter
+   */
+  private drawMeterBar(graphics: Phaser.GameObjects.Graphics, fighter: FighterState): void {
+    const barWidth = 200;
+    const barHeight = 12;
+    const barX = fighter.teamId === 0 ? 20 : 780; // Left for P1, right for P2
+    const barY = 80;
+    const meterPercent = Math.max(0, Math.min(1, fighter.superMeter / fighter.maxSuperMeter));
+
+    graphics.clear();
+
+    // Background (dark)
+    graphics.fillStyle(0x000000, 0.8);
+    graphics.fillRect(barX, barY, barWidth, barHeight);
+
+    // Super meter (gradient from yellow to red)
+    const segments = 3; // Show 3 bars for visual effect
+    const segmentWidth = barWidth / segments;
+    const filledSegments = Math.floor(meterPercent * segments);
+    const partialSegment = (meterPercent * segments) % 1;
+
+    for (let i = 0; i < segments; i++) {
+      const segmentX = barX + (i * segmentWidth) + 2;
+      const segmentY = barY + 2;
+      const segmentH = barHeight - 4;
+      
+      if (i < filledSegments) {
+        // Full segment
+        graphics.fillStyle(0xffaa00);
+        graphics.fillRect(segmentX, segmentY, segmentWidth - 4, segmentH);
+      } else if (i === filledSegments && partialSegment > 0) {
+        // Partial segment
+        graphics.fillStyle(0xffaa00);
+        graphics.fillRect(segmentX, segmentY, (segmentWidth - 4) * partialSegment, segmentH);
+      }
+    }
+
+    // Border
+    graphics.lineStyle(2, 0xffffff);
+    graphics.strokeRect(barX, barY, barWidth, barHeight);
+
+    // Label
+    if (!this[`meterLabel_${fighter.id}` as keyof this]) {
+      const label = this.add.text(barX, barY - 18, 'SUPER METER', {
+        fontSize: '12px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      });
+      (this as any)[`meterLabel_${fighter.id}`] = label;
     }
   }
 
@@ -312,6 +462,29 @@ export default class PhaserGameScene extends Scene {
       // Destroy text after this frame (it's just for debug)
       this.time.delayedCall(0, () => textObj.destroy());
     }
+
+    // Draw projectile hitboxes
+    this.debugGraphics.lineStyle(2, 0xff00ff, 0.8);
+    for (const projectile of this.gameState.projectiles) {
+      const worldX = projectile.position.x + projectile.hitbox.x;
+      const worldY = projectile.position.y + projectile.hitbox.y;
+      this.debugGraphics.strokeRect(worldX, worldY, projectile.hitbox.width, projectile.hitbox.height);
+      
+      // Draw projectile info
+      const projText = this.add.text(
+        projectile.position.x,
+        projectile.position.y - 20,
+        `Hits: ${projectile.hitCount}/${projectile.hitLimit}`,
+        {
+          fontSize: '10px',
+          color: '#ffff00',
+          backgroundColor: '#000000',
+          padding: { x: 4, y: 4 },
+        }
+      );
+      projText.setOrigin(0.5, 1);
+      this.time.delayedCall(0, () => projText.destroy());
+    }
   }
 
   /**
@@ -355,11 +528,75 @@ export default class PhaserGameScene extends Scene {
   }
 
   /**
+   * Attempt to load trained neural model
+   * 1. Try IndexedDB (cached from previous session)
+   * 2. Try HTTP server (newly trained model)
+   * 3. If HTTP succeeds, save to IndexedDB for next time
+   */
+  private async loadNeuralModel(): Promise<void> {
+    const indexedDbPath = 'indexeddb://musashi_v1';
+    const httpPath = 'http://localhost:8080/musashi_v1/model.json';
+
+    try {
+      // Try loading from IndexedDB first (fastest)
+      await this.neuralPolicy.load(indexedDbPath);
+      console.log('✓ Loaded trained neural model from IndexedDB');
+      this.botTypeText.setText('AI: Random Bot | Neural Model: Loaded (Cached)');
+      return;
+    } catch (indexedDbError) {
+      // IndexedDB failed, try HTTP server
+      console.log('⚠ No cached model in IndexedDB, trying HTTP server...');
+      
+      try {
+        // Load from HTTP server (must be running: npm run serve-models)
+        await this.neuralPolicy.load(httpPath);
+        console.log('✓ Loaded trained neural model from HTTP');
+        
+        // Save to IndexedDB for next time
+        try {
+          await this.neuralPolicy.save(indexedDbPath);
+          console.log('✓ Cached model to IndexedDB for future sessions');
+          this.botTypeText.setText('AI: Random Bot | Neural Model: Loaded (New)');
+        } catch (saveError) {
+          console.warn('⚠ Failed to cache model to IndexedDB:', saveError);
+          this.botTypeText.setText('AI: Random Bot | Neural Model: Loaded (HTTP only)');
+        }
+        return;
+      } catch (httpError) {
+        // Both failed - no trained model available
+        console.log('⚠ No trained model found');
+        console.log('  1. Train a model: npm run train');
+        console.log('  2. Serve models: npm run serve-models');
+        console.log('  3. Reload this page');
+        console.log('  Neural Bot will use random weights until trained model is loaded');
+      }
+    }
+  }
+
+  /**
    * Cleanup
    */
   shutdown(): void {
     this.inputHandler.destroy();
     this.fighterSprites.clear();
+    
+    // Clean up projectile sprites
+    for (const sprite of this.projectileSprites.values()) {
+      sprite.destroy();
+    }
+    this.projectileSprites.clear();
+    
+    // Clean up UI elements
+    for (const text of this.comboTexts.values()) {
+      text.destroy();
+    }
+    this.comboTexts.clear();
+    
+    for (const graphics of this.meterGraphics.values()) {
+      graphics.destroy();
+    }
+    this.meterGraphics.clear();
+    
     this.neuralPolicy.dispose();
   }
 }

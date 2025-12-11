@@ -107,14 +107,13 @@ export function checkHit(
 
 /**
  * Calculate damage with combo scaling
+ * Uses the fighter's current combo scaling value
  */
 export function calculateDamage(
   baseDamage: number,
-  comboCount: number
+  comboScaling: number
 ): number {
-  // Damage scaling: each hit after the first does less damage
-  const scaling = Math.max(0.3, 1 - (comboCount * 0.1));
-  return Math.floor(baseDamage * scaling);
+  return Math.floor(baseDamage * comboScaling);
 }
 
 /**
@@ -123,31 +122,49 @@ export function calculateDamage(
 export function resolveHit(
   attacker: FighterState,
   defender: FighterState,
-  move: MoveDefinition
+  move: MoveDefinition,
+  currentFrame: number
 ): [FighterState, FighterState] {
   const wasBlocked = defender.status === FighterStatus.BLOCK;
 
   if (wasBlocked) {
     // Blocked hit
     const damage = move.chipDamage;
+    
+    // Defender gains meter when blocking (defensive meter gain)
+    const defenderMeterGain = damage * 2; // Gain 2 meter per chip damage point
+    
     const newDefender = applyBlockstun(
-      { ...defender, health: Math.max(0, defender.health - damage) },
+      { 
+        ...defender, 
+        health: Math.max(0, defender.health - damage),
+        superMeter: Math.min(
+          defender.maxSuperMeter,
+          defender.superMeter + defenderMeterGain
+        ),
+      },
       move.blockstun
     );
 
-    // Attacker gains less meter on block
+    // Attacker gains less meter on block, combo resets
     const newAttacker = {
       ...attacker,
+      comboCount: 0,
+      comboScaling: 1.0,
       superMeter: Math.min(
         attacker.maxSuperMeter,
-        attacker.superMeter + move.superMeterGain * 0.5
+        attacker.superMeter + (move.superMeterGain || 0) * 0.5
       ),
     };
 
     return [newAttacker, newDefender];
   } else {
     // Clean hit
-    const damage = calculateDamage(move.damage, attacker.comboCount);
+    const damage = calculateDamage(move.damage, attacker.comboScaling);
+    
+    // Defender gains meter when taking damage (defensive meter gain)
+    const defenderMeterGain = damage * 1.5; // Gain 1.5 meter per damage point
+    
     const knockback = {
       x: move.knockback.x * attacker.facing,
       y: move.knockback.y,
@@ -158,19 +175,33 @@ export function resolveHit(
         ...defender,
         health: Math.max(0, defender.health - damage),
         comboCount: 0, // Reset defender's combo
-        lastHitByFrame: 0, // Will be set by game loop
+        comboScaling: 1.0,
+        lastHitByFrame: currentFrame,
+        superMeter: Math.min(
+          defender.maxSuperMeter,
+          defender.superMeter + defenderMeterGain
+        ),
       },
       move.hitstun,
       knockback
     );
 
+    // Update attacker's combo state
+    const newComboCount = attacker.comboCount + 1;
+    const comboStartFrame = attacker.comboCount === 0 ? currentFrame : attacker.comboStartFrame;
+    
+    // Combo scaling: each hit reduces damage by 10%, minimum 30% damage
+    const newComboScaling = Math.max(0.3, 1.0 - (newComboCount - 1) * 0.1);
+
     const newAttacker = {
       ...attacker,
-      comboCount: attacker.comboCount + 1,
-      lastHitFrame: 0, // Will be set by game loop
+      comboCount: newComboCount,
+      comboScaling: newComboScaling,
+      comboStartFrame: comboStartFrame,
+      lastHitFrame: currentFrame,
       superMeter: Math.min(
         attacker.maxSuperMeter,
-        attacker.superMeter + move.superMeterGain
+        attacker.superMeter + (move.superMeterGain || 0)
       ),
     };
 
@@ -183,7 +214,8 @@ export function resolveHit(
  */
 export function scanForHits(
   entities: FighterState[],
-  characterMoves: Map<string, Map<string, MoveDefinition>>
+  characterMoves: Map<string, Map<string, MoveDefinition>>,
+  currentFrame: number = 0
 ): FighterState[] {
   let updatedEntities = [...entities];
   const processedHits = new Set<string>(); // Track processed hit pairs
@@ -218,7 +250,7 @@ export function scanForHits(
       const hitResult = checkHit(attacker, defender);
       if (hitResult) {
         // Apply hit
-        const [newAttacker, newDefender] = resolveHit(attacker, defender, move);
+        const [newAttacker, newDefender] = resolveHit(attacker, defender, move, currentFrame);
         updatedEntities[i] = newAttacker;
         updatedEntities[j] = newDefender;
 
@@ -251,4 +283,33 @@ export function updateHurtboxes(
   }
 
   return { ...fighter, hurtboxes };
+}
+
+/**
+ * Check if combo should timeout (too long between hits)
+ * Combos reset after 90 frames (1.5 seconds) of no hits
+ */
+export function checkComboTimeout(
+  fighter: FighterState,
+  currentFrame: number,
+  timeoutFrames: number = 90
+): FighterState {
+  // Only check if fighter is in a combo
+  if (fighter.comboCount === 0) {
+    return fighter;
+  }
+
+  // Check if too many frames have passed since last hit
+  const framesSinceHit = currentFrame - fighter.lastHitFrame;
+  if (framesSinceHit > timeoutFrames) {
+    // Reset combo
+    return {
+      ...fighter,
+      comboCount: 0,
+      comboScaling: 1.0,
+      comboStartFrame: 0,
+    };
+  }
+
+  return fighter;
 }

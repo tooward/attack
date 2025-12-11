@@ -9,6 +9,7 @@ import { FighterState, FighterStatus } from '../core/interfaces/types';
 export class FighterSprite extends Phaser.GameObjects.Container {
   private bodyRect: Phaser.GameObjects.Rectangle;
   private healthBar: Phaser.GameObjects.Graphics;
+  private energyBar: Phaser.GameObjects.Graphics;
   private nameText: Phaser.GameObjects.Text;
   private currentAnimation: string = '';
 
@@ -23,6 +24,10 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     // Create health bar
     this.healthBar = scene.add.graphics();
     this.add(this.healthBar);
+
+    // Create energy bar
+    this.energyBar = scene.add.graphics();
+    this.add(this.energyBar);
 
     // Create name text
     this.nameText = scene.add.text(0, -100, fighter.id, {
@@ -53,6 +58,9 @@ export class FighterSprite extends Phaser.GameObjects.Container {
 
     // Update health bar
     this.drawHealthBar(fighter.health, fighter.maxHealth);
+    
+    // Update energy bar
+    this.drawEnergyBar(fighter.energy, fighter.maxEnergy);
   }
 
   /**
@@ -152,10 +160,36 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   }
 
   /**
+   * Draw energy bar above fighter (below health bar)
+   */
+  private drawEnergyBar(energy: number, maxEnergy: number): void {
+    const barWidth = 80;
+    const barHeight = 4;
+    const barX = -barWidth / 2;
+    const barY = -82; // Just below health bar
+    const energyPercent = Math.max(0, energy / maxEnergy);
+
+    this.energyBar.clear();
+
+    // Background (black)
+    this.energyBar.fillStyle(0x000000, 0.6);
+    this.energyBar.fillRect(barX, barY, barWidth, barHeight);
+
+    // Energy (cyan)
+    this.energyBar.fillStyle(0x00ffff);
+    this.energyBar.fillRect(barX, barY, barWidth * energyPercent, barHeight);
+
+    // Border (white)
+    this.energyBar.lineStyle(1, 0xffffff, 0.5);
+    this.energyBar.strokeRect(barX, barY, barWidth, barHeight);
+  }
+
+  /**
    * Cleanup
    */
   destroy(fromScene?: boolean): void {
     this.healthBar.destroy();
+    this.energyBar.destroy();
     this.nameText.destroy();
     super.destroy(fromScene);
   }
