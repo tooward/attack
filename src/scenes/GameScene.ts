@@ -15,7 +15,6 @@ export default class GameScene extends Scene {
     explosions!: Explosion;
     explosionDebugText!: Phaser.GameObjects.Text;
     backgrounds!: Phaser.GameObjects.TileSprite[];
-    backgroundLayers!: Phaser.GameObjects.Image[];
     map!: Phaser.Tilemaps.Tilemap;
     debugGraphics!: Phaser.GameObjects.Graphics; // Debug graphics for hitboxes
 
@@ -54,33 +53,24 @@ export default class GameScene extends Scene {
         const gameWidth = this.sys.game.config.width as number;
         const gameHeight = this.sys.game.config.height as number;
 
-        // Create backgrounds as standard images to avoid vertical tiling
-        const bg3 = this.add.image(0, 0, 'bg3')
+        // Create backgrounds as TileSprites to enable horizontal tiling
+        const bg3 = this.add.tileSprite(0, 0, gameWidth, gameHeight, 'bg3')
             .setOrigin(0, 0)
             .setScrollFactor(0)
             .setDepth(-30);
-            
-        const bg2 = this.add.image(0, 0, 'bg2')
+
+        const bg2 = this.add.tileSprite(0, 0, gameWidth, gameHeight, 'bg2')
             .setOrigin(0, 0)
             .setScrollFactor(0)
             .setDepth(-20);
-            
-        const bg1 = this.add.image(0, 0, 'bg1')
+
+        const bg1 = this.add.tileSprite(0, 0, gameWidth, gameHeight, 'bg1')
             .setOrigin(0, 0)
             .setScrollFactor(0)
             .setDepth(-10);
-            
-        // Size the backgrounds to fit the screen height while maintaining aspect ratio
-        const layers = [bg3, bg2, bg1];
-        layers.forEach(bg => {
-            // Scale the image to match the game height while maintaining aspect ratio
-            const scaleRatio = gameHeight / bg.height;
-            bg.setScale(scaleRatio);
-        });
-        
-        // Store references to background images for parallax scrolling
-        this.backgrounds = [];
-        this.backgroundLayers = layers;
+
+        // Store references to background TileSprites for parallax scrolling
+        this.backgrounds = [bg3, bg2, bg1];
         
         // Create the tilemap
         this.createMap();
@@ -593,12 +583,12 @@ export default class GameScene extends Scene {
     updateParallaxBackgrounds() {
         const cam = this.cameras.main;
         
-        if (this.backgroundLayers) {
+        if (this.backgrounds) {
             // Update position for parallax scrolling effect - use negative values to scroll correctly
             // Different rates create the parallax depth effect
-            this.backgroundLayers[0].x = -cam.scrollX * 0.2;
-            this.backgroundLayers[1].x = -cam.scrollX * 0.5;
-            this.backgroundLayers[2].x = -cam.scrollX * 0.8;
+            this.backgrounds[0].tilePositionX = cam.scrollX * 0.2;
+            this.backgrounds[1].tilePositionX = cam.scrollX * 0.5;
+            this.backgrounds[2].tilePositionX = cam.scrollX * 0.8;
         }
     }
     

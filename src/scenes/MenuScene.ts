@@ -98,8 +98,7 @@ export default class MenuScene extends Scene {
     }
     
     startGame() {
-        // Start both game and UI scenes when starting the game
-        this.scene.start('GameScene');
-        this.scene.launch('UIScene');
+        // Start the new fighting game scene
+        this.scene.start('PhaserGameScene');
     }
 }
