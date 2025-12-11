@@ -99,6 +99,12 @@ export function createInitialState(config: GameConfig): GameState {
     isMatchOver: false,
     freezeFrames: 0,
     screenShake: null,
+    trainingMode: {
+      enabled: false,
+      dummyMode: 'cpu',
+      recording: [],
+      infiniteMeter: false,
+    },
   };
 }
 

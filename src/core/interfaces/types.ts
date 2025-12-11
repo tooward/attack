@@ -300,6 +300,14 @@ export interface GameState {
     duration: number;
     elapsed: number;
   } | null;
+  
+  // Training mode
+  trainingMode?: {
+    enabled: boolean;
+    dummyMode: 'idle' | 'crouch' | 'jump' | 'block' | 'cpu' | 'record' | 'playback';
+    recording: InputFrame[];
+    infiniteMeter: boolean;
+  };
 }
 
 // ============================================================================

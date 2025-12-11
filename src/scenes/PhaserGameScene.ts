@@ -40,6 +40,10 @@ export default class PhaserGameScene extends Scene {
   private inputHandler!: InputHandler;
   private debugKey!: Phaser.Input.Keyboard.Key;
   private botSwitchKey!: Phaser.Input.Keyboard.Key;
+  private trainingModeKey!: Phaser.Input.Keyboard.Key;
+  private resetPositionKey!: Phaser.Input.Keyboard.Key;
+  private resetHealthKey!: Phaser.Input.Keyboard.Key;
+  private infiniteMeterKey!: Phaser.Input.Keyboard.Key;
 
   // AI
   private aiBot!: RandomBot | PersonalityBot | NeuralBot;
@@ -171,6 +175,10 @@ export default class PhaserGameScene extends Scene {
     this.inputHandler = new InputHandler(this);
     this.debugKey = this.input.keyboard!.addKey('F1');
     this.botSwitchKey = this.input.keyboard!.addKey('F2');
+    this.trainingModeKey = this.input.keyboard!.addKey('F3');
+    this.resetPositionKey = this.input.keyboard!.addKey('F4');
+    this.resetHealthKey = this.input.keyboard!.addKey('F6');
+    this.infiniteMeterKey = this.input.keyboard!.addKey('F5');
 
     // Initialize AI bots - Start with PersonalityBot for better gameplay
     this.aiBot = new PersonalityBot({
@@ -215,8 +223,8 @@ export default class PhaserGameScene extends Scene {
 
     // Instructions text
     const instructions = this.add.text(500, 560, 
-      'Player 1: Arrow Keys + Z/X/C/V | F1: Toggle Hitboxes | F2: Switch AI Bot', {
-      fontSize: '12px',
+      'Arrow Keys + Z/X/C/V | F1: Hitboxes | F2: AI | F3: Training | F4: Reset Pos | F5: ∞ Meter | F6: Reset HP', {
+      fontSize: '11px',
       color: '#888888',
       align: 'center',
     });
@@ -243,6 +251,26 @@ export default class PhaserGameScene extends Scene {
       this.switchBotType();
     }
 
+    // Toggle training mode
+    if (Phaser.Input.Keyboard.JustDown(this.trainingModeKey)) {
+      this.toggleTrainingMode();
+    }
+
+    // Reset position (F4)
+    if (Phaser.Input.Keyboard.JustDown(this.resetPositionKey)) {
+      this.resetFighterPositions();
+    }
+
+    // Reset health (F6)
+    if (Phaser.Input.Keyboard.JustDown(this.resetHealthKey)) {
+      this.resetFighterHealth();
+    }
+
+    // Toggle infinite meter (F5)
+    if (Phaser.Input.Keyboard.JustDown(this.infiniteMeterKey)) {
+      this.toggleInfiniteMeter();
+    }
+
     // Don't update if round/match is over
     if (this.gameState.isRoundOver || this.gameState.isMatchOver) {
       this.updateUI();
@@ -252,14 +280,36 @@ export default class PhaserGameScene extends Scene {
     // Capture player 1 input
     const player1Input = this.inputHandler.captureInput(this.gameState.frame);
 
-    // Player 2 (AI bot) - Note: Neural bot is async, so it's best with non-neural for now
+    // Player 2 (AI bot or training dummy)
     const observation = generateObservation(this.gameState, 'player2');
     const player2 = this.gameState.entities.find(e => e.id === 'player2');
     
-    // Use RandomBot or PersonalityBot for synchronous operation
-    const aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
-      ? this.aiBot.selectAction(observation, this.gameState.frame)
-      : AIAction.IDLE; // Neural bot needs async handling
+    let aiAction = AIAction.IDLE;
+    
+    // Training mode overrides AI
+    if (this.gameState.trainingMode?.enabled) {
+      const mode = this.gameState.trainingMode.dummyMode;
+      
+      if (mode === 'idle') {
+        aiAction = AIAction.IDLE;
+      } else if (mode === 'crouch') {
+        aiAction = AIAction.CROUCH;
+      } else if (mode === 'jump') {
+        aiAction = AIAction.JUMP;
+      } else if (mode === 'block') {
+        aiAction = AIAction.BLOCK;
+      } else if (mode === 'cpu') {
+        // Use normal AI
+        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
+          ? this.aiBot.selectAction(observation, this.gameState.frame)
+          : AIAction.IDLE;
+      }
+    } else {
+      // Normal AI
+      aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
+        ? this.aiBot.selectAction(observation, this.gameState.frame)
+        : AIAction.IDLE;
+    }
     
     const player2Input = actionToInputFrame(
       aiAction,
@@ -272,6 +322,14 @@ export default class PhaserGameScene extends Scene {
       ['player1', player1Input],
       ['player2', player2Input],
     ]);
+
+    // Apply infinite meter if enabled (before tick)
+    if (this.gameState.trainingMode?.infiniteMeter) {
+      this.gameState.entities.forEach(fighter => {
+        fighter.superMeter = fighter.maxSuperMeter;
+        fighter.energy = fighter.maxEnergy;
+      });
+    }
 
     // Tick core engine (this is where the magic happens)
     this.gameState = tick(this.gameState, inputs, this.characterDefs);
@@ -530,6 +588,103 @@ export default class PhaserGameScene extends Scene {
       projText.setOrigin(0.5, 1);
       this.time.delayedCall(0, () => projText.destroy());
     }
+  }
+
+  /**
+   * Toggle training mode
+   */
+  private toggleTrainingMode(): void {
+    if (!this.gameState.trainingMode) return;
+    
+    this.gameState.trainingMode.enabled = !this.gameState.trainingMode.enabled;
+    
+    if (this.gameState.trainingMode.enabled) {
+      // Cycle through dummy modes
+      const modes: Array<typeof this.gameState.trainingMode.dummyMode> = 
+        ['idle', 'crouch', 'jump', 'block', 'cpu'];
+      const currentIndex = modes.indexOf(this.gameState.trainingMode.dummyMode);
+      const nextIndex = (currentIndex + 1) % modes.length;
+      this.gameState.trainingMode.dummyMode = modes[nextIndex];
+      
+      console.log(`Training Mode: ${this.gameState.trainingMode.dummyMode}`);
+      this.botTypeText.setText(`Training: ${this.gameState.trainingMode.dummyMode.toUpperCase()}`);
+    } else {
+      console.log('Training Mode: OFF');
+      this.updateBotTypeText();
+    }
+  }
+
+  /**
+   * Reset fighter positions to starting positions
+   */
+  private resetFighterPositions(): void {
+    const config = {
+      entities: [
+        { characterId: 'musashi', id: 'player1', teamId: 0, startPosition: { x: 300, y: 500 } },
+        { characterId: 'musashi', id: 'player2', teamId: 1, startPosition: { x: 700, y: 500 } },
+      ],
+      arena: this.gameState.arena,
+      roundsToWin: 2,
+      roundTimeSeconds: 60,
+    };
+
+    this.gameState.entities.forEach((fighter, index) => {
+      fighter.position = { ...config.entities[index].startPosition };
+      fighter.velocity = { x: 0, y: 0 };
+      fighter.status = 'idle' as any;
+      fighter.currentMove = null;
+      fighter.moveFrame = 0;
+      fighter.stunFramesRemaining = 0;
+      fighter.invincibleFrames = 0;
+    });
+
+    console.log('Positions reset');
+  }
+
+  /**
+   * Reset fighter health to full
+   */
+  private resetFighterHealth(): void {
+    this.gameState.entities.forEach(fighter => {
+      fighter.health = fighter.maxHealth;
+      fighter.comboCount = 0;
+      fighter.comboScaling = 1.0;
+    });
+
+    console.log('Health reset');
+  }
+
+  /**
+   * Toggle infinite super meter
+   */
+  private toggleInfiniteMeter(): void {
+    if (!this.gameState.trainingMode) return;
+    
+    this.gameState.trainingMode.infiniteMeter = !this.gameState.trainingMode.infiniteMeter;
+    
+    if (this.gameState.trainingMode.infiniteMeter) {
+      console.log('Infinite Meter: ON');
+      // Fill meters
+      this.gameState.entities.forEach(fighter => {
+        fighter.superMeter = fighter.maxSuperMeter;
+        fighter.energy = fighter.maxEnergy;
+      });
+    } else {
+      console.log('Infinite Meter: OFF');
+    }
+  }
+
+  /**
+   * Update bot type text
+   */
+  private updateBotTypeText(): void {
+    const typeNames = {
+      'personality': 'Personality Bot (Aggressive)',
+      'defensive': 'Defensive Bot (Zoner)',
+      'neural': 'Neural Bot',
+      'random': 'Random Bot',
+    };
+    this.botTypeText.setText(`AI: ${typeNames[this.botType]}`);
   }
 
   /**
