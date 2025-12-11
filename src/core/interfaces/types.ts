@@ -306,6 +306,8 @@ export interface GameState {
     enabled: boolean;
     dummyMode: 'idle' | 'crouch' | 'jump' | 'block' | 'cpu' | 'record' | 'playback';
     recording: InputFrame[];
+    recordingStartFrame: number;
+    playbackIndex: number;
     infiniteMeter: boolean;
   };
 }

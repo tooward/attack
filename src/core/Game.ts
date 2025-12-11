@@ -103,6 +103,8 @@ export function createInitialState(config: GameConfig): GameState {
       enabled: false,
       dummyMode: 'cpu',
       recording: [],
+      recordingStartFrame: 0,
+      playbackIndex: 0,
       infiniteMeter: false,
     },
   };

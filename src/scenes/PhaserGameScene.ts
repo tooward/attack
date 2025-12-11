@@ -226,12 +226,21 @@ export default class PhaserGameScene extends Scene {
 
     // Instructions text
     const instructions = this.add.text(500, 560, 
-      'Arrow Keys + Z/X/C/V | F1: Hitboxes | F2: AI | F3: Training | F4: Reset Pos | F5: ∞ Meter | F6: Reset HP', {
+      'Arrow Keys + Z/X/C/V | F1: Hitboxes | F2: AI | F3: Training (cycle modes) | F4: Reset Pos | F5: ∞ Meter | F6: Reset HP', {
       fontSize: '11px',
       color: '#888888',
       align: 'center',
     });
     instructions.setOrigin(0.5, 1);
+
+    // Training mode sub-instructions
+    const trainingInstructions = this.add.text(500, 545, 
+      'Training Modes: Idle → Crouch → Jump → Block → CPU → Record → Playback', {
+      fontSize: '9px',
+      color: '#666666',
+      align: 'center',
+    });
+    trainingInstructions.setOrigin(0.5, 1);
 
     // Bot type indicator
     this.botTypeText = this.add.text(500, 580, 
@@ -311,37 +320,60 @@ export default class PhaserGameScene extends Scene {
     const player2 = this.gameState.entities.find(e => e.id === 'player2');
     
     let aiAction = AIAction.IDLE;
+    let player2Input: InputFrame;
     
     // Training mode overrides AI
     if (this.gameState.trainingMode?.enabled) {
       const mode = this.gameState.trainingMode.dummyMode;
       
-      if (mode === 'idle') {
+      if (mode === 'record') {
+        // Record player 2's actual inputs (from AI)
+        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
+          ? this.aiBot.selectAction(observation, this.gameState.frame)
+          : AIAction.IDLE;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        
+        // Add to recording
+        this.gameState.trainingMode.recording.push(player2Input);
+      } else if (mode === 'playback') {
+        // Play back recorded inputs
+        const recording = this.gameState.trainingMode.recording;
+        if (recording.length > 0) {
+          const index = this.gameState.trainingMode.playbackIndex % recording.length;
+          player2Input = recording[index];
+          this.gameState.trainingMode.playbackIndex++;
+        } else {
+          // No recording, idle
+          player2Input = actionToInputFrame(AIAction.IDLE, player2?.facing || 1, this.gameState.frame);
+        }
+      } else if (mode === 'idle') {
         aiAction = AIAction.IDLE;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
       } else if (mode === 'crouch') {
         aiAction = AIAction.CROUCH;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
       } else if (mode === 'jump') {
         aiAction = AIAction.JUMP;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
       } else if (mode === 'block') {
         aiAction = AIAction.BLOCK;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
       } else if (mode === 'cpu') {
         // Use normal AI
         aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
           ? this.aiBot.selectAction(observation, this.gameState.frame)
           : AIAction.IDLE;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+      } else {
+        player2Input = actionToInputFrame(AIAction.IDLE, player2?.facing || 1, this.gameState.frame);
       }
     } else {
       // Normal AI
       aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
         ? this.aiBot.selectAction(observation, this.gameState.frame)
         : AIAction.IDLE;
+      player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
     }
-    
-    const player2Input = actionToInputFrame(
-      aiAction,
-      player2?.facing || 1,
-      this.gameState.frame
-    );
 
     // Create input map
     const inputs = new Map([
@@ -665,14 +697,32 @@ export default class PhaserGameScene extends Scene {
     this.gameState.trainingMode.enabled = !this.gameState.trainingMode.enabled;
     
     if (this.gameState.trainingMode.enabled) {
-      // Cycle through dummy modes
+      // Cycle through dummy modes (now includes record and playback)
       const modes: Array<typeof this.gameState.trainingMode.dummyMode> = 
-        ['idle', 'crouch', 'jump', 'block', 'cpu'];
+        ['idle', 'crouch', 'jump', 'block', 'cpu', 'record', 'playback'];
       const currentIndex = modes.indexOf(this.gameState.trainingMode.dummyMode);
       const nextIndex = (currentIndex + 1) % modes.length;
       this.gameState.trainingMode.dummyMode = modes[nextIndex];
       
-      console.log(`Training Mode: ${this.gameState.trainingMode.dummyMode}`);
+      // Handle mode transitions
+      if (this.gameState.trainingMode.dummyMode === 'record') {
+        // Start recording
+        this.gameState.trainingMode.recording = [];
+        this.gameState.trainingMode.recordingStartFrame = this.gameState.frame;
+        console.log('Training Mode: RECORDING (press F3 again to stop and playback)');
+      } else if (this.gameState.trainingMode.dummyMode === 'playback') {
+        // Start playback
+        this.gameState.trainingMode.playbackIndex = 0;
+        if (this.gameState.trainingMode.recording.length === 0) {
+          console.log('Training Mode: PLAYBACK (no recording available, using idle)');
+          this.gameState.trainingMode.dummyMode = 'idle';
+        } else {
+          console.log(`Training Mode: PLAYBACK (${this.gameState.trainingMode.recording.length} frames)`);
+        }
+      } else {
+        console.log(`Training Mode: ${this.gameState.trainingMode.dummyMode}`);
+      }
+      
       this.botTypeText.setText(`Training: ${this.gameState.trainingMode.dummyMode.toUpperCase()}`);
     } else {
       console.log('Training Mode: OFF');
