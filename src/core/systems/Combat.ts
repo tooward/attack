@@ -212,13 +212,19 @@ export function resolveHit(
 /**
  * Scan all entities for hits and apply results
  */
+export interface CombatResult {
+  entities: FighterState[];
+  hitEvents: HitResult[];
+}
+
 export function scanForHits(
   entities: FighterState[],
   characterMoves: Map<string, Map<string, MoveDefinition>>,
   currentFrame: number = 0
-): FighterState[] {
+): CombatResult {
   let updatedEntities = [...entities];
   const processedHits = new Set<string>(); // Track processed hit pairs
+  const hitEvents: HitResult[] = [];
 
   for (let i = 0; i < updatedEntities.length; i++) {
     const attacker = updatedEntities[i];
@@ -254,13 +260,26 @@ export function scanForHits(
         updatedEntities[i] = newAttacker;
         updatedEntities[j] = newDefender;
 
+        // Record hit event with actual damage
+        const wasBlocked = defender.status === FighterStatus.BLOCK;
+        const damage = calculateDamage(move.damage, newDefender.comboScaling);
+        hitEvents.push({
+          attackerId: attacker.id,
+          defenderId: defender.id,
+          damage: wasBlocked ? move.chipDamage : damage,
+          hitstun: move.hitstun,
+          blockstun: move.blockstun,
+          knockback: move.knockback,
+          wasBlocked,
+        });
+
         // Mark as processed
         processedHits.add(hitKey);
       }
     }
   }
 
-  return updatedEntities;
+  return { entities: updatedEntities, hitEvents };
 }
 
 /**

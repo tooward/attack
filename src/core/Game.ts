@@ -97,6 +97,8 @@ export function createInitialState(config: GameConfig): GameState {
     isPaused: false,
     isRoundOver: false,
     isMatchOver: false,
+    freezeFrames: 0,
+    screenShake: null,
   };
 }
 
@@ -121,6 +123,16 @@ export function tick(
   // Don't advance if paused or round is over
   if (state.isPaused || state.isRoundOver) {
     return state;
+  }
+
+  // Check for freeze frames (hit pause)
+  if (state.freezeFrames > 0) {
+    return {
+      ...state,
+      freezeFrames: state.freezeFrames - 1,
+      // Update screen shake even during freeze
+      screenShake: state.screenShake ? updateScreenShake(state.screenShake) : null,
+    };
   }
 
   // Create a new state object (immutability)
@@ -165,7 +177,18 @@ export function tick(
     characterDefs.forEach((charDef, charId) => {
       moveMaps.set(charId, charDef.moves);
     });
-    newState.entities = scanForHits(newState.entities, moveMaps, newState.frame);
+    const combatResult = scanForHits(newState.entities, moveMaps, newState.frame);
+    newState.entities = combatResult.entities;
+    
+    // Trigger visual effects for hits
+    if (combatResult.hitEvents.length > 0) {
+      // Use the strongest hit this frame for visual effects
+      const strongestHit = combatResult.hitEvents.reduce((prev, current) => 
+        current.damage > prev.damage ? current : prev
+      );
+      newState = triggerHitFreeze(newState, strongestHit.damage, strongestHit.wasBlocked);
+      newState = triggerScreenShake(newState, strongestHit.damage, strongestHit.wasBlocked);
+    }
   }
 
   // 3b. Check for combo timeouts
@@ -216,6 +239,10 @@ export function tick(
           activeProjectiles.splice(projIndex, 1);
         }
         
+        // Trigger visual effects
+        newState = triggerHitFreeze(newState, projectile.damage, wasBlocked);
+        newState = triggerScreenShake(newState, projectile.damage, wasBlocked);
+        
         break; // Projectile hit someone, stop checking
       }
     }
@@ -243,7 +270,10 @@ export function tick(
     timeRemaining: Math.max(0, newState.round.timeRemaining - 1),
   };
 
-  // 7. Check for round end conditions
+  // 7. Update screen shake
+  newState.screenShake = newState.screenShake ? updateScreenShake(newState.screenShake) : null;
+
+  // 8. Check for round end conditions
   newState = checkRoundEnd(newState);
 
   return newState;
@@ -334,6 +364,86 @@ export function checkMatchEnd(state: GameState): GameState {
     match: {
       ...state.match,
       wins,
+    },
+  };
+}
+
+/**
+ * Update screen shake state
+ */
+function updateScreenShake(shake: NonNullable<GameState['screenShake']>): NonNullable<GameState['screenShake']> | null {
+  const newElapsed = shake.elapsed + 1;
+  if (newElapsed >= shake.duration) {
+    return null; // Shake complete
+  }
+  return {
+    ...shake,
+    elapsed: newElapsed,
+  };
+}
+
+/**
+ * Trigger hit freeze based on hit strength
+ */
+export function triggerHitFreeze(state: GameState, damage: number, wasBlocked: boolean): GameState {
+  // Freeze duration based on damage
+  let freezeFrames = 0;
+  
+  if (wasBlocked) {
+    // Shorter freeze on block
+    if (damage < 10) freezeFrames = 2;
+    else if (damage < 20) freezeFrames = 3;
+    else freezeFrames = 4;
+  } else {
+    // Longer freeze on hit
+    if (damage < 10) freezeFrames = 3;
+    else if (damage < 20) freezeFrames = 5;
+    else if (damage < 30) freezeFrames = 7;
+    else freezeFrames = 10; // Super hit
+  }
+  
+  return {
+    ...state,
+    freezeFrames,
+  };
+}
+
+/**
+ * Trigger screen shake based on hit strength
+ */
+export function triggerScreenShake(state: GameState, damage: number, wasBlocked: boolean): GameState {
+  // Only shake on clean hits, not blocks
+  if (wasBlocked) {
+    return state;
+  }
+  
+  // Shake intensity based on damage
+  let intensity = 0;
+  let duration = 0;
+  
+  if (damage < 15) {
+    // Light hit - no shake
+    return state;
+  } else if (damage < 25) {
+    // Medium hit - light shake
+    intensity = 2;
+    duration = 6;
+  } else if (damage < 35) {
+    // Heavy hit - medium shake
+    intensity = 4;
+    duration = 10;
+  } else {
+    // Super hit - strong shake
+    intensity = 8;
+    duration = 15;
+  }
+  
+  return {
+    ...state,
+    screenShake: {
+      intensity,
+      duration,
+      elapsed: 0,
     },
   };
 }

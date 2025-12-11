@@ -43,6 +43,22 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   }
 
   /**
+   * Flash fighter white when taking damage
+   */
+  flashDamage(): void {
+    // Store original color
+    const originalColor = this.bodyRect.fillColor;
+    
+    // Flash white
+    this.bodyRect.setFillStyle(0xffffff);
+    
+    // Return to normal color after 100ms
+    this.scene.time.delayedCall(100, () => {
+      this.bodyRect.setFillStyle(originalColor);
+    });
+  }
+
+  /**
    * Sync sprite with core fighter state
    * Called every frame after tick()
    */

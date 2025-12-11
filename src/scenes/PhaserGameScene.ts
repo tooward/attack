@@ -11,6 +11,8 @@ import { createInitialState, tick } from '../core/Game';
 import { MUSASHI } from '../core/data/musashi';
 import { FighterSprite } from '../phaser/FighterSprite';
 import { InputHandler } from '../phaser/InputHandler';
+import { AudioManager } from '../phaser/AudioManager';
+import { ProceduralAudio } from '../utils/ProceduralAudio';
 import { generateObservation } from '../core/ai/Observation';
 import { RandomBot } from '../core/ai/RandomBot';
 import { PersonalityBot } from '../core/ai/PersonalityBot';
@@ -28,6 +30,12 @@ export default class PhaserGameScene extends Scene {
   private projectileSprites!: Map<string, Phaser.GameObjects.Rectangle>;
   private debugGraphics!: Phaser.GameObjects.Graphics;
   private debugMode: boolean = false;
+  
+  // Visual effects
+  private baseCameraPosition!: { x: number; y: number };
+  private hitSparks!: Phaser.GameObjects.Particles.ParticleEmitter[];
+  private lastHitFrames!: Map<string, number>; // Track last hit frame per fighter
+  private lastMoveFrames!: Map<string, { move: string | null; frame: number }>; // Track move changes
 
   // Input
   private inputHandler!: InputHandler;
@@ -38,6 +46,9 @@ export default class PhaserGameScene extends Scene {
   private aiBot!: RandomBot | PersonalityBot | NeuralBot;
   private botType: 'random' | 'personality' | 'neural' = 'random';
   private neuralPolicy!: NeuralPolicy;
+  
+  // Audio
+  private audioManager!: AudioManager;
 
   // UI Text
   private roundText!: Phaser.GameObjects.Text;
@@ -141,6 +152,24 @@ export default class PhaserGameScene extends Scene {
     this.debugGraphics = this.add.graphics();
     this.debugGraphics.setDepth(100);
 
+    // Initialize visual effects
+    this.baseCameraPosition = { x: 500, y: 300 };
+    this.hitSparks = [];
+    this.lastHitFrames = new Map();
+    this.lastMoveFrames = new Map();
+    this.gameState.entities.forEach(f => {
+      this.lastHitFrames.set(f.id, f.lastHitByFrame);
+      this.lastMoveFrames.set(f.id, { move: f.currentMove, frame: f.moveFrame });
+    });
+    this.cameras.main.setPosition(this.baseCameraPosition.x, this.baseCameraPosition.y);
+    
+    // Create particle emitters for hit effects
+    this.createHitParticles();
+    
+    // Initialize audio system
+    ProceduralAudio.generateAllSounds(this);
+    this.audioManager = new AudioManager(this);
+
     // Initialize input
     this.inputHandler = new InputHandler(this);
     this.debugKey = this.input.keyboard!.addKey('F1');
@@ -236,6 +265,11 @@ export default class PhaserGameScene extends Scene {
     // Tick core engine (this is where the magic happens)
     this.gameState = tick(this.gameState, inputs, this.characterDefs);
 
+    // Apply visual effects
+    this.applyScreenShake();
+    this.detectAndSpawnHitEffects();
+    this.detectAndPlayAttackSounds();
+    
     // Sync sprites with new state
     for (const fighter of this.gameState.entities) {
       const sprite = this.fighterSprites.get(fighter.id);
@@ -524,6 +558,131 @@ export default class PhaserGameScene extends Scene {
       this.aiBot = new RandomBot();
       this.botType = 'random';
       this.botTypeText.setText('AI: Random Bot');
+    }
+  }
+
+  /**
+   * Create particle emitters for hit effects
+   */
+  private createHitParticles(): void {
+    // Create simple circle graphics for particles (no texture needed)
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0xffffff);
+    graphics.fillCircle(2, 2, 2);
+    graphics.generateTexture('particle', 4, 4);
+    graphics.destroy();
+  }
+
+  /**
+   * Spawn hit spark effect at position
+   */
+  private spawnHitSpark(x: number, y: number, wasBlocked: boolean, damage: number): void {
+    const color = wasBlocked ? 0x888888 : (damage > 20 ? 0xff8800 : 0xffff00);
+    const particleCount = wasBlocked ? 6 : (damage > 20 ? 20 : 12);
+    const speed = damage > 20 ? 200 : 100;
+    
+    // Create temporary emitter
+    const emitter = this.add.particles(x, y, 'particle', {
+      speed: { min: speed * 0.5, max: speed },
+      angle: { min: 0, max: 360 },
+      scale: { start: damage > 20 ? 1.5 : 1, end: 0 },
+      lifespan: 300,
+      gravityY: 200,
+      tint: color,
+      emitting: false,
+    });
+    
+    emitter.explode(particleCount);
+    
+    // Clean up after animation
+    this.time.delayedCall(500, () => {
+      emitter.destroy();
+    });
+  }
+
+  /**
+   * Detect attack starts and play whoosh/special sounds
+   */
+  private detectAndPlayAttackSounds(): void {
+    for (const fighter of this.gameState.entities) {
+      const lastMove = this.lastMoveFrames.get(fighter.id);
+      const currentMove = fighter.currentMove;
+      const currentFrame = fighter.moveFrame;
+      
+      // New move started (moveFrame = 0 or 1, move changed)
+      if (currentMove && (!lastMove || lastMove.move !== currentMove) && currentFrame <= 1) {
+        // Check if it's a special move
+        if (currentMove.includes('fireball')) {
+          this.audioManager.playSpecialSound('fireball');
+        } else if (currentMove.includes('uppercut')) {
+          this.audioManager.playSpecialSound('uppercut');
+        } else if (currentMove.includes('super')) {
+          this.audioManager.playSpecialSound('super');
+        } else if (currentMove.includes('kick')) {
+          this.audioManager.playWhoosh('kick');
+        } else if (currentMove.includes('punch')) {
+          this.audioManager.playWhoosh('punch');
+        }
+      }
+      
+      // Update tracking
+      this.lastMoveFrames.set(fighter.id, { move: currentMove, frame: currentFrame });
+    }
+  }
+
+  /**
+   * Detect new hits and spawn particle effects
+   */
+  private detectAndSpawnHitEffects(): void {
+    for (const fighter of this.gameState.entities) {
+      const lastFrame = this.lastHitFrames.get(fighter.id) || 0;
+      const currentFrame = fighter.lastHitByFrame;
+      
+      // New hit detected
+      if (currentFrame > lastFrame) {
+        // Spawn particles at fighter position
+        const wasBlocked = fighter.status === 'block' || fighter.status === 'blockstun';
+        // Estimate damage from combo scaling (rough approximation)
+        const estimatedDamage = 15 / fighter.comboScaling;
+        
+        this.spawnHitSpark(fighter.position.x, fighter.position.y - 40, wasBlocked, estimatedDamage);
+        
+        // Flash character sprite
+        const sprite = this.fighterSprites.get(fighter.id);
+        if (sprite) {
+          sprite.flashDamage();
+        }
+        
+        // Play hit sound
+        this.audioManager.playHitSound(estimatedDamage, wasBlocked);
+        
+        // Update tracking
+        this.lastHitFrames.set(fighter.id, currentFrame);
+      }
+    }
+  }
+
+  /**
+   * Apply screen shake effect based on game state
+   */
+  private applyScreenShake(): void {
+    const shake = this.gameState.screenShake;
+    
+    if (shake) {
+      // Calculate shake progress (0 to 1)
+      const progress = shake.elapsed / shake.duration;
+      // Decay intensity over time
+      const currentIntensity = shake.intensity * (1 - progress);
+      
+      // Random offset
+      const offsetX = (Math.random() - 0.5) * currentIntensity * 2;
+      const offsetY = (Math.random() - 0.5) * currentIntensity * 2;
+      
+      // Apply to camera
+      this.cameras.main.setScroll(-offsetX, -offsetY);
+    } else {
+      // No shake, reset camera
+      this.cameras.main.setScroll(0, 0);
     }
   }
 

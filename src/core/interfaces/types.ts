@@ -292,6 +292,14 @@ export interface GameState {
   isPaused: boolean;
   isRoundOver: boolean;
   isMatchOver: boolean;
+  
+  // Visual effects
+  freezeFrames: number;        // Hit freeze countdown
+  screenShake: {
+    intensity: number;
+    duration: number;
+    elapsed: number;
+  } | null;
 }
 
 // ============================================================================
