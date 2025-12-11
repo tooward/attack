@@ -19,6 +19,7 @@ import { PersonalityBot } from '../core/ai/PersonalityBot';
 import { NeuralBot } from '../core/ai/NeuralBot';
 import { NeuralPolicy } from '../core/ai/NeuralPolicy';
 import { actionToInputFrame, AIAction } from '../core/ai/ActionSpace';
+import { getInputNotation, getDisplayNotation } from '../utils/InputNotation';
 
 export default class PhaserGameScene extends Scene {
   // Core game state (source of truth)
@@ -60,6 +61,8 @@ export default class PhaserGameScene extends Scene {
   private botTypeText!: Phaser.GameObjects.Text;
   private comboTexts!: Map<string, Phaser.GameObjects.Text>;
   private meterGraphics!: Map<string, Phaser.GameObjects.Graphics>;
+  private inputDisplayTexts!: Map<string, Phaser.GameObjects.Text>;
+  private inputHistories!: Map<string, InputFrame[]>; // Track input history for notation
 
   constructor() {
     super({ key: 'PhaserGameScene' });
@@ -238,6 +241,29 @@ export default class PhaserGameScene extends Scene {
       align: 'center',
     });
     this.botTypeText.setOrigin(0.5, 1);
+
+    // Input display for both players
+    this.inputDisplayTexts = new Map();
+    this.inputDisplayTexts.set('player1', this.add.text(150, 540, '', {
+      fontSize: '20px',
+      color: '#00ffff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5, 1));
+
+    this.inputDisplayTexts.set('player2', this.add.text(850, 540, '', {
+      fontSize: '20px',
+      color: '#ff00ff',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5, 1));
+
+    // Initialize input histories
+    this.inputHistories = new Map();
+    this.inputHistories.set('player1', []);
+    this.inputHistories.set('player2', []);
   }
 
   update(time: number, delta: number): void {
@@ -323,6 +349,16 @@ export default class PhaserGameScene extends Scene {
       ['player2', player2Input],
     ]);
 
+    // Update input histories (keep last 15 frames)
+    this.inputHistories.get('player1')?.push(player1Input);
+    if (this.inputHistories.get('player1')!.length > 15) {
+      this.inputHistories.get('player1')?.shift();
+    }
+    this.inputHistories.get('player2')?.push(player2Input);
+    if (this.inputHistories.get('player2')!.length > 15) {
+      this.inputHistories.get('player2')?.shift();
+    }
+
     // Apply infinite meter if enabled (before tick)
     if (this.gameState.trainingMode?.infiniteMeter) {
       this.gameState.entities.forEach(fighter => {
@@ -352,6 +388,9 @@ export default class PhaserGameScene extends Scene {
 
     // Update combo counters and meter bars
     this.updateCombosAndMeters();
+
+    // Update input displays
+    this.updateInputDisplays();
 
     // Update UI
     this.updateUI();
@@ -513,6 +552,33 @@ export default class PhaserGameScene extends Scene {
         fontStyle: 'bold',
       });
       (this as any)[`meterLabel_${fighter.id}`] = label;
+    }
+  }
+
+  /**
+   * Update input displays for both players
+   */
+  private updateInputDisplays(): void {
+    for (const fighter of this.gameState.entities) {
+      const text = this.inputDisplayTexts.get(fighter.id);
+      const history = this.inputHistories.get(fighter.id);
+      
+      if (!text || !history) continue;
+
+      // Get input notation from recent history
+      const notation = getInputNotation(history, fighter.facing);
+      const displayNotation = getDisplayNotation(notation);
+
+      // Only show if there's recent input (within last 30 frames = 0.5 seconds)
+      const hasRecentInput = history.length > 0;
+      
+      if (hasRecentInput && displayNotation) {
+        text.setText(displayNotation);
+        text.setAlpha(1);
+      } else {
+        text.setText('');
+        text.setAlpha(0);
+      }
     }
   }
 
