@@ -8,7 +8,7 @@ import { AIAction, getAllActions } from './ActionSpace';
 
 export class RandomBot {
   private lastActionFrame: number = 0;
-  private actionCooldown: number = 10; // Min frames between actions
+  private actionCooldown: number = 3; // Min frames between actions (reduced for more activity)
   private currentAction: AIAction = AIAction.IDLE;
   private actionDuration: number = 0;
 

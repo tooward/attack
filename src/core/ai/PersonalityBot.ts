@@ -30,7 +30,7 @@ export class PersonalityBot {
     }
 
     // Apply reaction time delay (discipline affects reaction)
-    const reactionDelay = Math.floor((1 - this.personality.discipline) * 15);
+    const reactionDelay = Math.floor((1 - this.personality.discipline) * 10);
     if (currentFrame - this.lastActionFrame < reactionDelay) {
       return AIAction.IDLE;
     }
@@ -117,18 +117,22 @@ export class PersonalityBot {
   }
 
   /**
-   * Choose an attack (random for now, can be weighted later)
+   * Choose an attack based on personality and situation
    */
   private chooseAttack(): AIAction {
-    const attacks = [
-      AIAction.LIGHT_PUNCH,
-      AIAction.HEAVY_PUNCH,
-      AIAction.LIGHT_KICK,
-      AIAction.HEAVY_KICK,
-    ];
-
-    // Simple random selection
-    return attacks[Math.floor(Math.random() * attacks.length)];
+    // Weighted attack selection based on personality
+    const rand = Math.random();
+    
+    // High combo ambition = more heavy attacks
+    if (rand < this.personality.comboAmbition * 0.3) {
+      return AIAction.HEAVY_PUNCH;
+    } else if (rand < this.personality.comboAmbition * 0.5) {
+      return AIAction.HEAVY_KICK;
+    } else if (rand < 0.7) {
+      return AIAction.LIGHT_PUNCH;
+    } else {
+      return AIAction.LIGHT_KICK;
+    }
   }
 
   /**

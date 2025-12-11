@@ -32,7 +32,6 @@ export default class PhaserGameScene extends Scene {
   private debugMode: boolean = false;
   
   // Visual effects
-  private baseCameraPosition!: { x: number; y: number };
   private hitSparks!: Phaser.GameObjects.Particles.ParticleEmitter[];
   private lastHitFrames!: Map<string, number>; // Track last hit frame per fighter
   private lastMoveFrames!: Map<string, { move: string | null; frame: number }>; // Track move changes
@@ -44,7 +43,7 @@ export default class PhaserGameScene extends Scene {
 
   // AI
   private aiBot!: RandomBot | PersonalityBot | NeuralBot;
-  private botType: 'random' | 'personality' | 'neural' = 'random';
+  private botType: 'random' | 'personality' | 'defensive' | 'neural' = 'personality';
   private neuralPolicy!: NeuralPolicy;
   
   // Audio
@@ -153,7 +152,6 @@ export default class PhaserGameScene extends Scene {
     this.debugGraphics.setDepth(100);
 
     // Initialize visual effects
-    this.baseCameraPosition = { x: 500, y: 300 };
     this.hitSparks = [];
     this.lastHitFrames = new Map();
     this.lastMoveFrames = new Map();
@@ -161,7 +159,6 @@ export default class PhaserGameScene extends Scene {
       this.lastHitFrames.set(f.id, f.lastHitByFrame);
       this.lastMoveFrames.set(f.id, { move: f.currentMove, frame: f.moveFrame });
     });
-    this.cameras.main.setPosition(this.baseCameraPosition.x, this.baseCameraPosition.y);
     
     // Create particle emitters for hit effects
     this.createHitParticles();
@@ -175,10 +172,24 @@ export default class PhaserGameScene extends Scene {
     this.debugKey = this.input.keyboard!.addKey('F1');
     this.botSwitchKey = this.input.keyboard!.addKey('F2');
 
-    // Initialize AI bots
-    this.aiBot = new RandomBot();
+    // Initialize AI bots - Start with PersonalityBot for better gameplay
+    this.aiBot = new PersonalityBot({
+      aggression: 0.75,
+      riskTolerance: 0.6,
+      defenseBias: 0.25,
+      spacingTarget: 0.3,
+      comboAmbition: 0.7,
+      jumpRate: 0.15,
+      throwRate: 0.1,
+      fireballRate: 0.3,
+      antiAirCommitment: 0.6,
+      adaptivity: 0.5,
+      discipline: 0.65,
+      patternAddiction: 0.3,
+      tiltThreshold: 0.6,
+    });
     this.neuralPolicy = new NeuralPolicy();
-    this.botType = 'random';
+    this.botType = 'personality';
     
     // Try to load trained model (async, doesn't block scene)
     this.loadNeuralModel();
@@ -213,7 +224,7 @@ export default class PhaserGameScene extends Scene {
 
     // Bot type indicator
     this.botTypeText = this.add.text(500, 580, 
-      'AI: Random Bot', {
+      'AI: Personality Bot (Aggressive)', {
       fontSize: '14px',
       color: '#ffff00',
       align: 'center',
@@ -525,26 +536,26 @@ export default class PhaserGameScene extends Scene {
    * Switch between different AI bot types
    */
   private switchBotType(): void {
-    if (this.botType === 'random') {
-      // Switch to personality bot
+    if (this.botType === 'personality') {
+      // Switch to defensive personality
       this.aiBot = new PersonalityBot({
-        aggression: 0.7,
-        riskTolerance: 0.6,
-        defenseBias: 0.3,
-        spacingTarget: 0.3,
-        comboAmbition: 0.7,
-        jumpRate: 0.2,
-        throwRate: 0.1,
-        fireballRate: 0.3,
-        antiAirCommitment: 0.6,
-        adaptivity: 0.5,
-        discipline: 0.7,
-        patternAddiction: 0.3,
-        tiltThreshold: 0.6,
+        aggression: 0.3,
+        riskTolerance: 0.4,
+        defenseBias: 0.8,
+        spacingTarget: 0.4,
+        comboAmbition: 0.5,
+        jumpRate: 0.1,
+        throwRate: 0.15,
+        fireballRate: 0.6,
+        antiAirCommitment: 0.8,
+        adaptivity: 0.6,
+        discipline: 0.8,
+        patternAddiction: 0.2,
+        tiltThreshold: 0.7,
       });
-      this.botType = 'personality';
-      this.botTypeText.setText('AI: Personality Bot (Balanced)');
-    } else if (this.botType === 'personality') {
+      this.botType = 'defensive';
+      this.botTypeText.setText('AI: Defensive Bot (Zoner)');
+    } else if (this.botType === 'defensive') {
       // Switch to neural bot
       this.aiBot = new NeuralBot(this.neuralPolicy, {
         temperature: 1.0,
@@ -552,12 +563,31 @@ export default class PhaserGameScene extends Scene {
         useGreedy: false,
       });
       this.botType = 'neural';
-      this.botTypeText.setText('AI: Neural Bot (Untrained)');
-    } else {
-      // Switch back to random bot
+      this.botTypeText.setText('AI: Neural Bot');
+    } else if (this.botType === 'neural') {
+      // Switch to random bot
       this.aiBot = new RandomBot();
       this.botType = 'random';
       this.botTypeText.setText('AI: Random Bot');
+    } else {
+      // Switch back to aggressive personality
+      this.aiBot = new PersonalityBot({
+        aggression: 0.75,
+        riskTolerance: 0.6,
+        defenseBias: 0.25,
+        spacingTarget: 0.3,
+        comboAmbition: 0.7,
+        jumpRate: 0.15,
+        throwRate: 0.1,
+        fireballRate: 0.3,
+        antiAirCommitment: 0.6,
+        adaptivity: 0.5,
+        discipline: 0.65,
+        patternAddiction: 0.3,
+        tiltThreshold: 0.6,
+      });
+      this.botType = 'personality';
+      this.botTypeText.setText('AI: Personality Bot (Aggressive)');
     }
   }
 
