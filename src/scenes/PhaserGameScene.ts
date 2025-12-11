@@ -11,6 +11,12 @@ import { createInitialState, tick } from '../core/Game';
 import { MUSASHI } from '../core/data/musashi';
 import { FighterSprite } from '../phaser/FighterSprite';
 import { InputHandler } from '../phaser/InputHandler';
+import { generateObservation } from '../core/ai/Observation';
+import { RandomBot } from '../core/ai/RandomBot';
+import { PersonalityBot } from '../core/ai/PersonalityBot';
+import { NeuralBot } from '../core/ai/NeuralBot';
+import { NeuralPolicy } from '../core/ai/NeuralPolicy';
+import { actionToInputFrame, AIAction } from '../core/ai/ActionSpace';
 
 export default class PhaserGameScene extends Scene {
   // Core game state (source of truth)
@@ -25,11 +31,18 @@ export default class PhaserGameScene extends Scene {
   // Input
   private inputHandler!: InputHandler;
   private debugKey!: Phaser.Input.Keyboard.Key;
+  private botSwitchKey!: Phaser.Input.Keyboard.Key;
+
+  // AI
+  private aiBot!: RandomBot | PersonalityBot | NeuralBot;
+  private botType: 'random' | 'personality' | 'neural' = 'random';
+  private neuralPolicy!: NeuralPolicy;
 
   // UI Text
   private roundText!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
   private fpsText!: Phaser.GameObjects.Text;
+  private botTypeText!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'PhaserGameScene' });
@@ -105,6 +118,12 @@ export default class PhaserGameScene extends Scene {
     // Initialize input
     this.inputHandler = new InputHandler(this);
     this.debugKey = this.input.keyboard!.addKey('F1');
+    this.botSwitchKey = this.input.keyboard!.addKey('F2');
+
+    // Initialize AI bots
+    this.aiBot = new RandomBot();
+    this.neuralPolicy = new NeuralPolicy();
+    this.botType = 'random';
 
     // Create UI text
     this.roundText = this.add.text(500, 20, '', {
@@ -126,19 +145,33 @@ export default class PhaserGameScene extends Scene {
     });
 
     // Instructions text
-    const instructions = this.add.text(500, 580, 
-      'Player 1: Arrow Keys + Z/X/C/V | Player 2: (AI) | F1: Toggle Hitboxes', {
+    const instructions = this.add.text(500, 560, 
+      'Player 1: Arrow Keys + Z/X/C/V | F1: Toggle Hitboxes | F2: Switch AI Bot', {
       fontSize: '12px',
       color: '#888888',
       align: 'center',
     });
     instructions.setOrigin(0.5, 1);
+
+    // Bot type indicator
+    this.botTypeText = this.add.text(500, 580, 
+      'AI: Random Bot', {
+      fontSize: '14px',
+      color: '#ffff00',
+      align: 'center',
+    });
+    this.botTypeText.setOrigin(0.5, 1);
   }
 
   update(time: number, delta: number): void {
     // Toggle debug mode
     if (Phaser.Input.Keyboard.JustDown(this.debugKey)) {
       this.debugMode = !this.debugMode;
+    }
+
+    // Switch AI bot type
+    if (Phaser.Input.Keyboard.JustDown(this.botSwitchKey)) {
+      this.switchBotType();
     }
 
     // Don't update if round/match is over
@@ -150,11 +183,20 @@ export default class PhaserGameScene extends Scene {
     // Capture player 1 input
     const player1Input = this.inputHandler.captureInput(this.gameState.frame);
 
-    // Player 2 (AI) - idle for now
-    const player2Input: InputFrame = {
-      actions: new Set(),
-      timestamp: this.gameState.frame,
-    };
+    // Player 2 (AI bot) - Note: Neural bot is async, so it's best with non-neural for now
+    const observation = generateObservation(this.gameState, 'player2');
+    const player2 = this.gameState.entities.find(e => e.id === 'player2');
+    
+    // Use RandomBot or PersonalityBot for synchronous operation
+    const aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
+      ? this.aiBot.selectAction(observation, this.gameState.frame)
+      : AIAction.IDLE; // Neural bot needs async handling
+    
+    const player2Input = actionToInputFrame(
+      aiAction,
+      player2?.facing || 1,
+      this.gameState.frame
+    );
 
     // Create input map
     const inputs = new Map([
@@ -273,10 +315,51 @@ export default class PhaserGameScene extends Scene {
   }
 
   /**
+   * Switch between different AI bot types
+   */
+  private switchBotType(): void {
+    if (this.botType === 'random') {
+      // Switch to personality bot
+      this.aiBot = new PersonalityBot({
+        aggression: 0.7,
+        riskTolerance: 0.6,
+        defenseBias: 0.3,
+        spacingTarget: 0.3,
+        comboAmbition: 0.7,
+        jumpRate: 0.2,
+        throwRate: 0.1,
+        fireballRate: 0.3,
+        antiAirCommitment: 0.6,
+        adaptivity: 0.5,
+        discipline: 0.7,
+        patternAddiction: 0.3,
+        tiltThreshold: 0.6,
+      });
+      this.botType = 'personality';
+      this.botTypeText.setText('AI: Personality Bot (Balanced)');
+    } else if (this.botType === 'personality') {
+      // Switch to neural bot
+      this.aiBot = new NeuralBot(this.neuralPolicy, {
+        temperature: 1.0,
+        actionDuration: 5,
+        useGreedy: false,
+      });
+      this.botType = 'neural';
+      this.botTypeText.setText('AI: Neural Bot (Untrained)');
+    } else {
+      // Switch back to random bot
+      this.aiBot = new RandomBot();
+      this.botType = 'random';
+      this.botTypeText.setText('AI: Random Bot');
+    }
+  }
+
+  /**
    * Cleanup
    */
   shutdown(): void {
     this.inputHandler.destroy();
     this.fighterSprites.clear();
+    this.neuralPolicy.dispose();
   }
 }
