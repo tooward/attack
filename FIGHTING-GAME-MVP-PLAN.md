@@ -620,12 +620,16 @@ export interface TrainingConfig {
 - [ ] Announcer voice clips ("Round 1", "Fight!", "K.O.")
 
 #### Step 6.3: Training Mode
-- [ ] Dummy controls (idle, crouch, jump, block)
-- [ ] Recording/playback system
+- [x] Dummy controls (idle, crouch, jump, block, cpu, record, playback)
+- [x] Recording/playback system (F3 cycling)
 - [ ] Frame data display overlay
-- [ ] Hitbox visualization toggle (F1)
-- [ ] Position/health reset (F3/F4)
-- [ ] Infinite meter toggle (F5)
+- [x] Hitbox visualization toggle (F1)
+- [x] Position/health reset (F4/F6)
+- [x] Infinite meter toggle (F5)
+- [ ] **Human replay recorder** (F7 to start/stop)
+- [ ] **Replay browser UI** (view/manage saved matches)
+- [ ] **Replay export** (download JSON for training)
+- [ ] **Replay playback viewer** (watch with controls)
 
 #### Step 6.4: Quality of Life
 - [ ] Input display (show notation on screen)
@@ -682,6 +686,172 @@ A "personality" isn't just playstyle, it's also blind spots and quirks the playe
   - *Implement:* When `recentDamage > threshold`, temporarily bump `riskTaking` and lower `discipline`.
 - **Over-respect / Under-respect:**
   - *Example:* High-discipline bot rarely challenges minus frames (safe to throw). Low-discipline bot mashes jab after everything (baitable).
+
+### Human Gameplay Recording for Bot Training
+
+**Goal:** Collect high-quality human gameplay data to train AI bots via imitation learning.
+
+#### Why Human Data Matters
+- **Better than random:** Humans naturally discover effective strategies
+- **Style transfer:** Capture different playstyles (aggressive, defensive, technical)
+- **Combo discovery:** Learn optimal punish combos humans have found
+- **Contextual decisions:** When to block, attack, retreat based on game state
+- **Bootstrap RL training:** Start with human baseline, then improve via self-play
+
+#### What to Record
+
+**Per-Frame Data:**
+```typescript
+interface ReplayFrame {
+  frame: number;                    // Game frame number
+  gameState: GameState;             // Complete game state snapshot
+  playerInputs: Map<string, InputFrame>;  // All player inputs this frame
+  timestamp: number;                // Real-world timestamp
+}
+
+interface ReplayMetadata {
+  id: string;                       // Unique replay ID
+  date: number;                     // Recording timestamp
+  playerCharacter: string;          // Character played
+  opponentCharacter: string;        // Opponent character
+  playerWon: boolean;               // Match outcome
+  skill: 'beginner' | 'intermediate' | 'advanced' | 'expert';  // Self-reported skill
+  matchDuration: number;            // Total frames
+  playerDamageDealt: number;        // Total damage output
+  playerDamageTaken: number;        // Total damage received
+  comboCount: number;               // Successful combos
+  tags: string[];                   // e.g., ['aggressive', 'fireball-heavy']
+}
+
+interface Replay {
+  metadata: ReplayMetadata;
+  frames: ReplayFrame[];            // Full frame-by-frame recording
+  compressed?: boolean;             // Whether using delta compression
+}
+```
+
+**Storage Format:**
+- **Full replays:** JSON files with complete state snapshots
+- **Delta compression:** Only store changed values between frames (90% size reduction)
+- **IndexedDB:** Browser storage for quick access
+- **Export/Import:** JSON download for sharing and training
+
+#### Recording Features
+
+**Implementation Checklist:**
+- [ ] **Auto-record matches:** Toggle in settings to record all matches automatically
+- [ ] **Manual recording:** Keyboard shortcut (F7) to start/stop recording mid-match
+- [ ] **Replay browser:** UI to view, play back, and manage saved replays
+- [ ] **Replay playback:** Watch recorded matches with pause/rewind/fast-forward
+- [ ] **Replay metadata editor:** Tag replays with skill level, playstyle, character matchup
+- [ ] **Export/Import:** Download replays as JSON, upload to training pipeline
+- [ ] **Replay validation:** Verify replay can be played back deterministically
+- [ ] **Storage management:** Delete old replays, set max storage limit
+
+**UI/UX Design:**
+```
+┌─────────────────────────────────────────────────────┐
+│  REPLAY MANAGER                                     │
+├─────────────────────────────────────────────────────┤
+│  [●] Auto-record matches    [Export All] [Clear]   │
+├─────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────┐ │
+│  │ Date        Char   vs  Opponent   Result  ⚙  │ │
+│  ├───────────────────────────────────────────────┤ │
+│  │ 2025-12-11  Musashi vs Ronin     WIN   [▶][↓]│ │
+│  │ - Duration: 89s, Combos: 12, Skill: Advanced │ │
+│  ├───────────────────────────────────────────────┤ │
+│  │ 2025-12-10  Musashi vs Musashi   LOSS  [▶][↓]│ │
+│  │ - Duration: 102s, Combos: 7, Skill: Inter.   │ │
+│  └───────────────────────────────────────────────┘ │
+│  Total: 23 replays (45.2 MB)                       │
+└─────────────────────────────────────────────────────┘
+```
+
+#### Integration with Training Pipeline
+
+**Workflow:**
+1. **Collection Phase:**
+   - Players record matches during normal gameplay
+   - System auto-saves high-quality matches (long combos, close rounds)
+   - Export replays to JSON files
+
+2. **Curation Phase:**
+   - Filter replays by skill level, character, outcome
+   - Remove low-quality replays (button mashing, disconnects)
+   - Tag replays with playstyle attributes
+
+3. **Training Phase:**
+   - Load replays into `ImitationTrainer`
+   - Convert `ReplayFrame[]` → `(observation, action)` pairs
+   - Train neural network via supervised learning
+   - Validate on held-out test set
+
+**Code Integration:**
+```typescript
+// In ImitationTrainer.ts
+export class ImitationTrainer {
+  async trainFromHumanReplays(replays: Replay[], epochs: number = 50) {
+    // Convert replays to training samples
+    const samples = replays.flatMap(replay => 
+      this.replayToTrainingSamples(replay, targetPlayer: 'player1')
+    );
+    
+    // Shuffle and split train/validation
+    const split = this.trainTestSplit(samples, testRatio: 0.2);
+    
+    // Train neural policy
+    await this.train(split.train, split.test, epochs);
+  }
+  
+  private replayToTrainingSamples(replay: Replay, targetPlayer: string) {
+    return replay.frames.map(frame => ({
+      observation: generateObservation(frame.gameState, targetPlayer),
+      action: this.inputFrameToAction(frame.playerInputs.get(targetPlayer))
+    }));
+  }
+}
+```
+
+#### Data Quality Guidelines
+
+**Good Replays:**
+- ✅ Matches with diverse strategies (not just spamming one move)
+- ✅ Successful combo executions
+- ✅ Effective use of blocking and spacing
+- ✅ Recovery from disadvantage
+- ✅ Varied character matchups
+- ✅ Multiple skill levels (for curriculum learning)
+
+**Bad Replays (Filter Out):**
+- ❌ Button mashing with no strategy
+- ❌ AFK/disconnected players
+- ❌ One-sided matches (0% vs 100%)
+- ❌ Training mode dummy recordings (already have record/playback)
+- ❌ Corrupted/invalid game states
+
+#### Privacy & Ethics
+
+**Considerations:**
+- [ ] Add terms of service for data collection
+- [ ] Allow players to opt-out of data collection
+- [ ] Anonymize replay data (remove player names/IDs)
+- [ ] Only collect gameplay data, no personal info
+- [ ] Provide clear UI indicators when recording
+- [ ] Allow players to delete their replays
+
+#### Storage Estimates
+
+**Per Match:**
+- Full recording: ~500 KB (60 fps × 90 seconds × 100 bytes/frame)
+- Delta compressed: ~50 KB (90% reduction)
+- 100 matches: ~5 MB compressed
+- 1000 matches: ~50 MB compressed
+
+**Browser Limits:**
+- IndexedDB: ~50-100 MB typical limit
+- Can store ~1000-2000 matches locally
+- Export older replays to free space
 
 ---
 
@@ -745,6 +915,17 @@ A "personality" isn't just playstyle, it's also blind spots and quirks the playe
 - [ ] Medium: Balanced PersonalityBot
 - [ ] Hard: Aggressive PersonalityBot or trained NeuralBot
 - [ ] Expert: Fully trained NeuralBot (optional)
+
+#### Step 8.5: Human Replay Collection System
+- [ ] **Replay Recorder:** F7 toggles recording, auto-record option in settings
+- [ ] **Replay Browser:** UI to view, filter, and manage saved replays
+- [ ] **Replay Metadata:** Character matchup, skill level, outcome, duration
+- [ ] **Replay Playback:** Watch recorded matches with pause/rewind controls
+- [ ] **Export System:** Download replays as JSON for training pipeline
+- [ ] **Storage Management:** IndexedDB storage with size limits and cleanup
+- [ ] **Training Integration:** Load human replays into ImitationTrainer
+- [ ] **Data Quality Filters:** Auto-detect and flag low-quality replays
+- [ ] **Batch Training:** Train neural bots on collected human gameplay data
 
 **🎨 ASSET REQUIREMENT:**
 > Ninja sprite sheet with same animation set, unique style:
@@ -968,10 +1149,15 @@ tests/
 1. ✅ **COMPLETE:** Headless core runs 10,000+ frames/second
 2. ✅ **COMPLETE:** Neural network policy (TensorFlow.js)
 3. ✅ **COMPLETE:** Imitation learning trainer (supervised learning)
-4. ✅ **COMPLETE:** Replay recording/playback system
+4. ✅ **COMPLETE:** Replay recording/playback system (training dummy)
 5. ✅ **COMPLETE:** Multiple bot types (Random, Personality, Neural)
-6. 🔄 **READY:** Can train bots NOW - need replay data collection
-7. 🔮 **FUTURE:** Reinforcement learning (self-play, PPO/DQN)
+6. 🔄 **IN PROGRESS:** Human gameplay recording infrastructure
+   - ⏳ Auto-record matches during gameplay
+   - ⏳ Replay browser UI with metadata
+   - ⏳ Export/import replay files
+   - ⏳ Integration with ImitationTrainer
+7. 🔄 **READY:** Can train bots NOW - collecting human replay data
+8. 🔮 **FUTURE:** Reinforcement learning (self-play, PPO/DQN)
 
 ---
 
