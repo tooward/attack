@@ -1,0 +1,68 @@
+# ML Training Configuration
+
+## PPO Hyperparameters
+ppo:
+  learning_rate: 0.0003
+  gamma: 0.99
+  lambda: 0.95
+  clip_range: 0.2
+  entropy_coef: 0.01
+  value_coef: 0.5
+  batch_size: 2048
+  minibatch_size: 256
+  epochs_per_batch: 4
+  max_grad_norm: 0.5
+
+## Reward Weights
+rewards:
+  # Outcome
+  damageDealt: 1.0
+  damageTaken: -1.0
+  knockdown: 5.0
+  roundWin: 100.0
+  roundLoss: -100.0
+  
+  # Tactical
+  hitConfirm: 2.0
+  successfulBlock: 0.5
+  whiffPunish: 3.0
+  antiAir: 2.0
+  throwTech: 1.0
+  
+  # Positioning
+  corneringOpponent: 0.1
+  escapingCorner: 0.2
+  rangeControl: 0.1
+  
+  # Anti-degenerate
+  stalling: -0.05
+  moveDiversity: 0.1
+  repetitionPenalty: -0.5
+  timeoutPenalty: -50.0
+  
+  # Style-specific (default neutral)
+  aggression: 0.0
+  defense: 0.0
+  zoning: 0.0
+
+## Observation Configuration
+observation:
+  historyFrames: 4
+  includeVelocity: true
+  includeHistory: true
+  includeStyle: false
+  normalize: true
+
+## Training Configuration
+training:
+  total_steps: 1000000
+  save_frequency: 100000
+  eval_frequency: 50000
+  log_frequency: 1000
+  round_time: 99
+
+## Environment Configuration
+environment:
+  player1_character: "musashi"
+  player2_character: "musashi"
+  seed: null  # null for random, or specify integer
