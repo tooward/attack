@@ -296,12 +296,16 @@ function checkRoundEnd(state: GameState): GameState {
     // Determine winner by health
     const livingEntities = state.entities.filter(e => e.health > 0);
     if (livingEntities.length > 0) {
-      const winner = livingEntities.reduce((prev, current) =>
-        prev.health > current.health ? prev : current
-      );
+      // Find max health
+      const maxHealth = Math.max(...livingEntities.map(e => e.health));
+      const entitiesWithMaxHealth = livingEntities.filter(e => e.health === maxHealth);
+      
+      // If there's a tie (multiple entities with same max health), no winner
+      const winner = entitiesWithMaxHealth.length === 1 ? entitiesWithMaxHealth[0].id : null;
+      
       return {
         ...state,
-        round: { ...state.round, winner: winner.id },
+        round: { ...state.round, winner },
         isRoundOver: true,
       };
     }

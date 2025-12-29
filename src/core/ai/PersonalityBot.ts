@@ -29,8 +29,18 @@ export class PersonalityBot {
       return this.currentAction;
     }
 
+    // Check if low on stamina (energy) - force rest period
+    if (observation.selfEnergy < 20) {
+      // Wait for energy to recover before attacking again
+      const restChance = 1.0 - (observation.selfEnergy / 20);
+      if (Math.random() < restChance) {
+        return AIAction.IDLE;
+      }
+    }
+
     // Apply reaction time delay (discipline affects reaction)
-    const reactionDelay = Math.floor((1 - this.personality.discipline) * 10);
+    // Increased minimum cooldown to prevent button mashing
+    const reactionDelay = Math.floor((1 - this.personality.discipline) * 15) + 5;
     if (currentFrame - this.lastActionFrame < reactionDelay) {
       return AIAction.IDLE;
     }
@@ -76,26 +86,42 @@ export class PersonalityBot {
       return AIAction.BLOCK;
     }
 
-    // Distance-based decisions
-    if (distance > 0.4) {
-      // Far away - move forward if aggressive
-      if (Math.random() < this.personality.aggression) {
+    // Distance-based decisions with better spacing
+    if (distance > 0.5) {
+      // Far away - approach or wait in neutral
+      if (Math.random() < this.personality.aggression * 0.6) {
         return Math.random() < this.personality.jumpRate 
           ? AIAction.JUMP_FORWARD 
           : AIAction.WALK_FORWARD;
       }
+      // Sometimes just wait and observe
       return AIAction.IDLE;
-    } else if (distance < 0.15) {
-      // Very close - attack or retreat
-      if (Math.random() < this.personality.aggression) {
-        return this.chooseAttack();
-      } else if (Math.random() < this.personality.defenseBias) {
+    } else if (distance > 0.35) {
+      // Outside attack range - approach cautiously or use spacing tools
+      if (Math.random() < this.personality.aggression * 0.5) {
+        return AIAction.WALK_FORWARD;
+      } else if (Math.random() < 0.3) {
+        // Maintain spacing
         return AIAction.WALK_BACKWARD;
       }
-      return AIAction.BLOCK;
+      return AIAction.IDLE;
+    } else if (distance < 0.1) {
+      // Too close - create space or attack
+      if (obs.selfEnergy < 30) {
+        // Low stamina - retreat to recover
+        return Math.random() < 0.7 ? AIAction.WALK_BACKWARD : AIAction.BLOCK;
+      } else if (Math.random() < this.personality.aggression * 0.7) {
+        return this.chooseAttack();
+      } else {
+        // Defensive retreat
+        return AIAction.WALK_BACKWARD;
+      }
     } else if (distance < 0.3) {
-      // Mid range - optimal attack range
-      if (Math.random() < this.personality.aggression * 0.8) {
+      // Mid range - optimal attack range, but respect stamina
+      if (obs.selfEnergy < 40 && Math.random() < 0.5) {
+        // Low stamina - be cautious
+        return Math.random() < 0.6 ? AIAction.IDLE : AIAction.WALK_BACKWARD;
+      } else if (Math.random() < this.personality.aggression * 0.6) {
         return this.chooseAttack();
       }
       

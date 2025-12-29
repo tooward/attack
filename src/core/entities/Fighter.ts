@@ -527,7 +527,21 @@ export function regenerateEnergy(fighter: FighterState): FighterState {
     return fighter;
   }
 
-  const regenRate = 0.5; // Energy per frame
+  // Base regeneration rate
+  let regenRate = 0.8; // Energy per frame (increased from 0.5)
+  
+  // Bonus regeneration when idle/walking (not attacking)
+  if (fighter.status === FighterStatus.IDLE || 
+      fighter.status === FighterStatus.WALK_FORWARD || 
+      fighter.status === FighterStatus.WALK_BACKWARD) {
+    regenRate = 1.2; // Faster recovery when not attacking
+  }
+  
+  // Slower regeneration during attacks
+  if (fighter.status === FighterStatus.ATTACK) {
+    regenRate = 0.3;
+  }
+
   const newEnergy = Math.min(fighter.maxEnergy, fighter.energy + regenRate);
 
   return { ...fighter, energy: newEnergy };

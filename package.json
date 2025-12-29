@@ -3,11 +3,13 @@
     "@tensorflow/tfjs": "^4.22.0",
     "http-server": "^14.1.1",
     "phaser": "^3.88.2",
+    "pm2": "^6.0.14",
     "xstate": "^5.19.2"
   },
   "devDependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
     "@types/jest": "^29.5.12",
+    "@types/js-yaml": "^4.0.9",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
@@ -18,11 +20,14 @@
     "build": "tsc",
     "start": "tsc && http-server -c-1",
     "dev": "vite",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:core": "jest tests/core",
-    "train": "ts-node -P tsconfig.node.json scripts/train.ts",
+    "test": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js",
+    "test:watch": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js --watch",
+    "reset:training": "rm -rf models/policy models/opponent_pool models/training-progress.jsonl models/training.log",
+    "train": "bash -lc 'TRAIN_EARLY_ENGAGE_FRAMES=${TRAIN_EARLY_ENGAGE_FRAMES:-180} TRAIN_EARLY_ENGAGE_PENALTY=${TRAIN_EARLY_ENGAGE_PENALTY:--0.02} TRAIN_EARLY_TRAINING_STEPS=${TRAIN_EARLY_TRAINING_STEPS:-300000} TRAIN_ENTROPY_COEF=${TRAIN_ENTROPY_COEF:-0.02} TRAIN_REWARD_RANGE_CONTROL=${TRAIN_REWARD_RANGE_CONTROL:-0.2} TRAIN_OPPONENT_SCRIPTED_PROB=${TRAIN_OPPONENT_SCRIPTED_PROB:-0.35} TRAIN_OPPONENT_SCRIPTED_VARIANT=${TRAIN_OPPONENT_SCRIPTED_VARIANT:-tight} TRAIN_OPPONENT_SCRIPTED_MIN_EPISODES_PER_ROLLOUT=${TRAIN_OPPONENT_SCRIPTED_MIN_EPISODES_PER_ROLLOUT:-4} TRAIN_MAX_EPISODE_FRAMES=${TRAIN_MAX_EPISODE_FRAMES:-1800} TRAIN_SWAP_ROLE_PROB=${TRAIN_SWAP_ROLE_PROB:-0.5} TRAIN_P2_SCRIPTED_MIN_EPISODES_PER_ROLLOUT=${TRAIN_P2_SCRIPTED_MIN_EPISODES_PER_ROLLOUT:-2} TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/training/train.ts'",
+    "train:watch": "bash -lc 'npm run progress & npm run train'",
+    "eval": "TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/evaluation/eval.ts",
+    "progress": "TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/evaluation/progress.ts",
     "export-model": "npx tsx scripts/export-model-to-browser.ts",
-    "serve-models": "npx serve models -l 8080"
+    "serve-models": "http-server models -p 8080 --cors -c-1"
   }
 }

@@ -7,7 +7,7 @@
 
 import { Scene } from 'phaser';
 import { GameState, CharacterDefinition, InputFrame, FighterState } from '../core/interfaces/types';
-import { createInitialState, tick } from '../core/Game';
+import { createInitialState, tick, startNextRound } from '../core/Game';
 import { MUSASHI } from '../core/data/musashi';
 import { FighterSprite } from '../phaser/FighterSprite';
 import { InputHandler } from '../phaser/InputHandler';
@@ -17,8 +17,13 @@ import { generateObservation } from '../core/ai/Observation';
 import { RandomBot } from '../core/ai/RandomBot';
 import { PersonalityBot } from '../core/ai/PersonalityBot';
 import { NeuralBot } from '../core/ai/NeuralBot';
+import { ScriptedBot } from '../core/ai/ScriptedBot';
 import { NeuralPolicy } from '../core/ai/NeuralPolicy';
+import { BotRuntime, BotAction } from '../ml/inference/BotRuntime.browser';
+import { DifficultyLevel } from '../ml/inference/DifficultyConfig';
+import { FightingStyle } from '../ml/inference/StyleConfig';
 import { actionToInputFrame, AIAction } from '../core/ai/ActionSpace';
+import * as tf from '@tensorflow/tfjs';
 import { getInputNotation, getDisplayNotation } from '../utils/InputNotation';
 
 export default class PhaserGameScene extends Scene {
@@ -45,11 +50,18 @@ export default class PhaserGameScene extends Scene {
   private resetPositionKey!: Phaser.Input.Keyboard.Key;
   private resetHealthKey!: Phaser.Input.Keyboard.Key;
   private infiniteMeterKey!: Phaser.Input.Keyboard.Key;
+  private difficultyUpKey!: Phaser.Input.Keyboard.Key;
+  private difficultyDownKey!: Phaser.Input.Keyboard.Key;
+  private styleKey!: Phaser.Input.Keyboard.Key;
 
   // AI
-  private aiBot!: RandomBot | PersonalityBot | NeuralBot;
-  private botType: 'random' | 'personality' | 'defensive' | 'neural' = 'personality';
+  private aiBot!: RandomBot | PersonalityBot | NeuralBot | ScriptedBot;
+  private botType: 'random' | 'personality' | 'defensive' | 'scripted' | 'neural' | 'ml' = 'personality';
   private neuralPolicy!: NeuralPolicy;
+  private mlBot?: BotRuntime;
+  private currentDifficulty: DifficultyLevel = 5;
+  private currentStyle: FightingStyle = 'rushdown';
+  private mlBotAction?: BotAction;
   
   // Audio
   private audioManager!: AudioManager;
@@ -59,10 +71,18 @@ export default class PhaserGameScene extends Scene {
   private timeText!: Phaser.GameObjects.Text;
   private fpsText!: Phaser.GameObjects.Text;
   private botTypeText!: Phaser.GameObjects.Text;
+  private difficultyText!: Phaser.GameObjects.Text;
+  private styleText!: Phaser.GameObjects.Text;
   private comboTexts!: Map<string, Phaser.GameObjects.Text>;
   private meterGraphics!: Map<string, Phaser.GameObjects.Graphics>;
   private inputDisplayTexts!: Map<string, Phaser.GameObjects.Text>;
   private inputHistories!: Map<string, InputFrame[]>; // Track input history for notation
+  
+  // Match end UI
+  private matchEndContainer!: Phaser.GameObjects.Container | null;
+  private tieOverlay!: Phaser.GameObjects.Text | null;
+  private winOverlay!: Phaser.GameObjects.Text | null;
+  private roundEndTimer!: Phaser.Time.TimerEvent | null;
 
   constructor() {
     super({ key: 'PhaserGameScene' });
@@ -185,18 +205,18 @@ export default class PhaserGameScene extends Scene {
 
     // Initialize AI bots - Start with PersonalityBot for better gameplay
     this.aiBot = new PersonalityBot({
-      aggression: 0.75,
-      riskTolerance: 0.6,
-      defenseBias: 0.25,
-      spacingTarget: 0.3,
-      comboAmbition: 0.7,
-      jumpRate: 0.15,
-      throwRate: 0.1,
-      fireballRate: 0.3,
-      antiAirCommitment: 0.6,
+      aggression: 0.5,       // Reduced from 0.75 - less button mashing
+      riskTolerance: 0.4,    // Reduced from 0.6 - more conservative
+      defenseBias: 0.4,      // Increased from 0.25 - more blocking/spacing
+      spacingTarget: 0.35,   // Increased from 0.3 - maintain better distance
+      comboAmbition: 0.5,    // Reduced from 0.7 - shorter combos
+      jumpRate: 0.1,         // Reduced from 0.15 - less jumping
+      throwRate: 0.08,       // Reduced from 0.1 - less throwing
+      fireballRate: 0.25,    // Reduced from 0.3 - less special spam
+      antiAirCommitment: 0.5, // Reduced from 0.6
       adaptivity: 0.5,
-      discipline: 0.65,
-      patternAddiction: 0.3,
+      discipline: 0.75,      // Increased from 0.65 - more patient
+      patternAddiction: 0.2, // Reduced from 0.3 - less predictable
       tiltThreshold: 0.6,
     });
     this.neuralPolicy = new NeuralPolicy();
@@ -251,6 +271,23 @@ export default class PhaserGameScene extends Scene {
     });
     this.botTypeText.setOrigin(0.5, 1);
 
+    // Difficulty and Style indicators (for ML bot)
+    this.difficultyText = this.add.text(850, 560, 
+      `Difficulty: ${this.currentDifficulty}/10 (F7/F8)`, {
+      fontSize: '12px',
+      color: '#00ff00',
+    });
+    this.difficultyText.setOrigin(0, 1);
+    this.difficultyText.setVisible(false);
+
+    this.styleText = this.add.text(850, 580, 
+      `Style: ${this.currentStyle} (F9)`, {
+      fontSize: '12px',
+      color: '#00ff00',
+    });
+    this.styleText.setOrigin(0, 1);
+    this.styleText.setVisible(false);
+
     // Input display for both players
     this.inputDisplayTexts = new Map();
     this.inputDisplayTexts.set('player1', this.add.text(150, 540, '', {
@@ -269,10 +306,21 @@ export default class PhaserGameScene extends Scene {
       strokeThickness: 3,
     }).setOrigin(0.5, 1));
 
+    // Initialize match end UI
+    this.matchEndContainer = null;
+    this.tieOverlay = null;
+    this.winOverlay = null;
+    this.roundEndTimer = null;
+
     // Initialize input histories
     this.inputHistories = new Map();
     this.inputHistories.set('player1', []);
     this.inputHistories.set('player2', []);
+
+    // Initialize difficulty and style control keys
+    this.difficultyUpKey = this.input.keyboard!.addKey('F7');
+    this.difficultyDownKey = this.input.keyboard!.addKey('F8');
+    this.styleKey = this.input.keyboard!.addKey('F9');
   }
 
   update(time: number, delta: number): void {
@@ -284,6 +332,19 @@ export default class PhaserGameScene extends Scene {
     // Switch AI bot type
     if (Phaser.Input.Keyboard.JustDown(this.botSwitchKey)) {
       this.switchBotType();
+    }
+
+    // Difficulty and Style controls (only active for ML bot)
+    if (this.botType === 'ml' && this.mlBot) {
+      if (Phaser.Input.Keyboard.JustDown(this.difficultyUpKey)) {
+        this.changeDifficulty(1);
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.difficultyDownKey)) {
+        this.changeDifficulty(-1);
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.styleKey)) {
+        this.cycleStyle();
+      }
     }
 
     // Toggle training mode
@@ -306,9 +367,23 @@ export default class PhaserGameScene extends Scene {
       this.toggleInfiniteMeter();
     }
 
-    // Don't update if round/match is over
-    if (this.gameState.isRoundOver || this.gameState.isMatchOver) {
+    // Show match end menu if match is over
+    if (this.gameState.isMatchOver) {
       this.updateUI();
+      this.showMatchEndMenu();
+      return;
+    }
+
+    // Don't update if round is over, but schedule next round
+    if (this.gameState.isRoundOver) {
+      this.updateUI();
+      // Start next round after 3 seconds if we haven't already scheduled it
+      if (!this.roundEndTimer) {
+        this.roundEndTimer = this.time.delayedCall(3000, () => {
+          this.startNextRound();
+          this.roundEndTimer = null;
+        });
+      }
       return;
     }
 
@@ -328,7 +403,7 @@ export default class PhaserGameScene extends Scene {
       
       if (mode === 'record') {
         // Record player 2's actual inputs (from AI)
-        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
+        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot)
           ? this.aiBot.selectAction(observation, this.gameState.frame)
           : AIAction.IDLE;
         player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
@@ -360,7 +435,7 @@ export default class PhaserGameScene extends Scene {
         player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
       } else if (mode === 'cpu') {
         // Use normal AI
-        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
+        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot)
           ? this.aiBot.selectAction(observation, this.gameState.frame)
           : AIAction.IDLE;
         player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
@@ -368,11 +443,21 @@ export default class PhaserGameScene extends Scene {
         player2Input = actionToInputFrame(AIAction.IDLE, player2?.facing || 1, this.gameState.frame);
       }
     } else {
-      // Normal AI
-      aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot)
-        ? this.aiBot.selectAction(observation, this.gameState.frame)
-        : AIAction.IDLE;
-      player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+      // Normal AI - check bot type
+      if (this.botType === 'ml' && this.mlBot) {
+        // Use ML bot (new RL-trained system)
+        this.mlBotAction = this.mlBot.getAction(this.gameState);
+        aiAction = this.mlBotAction.action as AIAction;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+      } else if (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot) {
+        // Use legacy bots
+        aiAction = this.aiBot.selectAction(observation, this.gameState.frame);
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+      } else {
+        // Fallback
+        aiAction = AIAction.IDLE;
+        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+      }
     }
 
     // Create input map
@@ -450,24 +535,33 @@ export default class PhaserGameScene extends Scene {
     this.fpsText.setText(`FPS: ${Math.round(this.game.loop.actualFps)}`);
 
     // Check for round end
-    if (this.gameState.isRoundOver && this.gameState.round.winner) {
-      const winnerFighter = this.gameState.entities.find(
-        (f) => f.id === this.gameState.round.winner
-      );
-      if (winnerFighter) {
-        this.roundText.setText(
-          `Round ${this.gameState.round.roundNumber} - ${winnerFighter.id} wins!`
+    if (this.gameState.isRoundOver) {
+      if (this.gameState.round.winner) {
+        const winnerFighter = this.gameState.entities.find(
+          (f) => f.id === this.gameState.round.winner
         );
+        if (winnerFighter) {
+          this.showWinOverlay(winnerFighter.id);
+          this.roundText.setText(
+            `Round ${this.gameState.round.roundNumber} - ${winnerFighter.id} wins!`
+          );
+        }
+      } else {
+        // Tie - show animated overlay
+        this.showTieOverlay();
+        this.roundText.setText(`Round ${this.gameState.round.roundNumber} - TIE!`);
       }
     }
 
     // Check for match end
-    if (this.gameState.isMatchOver && this.gameState.match.matchWinner) {
-      const winnerFighter = this.gameState.entities.find(
-        (f) => f.id === this.gameState.match.matchWinner
-      );
-      if (winnerFighter) {
-        this.roundText.setText(`${winnerFighter.id} WINS THE MATCH!`);
+    if (this.gameState.isMatchOver) {
+      if (this.gameState.match.matchWinner) {
+        const winnerFighter = this.gameState.entities.find(
+          (f) => f.id === this.gameState.match.matchWinner
+        );
+        if (winnerFighter) {
+          this.roundText.setText(`${winnerFighter.id} WINS THE MATCH!`);
+        }
       }
     }
   }
@@ -797,8 +891,10 @@ export default class PhaserGameScene extends Scene {
     const typeNames = {
       'personality': 'Personality Bot (Aggressive)',
       'defensive': 'Defensive Bot (Zoner)',
+      'scripted': 'Scripted Bot (Tight)',
       'neural': 'Neural Bot',
       'random': 'Random Bot',
+      'ml': `ML Bot (RL-Trained) | Lv${this.currentDifficulty} ${this.currentStyle}`,
     };
     this.botTypeText.setText(`AI: ${typeNames[this.botType]}`);
   }
@@ -826,7 +922,16 @@ export default class PhaserGameScene extends Scene {
       });
       this.botType = 'defensive';
       this.botTypeText.setText('AI: Defensive Bot (Zoner)');
+      this.difficultyText.setVisible(false);
+      this.styleText.setVisible(false);
     } else if (this.botType === 'defensive') {
+      // Switch to scripted bot (playtesting baseline)
+      this.aiBot = new ScriptedBot('tight');
+      this.botType = 'scripted';
+      this.botTypeText.setText('AI: Scripted Bot (Tight)');
+      this.difficultyText.setVisible(false);
+      this.styleText.setVisible(false);
+    } else if (this.botType === 'scripted') {
       // Switch to neural bot
       this.aiBot = new NeuralBot(this.neuralPolicy, {
         temperature: 1.0,
@@ -835,11 +940,30 @@ export default class PhaserGameScene extends Scene {
       });
       this.botType = 'neural';
       this.botTypeText.setText('AI: Neural Bot');
+      this.difficultyText.setVisible(false);
+      this.styleText.setVisible(false);
     } else if (this.botType === 'neural') {
+      // Switch to ML bot (new RL-trained system)
+      if (this.mlBot) {
+        this.botType = 'ml';
+        this.updateBotTypeText();
+        this.difficultyText.setVisible(true);
+        this.styleText.setVisible(true);
+      } else {
+        // ML bot not loaded, skip to random
+        this.aiBot = new RandomBot();
+        this.botType = 'random';
+        this.botTypeText.setText('AI: Random Bot (ML Bot not loaded)');
+        this.difficultyText.setVisible(false);
+        this.styleText.setVisible(false);
+      }
+    } else if (this.botType === 'ml') {
       // Switch to random bot
       this.aiBot = new RandomBot();
       this.botType = 'random';
       this.botTypeText.setText('AI: Random Bot');
+      this.difficultyText.setVisible(false);
+      this.styleText.setVisible(false);
     } else {
       // Switch back to aggressive personality
       this.aiBot = new PersonalityBot({
@@ -859,6 +983,36 @@ export default class PhaserGameScene extends Scene {
       });
       this.botType = 'personality';
       this.botTypeText.setText('AI: Personality Bot (Aggressive)');
+      this.difficultyText.setVisible(false);
+      this.styleText.setVisible(false);
+    }
+  }
+
+  /**
+   * Change difficulty level
+   */
+  private changeDifficulty(delta: number): void {
+    this.currentDifficulty = Math.max(1, Math.min(10, this.currentDifficulty + delta)) as DifficultyLevel;
+    this.difficultyText.setText(`Difficulty: ${this.currentDifficulty}/10 (F7/F8)`);
+    
+    // Recreate ML bot with new difficulty
+    if (this.mlBot) {
+      this.createMLBot();
+    }
+  }
+
+  /**
+   * Cycle through fighting styles
+   */
+  private cycleStyle(): void {
+    const styles: FightingStyle[] = ['rushdown', 'zoner', 'turtle', 'mixup'];
+    const currentIndex = styles.indexOf(this.currentStyle);
+    this.currentStyle = styles[(currentIndex + 1) % styles.length];
+    this.styleText.setText(`Style: ${this.currentStyle} (F9)`);
+    
+    // Recreate ML bot with new style
+    if (this.mlBot) {
+      this.createMLBot();
     }
   }
 
@@ -988,49 +1142,288 @@ export default class PhaserGameScene extends Scene {
   }
 
   /**
-   * Attempt to load trained neural model
-   * 1. Try IndexedDB (cached from previous session)
-   * 2. Try HTTP server (newly trained model)
-   * 3. If HTTP succeeds, save to IndexedDB for next time
+   * Create ML bot with current difficulty and style
+   */
+  private async createMLBot(): Promise<void> {
+    if (!this.mlBot) {
+      console.error('Cannot create ML bot: model not loaded');
+      return;
+    }
+
+    const httpPath = 'http://localhost:8080/policy/model.json';
+    try {
+      const model = await tf.loadLayersModel(httpPath);
+      this.mlBot = new BotRuntime(model, {
+        difficulty: this.currentDifficulty,
+        style: this.currentStyle,
+        playerIndex: 2,
+      });
+      this.updateBotTypeText();
+    } catch (error) {
+      console.error('Failed to recreate ML bot:', error);
+    }
+  }
+
+  /**
+   * Attempt to load trained ML model
+   * 1. Try loading from HTTP server
+   * 2. Create BotRuntime with default settings
+   * 3. Also load legacy NeuralPolicy for backward compatibility
    */
   private async loadNeuralModel(): Promise<void> {
-    const indexedDbPath = 'indexeddb://musashi_v1';
-    const httpPath = 'http://localhost:8080/musashi_v1/model.json';
+    const indexedDbPath = 'indexeddb://policy_v1';
+    const httpPath = 'http://localhost:8080/policy/model.json';
 
+    // Try to load NeuralPolicy (legacy)
     try {
-      // Try loading from IndexedDB first (fastest)
       await this.neuralPolicy.load(indexedDbPath);
-      console.log('✓ Loaded trained neural model from IndexedDB');
-      this.botTypeText.setText('AI: Random Bot | Neural Model: Loaded (Cached)');
-      return;
+      console.log('✓ Loaded legacy neural model from IndexedDB');
     } catch (indexedDbError) {
-      // IndexedDB failed, try HTTP server
-      console.log('⚠ No cached model in IndexedDB, trying HTTP server...');
+      console.log('⚠ No cached legacy model in IndexedDB, trying HTTP server...');
       
       try {
-        // Load from HTTP server (must be running: npm run serve-models)
         await this.neuralPolicy.load(httpPath);
-        console.log('✓ Loaded trained neural model from HTTP');
+        console.log('✓ Loaded legacy neural model from HTTP');
         
-        // Save to IndexedDB for next time
         try {
           await this.neuralPolicy.save(indexedDbPath);
-          console.log('✓ Cached model to IndexedDB for future sessions');
-          this.botTypeText.setText('AI: Random Bot | Neural Model: Loaded (New)');
+          console.log('✓ Cached legacy model to IndexedDB');
         } catch (saveError) {
-          console.warn('⚠ Failed to cache model to IndexedDB:', saveError);
-          this.botTypeText.setText('AI: Random Bot | Neural Model: Loaded (HTTP only)');
+          console.warn('⚠ Failed to cache legacy model:', saveError);
         }
-        return;
       } catch (httpError) {
-        // Both failed - no trained model available
-        console.log('⚠ No trained model found');
-        console.log('  1. Train a model: npm run train');
-        console.log('  2. Serve models: npm run serve-models');
-        console.log('  3. Reload this page');
-        console.log('  Neural Bot will use random weights until trained model is loaded');
+        console.log('⚠ No legacy neural model found');
       }
     }
+
+    // Try to load ML BotRuntime (new RL system)
+    try {
+      const model = await tf.loadLayersModel(httpPath);
+      this.mlBot = new BotRuntime(model, {
+        difficulty: this.currentDifficulty,
+        style: this.currentStyle,
+        playerIndex: 2,
+      });
+      console.log('✓ Loaded ML Bot (RL-trained system)');
+      console.log(`  Difficulty: ${this.currentDifficulty}/10, Style: ${this.currentStyle}`);
+      console.log('  Press F2 to cycle bots → Press F7/F8 for difficulty, F9 for style');
+    } catch (error) {
+      console.log('⚠ ML Bot not available');
+      console.log('  1. Train: npm run train:rl');
+      console.log('  2. Serve: npm run serve-models');
+      console.log('  3. Reload page');
+    }
+  }
+
+  /**
+   * Show animated win overlay
+   */
+  private showWinOverlay(winnerId: string): void {
+    // Only show once
+    if (this.winOverlay) return;
+
+    this.winOverlay = this.add.text(500, 300, `${winnerId.toUpperCase()} WINS!`, {
+      fontSize: '20px',
+      color: '#00ff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6,
+    });
+    this.winOverlay.setOrigin(0.5);
+    this.winOverlay.setDepth(1000);
+    this.winOverlay.setAlpha(0);
+
+    // Grow from small to large in center
+    this.tweens.add({
+      targets: this.winOverlay,
+      fontSize: '100px',
+      alpha: 1,
+      duration: 800,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Hold for a moment then fade out
+        this.time.delayedCall(1000, () => {
+          this.tweens.add({
+            targets: this.winOverlay,
+            alpha: 0,
+            duration: 500,
+            onComplete: () => {
+              this.winOverlay?.destroy();
+              this.winOverlay = null;
+            }
+          });
+        });
+      }
+    });
+  }
+
+  /**
+   * Show animated tie overlay
+   */
+  private showTieOverlay(): void {
+    // Only show once
+    if (this.tieOverlay) return;
+
+    this.tieOverlay = this.add.text(500, 300, 'TIE!', {
+      fontSize: '20px',
+      color: '#ffff00',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 6,
+    });
+    this.tieOverlay.setOrigin(0.5);
+    this.tieOverlay.setDepth(1000);
+    this.tieOverlay.setAlpha(0);
+
+    // Grow from small to large in center
+    this.tweens.add({
+      targets: this.tieOverlay,
+      fontSize: '100px',
+      alpha: 1,
+      duration: 800,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Hold for a moment then fade out
+        this.time.delayedCall(1000, () => {
+          this.tweens.add({
+            targets: this.tieOverlay,
+            alpha: 0,
+            duration: 500,
+            onComplete: () => {
+              this.tieOverlay?.destroy();
+              this.tieOverlay = null;
+            }
+          });
+        });
+      }
+    });
+  }
+
+  /**
+   * Start the next round
+   */
+  private startNextRound(): void {
+    // Get config from current game state
+    const config = {
+      entities: [
+        {
+          characterId: 'musashi',
+          id: 'player1',
+          teamId: 0,
+          startPosition: { x: 300, y: 500 },
+        },
+        {
+          characterId: 'musashi',
+          id: 'player2',
+          teamId: 1,
+          startPosition: { x: 700, y: 500 },
+        },
+      ],
+      arena: {
+        width: 1000,
+        height: 600,
+        groundLevel: 500,
+        leftBound: 100,
+        rightBound: 900,
+      },
+      roundTimeSeconds: 60,
+      roundsToWin: 2, // Best of 3
+    };
+
+    // Start next round
+    this.gameState = startNextRound(this.gameState, config);
+    
+    // Clear any overlays - stop tweens first to avoid errors
+    if (this.winOverlay) {
+      this.tweens.killTweensOf(this.winOverlay);
+      this.winOverlay.destroy();
+      this.winOverlay = null;
+    }
+    if (this.tieOverlay) {
+      this.tweens.killTweensOf(this.tieOverlay);
+      this.tieOverlay.destroy();
+      this.tieOverlay = null;
+    }
+  }
+
+  /**
+   * Show match end menu with options
+   */
+  private showMatchEndMenu(): void {
+    // Only show once
+    if (this.matchEndContainer) return;
+
+    const centerX = 500;
+    const centerY = 300;
+
+    // Create container
+    this.matchEndContainer = this.add.container(centerX, centerY);
+    this.matchEndContainer.setDepth(1000);
+
+    // Background
+    const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.8);
+    this.matchEndContainer.add(bg);
+
+    // Title
+    let titleText = 'MATCH OVER!';
+    if (this.gameState.match.matchWinner) {
+      const winner = this.gameState.entities.find(f => f.id === this.gameState.match.matchWinner);
+      if (winner) {
+        titleText = `${winner.id.toUpperCase()} WINS!`;
+      }
+    }
+    const title = this.add.text(0, -100, titleText, {
+      fontSize: '40px',
+      color: '#ffff00',
+      fontStyle: 'bold',
+    });
+    title.setOrigin(0.5);
+    this.matchEndContainer.add(title);
+
+    // Replay button
+    const replayBtn = this.add.rectangle(0, 0, 250, 50, 0x4488ff);
+    const replayText = this.add.text(0, 0, 'REPLAY', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    });
+    replayText.setOrigin(0.5);
+    replayBtn.setInteractive({ useHandCursor: true });
+    replayBtn.on('pointerover', () => replayBtn.setFillStyle(0x6699ff));
+    replayBtn.on('pointerout', () => replayBtn.setFillStyle(0x4488ff));
+    replayBtn.on('pointerdown', () => {
+      this.scene.restart();
+    });
+    this.matchEndContainer.add(replayBtn);
+    this.matchEndContainer.add(replayText);
+
+    // Main menu button
+    const menuBtn = this.add.rectangle(0, 70, 250, 50, 0x888888);
+    const menuText = this.add.text(0, 70, 'MAIN MENU', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    });
+    menuText.setOrigin(0.5);
+    menuBtn.setInteractive({ useHandCursor: true });
+    menuBtn.on('pointerover', () => menuBtn.setFillStyle(0xaaaaaa));
+    menuBtn.on('pointerout', () => menuBtn.setFillStyle(0x888888));
+    menuBtn.on('pointerdown', () => {
+      this.matchEndContainer?.destroy();
+      this.matchEndContainer = null;
+      this.scene.start('MenuScene');
+    });
+    this.matchEndContainer.add(menuBtn);
+    this.matchEndContainer.add(menuText);
+
+    // Fade in animation
+    this.matchEndContainer.setAlpha(0);
+    this.tweens.add({
+      targets: this.matchEndContainer,
+      alpha: 1,
+      duration: 500,
+      ease: 'Power2',
+    });
   }
 
   /**
@@ -1056,6 +1449,24 @@ export default class PhaserGameScene extends Scene {
       graphics.destroy();
     }
     this.meterGraphics.clear();
+    
+    // Clean up match end UI
+    if (this.matchEndContainer) {
+      this.matchEndContainer.destroy();
+      this.matchEndContainer = null;
+    }
+    if (this.tieOverlay) {
+      this.tieOverlay.destroy();
+      this.tieOverlay = null;
+    }
+    if (this.winOverlay) {
+      this.winOverlay.destroy();
+      this.winOverlay = null;
+    }
+    if (this.roundEndTimer) {
+      this.roundEndTimer.remove();
+      this.roundEndTimer = null;
+    }
     
     this.neuralPolicy.dispose();
   }

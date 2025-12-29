@@ -192,13 +192,18 @@ The game features multiple AI types with different playstyles:
 - Uses projectiles effectively
 - Good for learning approach options
 
-**3. Neural Bot**
+**3. Scripted Bot (Tight)**
+- Deterministic pressure bot used as a baseline
+- Aggressively closes distance and applies simple strings
+- Useful for testing fundamentals against consistent pressure
+
+**4. Neural Bot**
 - Trained via TensorFlow.js
 - Learns from replay data
 - Adaptive strategy
 - Most realistic opponent (when trained)
 
-**4. Random Bot**
+**5. Random Bot**
 - Unpredictable actions
 - Tests reaction time
 - Good for warm-up
@@ -316,6 +321,24 @@ src/
 npm test              # Run all tests
 npm run test:watch    # Watch mode
 ```
+
+### AI Training (Headless)
+```bash
+npm run train          # Run PPO training (headless)
+npm run progress       # Live-tail eval progress JSONL
+```
+
+Curriculum (recommended for bootstrapping learning):
+```bash
+TRAIN_CURRICULUM=1 \
+TRAIN_CURRICULUM_DAMAGE_THRESHOLD=20 \
+TRAIN_CURRICULUM_REQUIRED_EVALS=2 \
+npm run train
+```
+
+Notes:
+- Training writes eval checkpoints to `./models/training-progress.jsonl` (override with `TRAIN_PROGRESS_PATH`).
+- Curriculum starts against an easy scripted opponent and switches to a tighter scripted opponent once eval `avgDamageDealt` crosses the threshold for N consecutive evals.
 
 All game logic is fully unit tested (185+ tests).
 
