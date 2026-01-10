@@ -31,27 +31,27 @@ Build real-time player-vs-player multiplayer on iOS and Android to capture high-
 │  Mobile App (iOS/Android via Capacitor)              │
 │  ├─ Touch Controls Layer                             │
 │  ├─ Phaser Layer (rendering)                         │
-│  ├─ Core Game Engine (deterministic)                │
-│  ├─ Network Client (WebSocket)                      │
-│  └─ Replay Recorder (local + upload)                │
+│  ├─ Core Game Engine (deterministic)                 │
+│  ├─ Network Client (WebSocket)                       │
+│  └─ Replay Recorder (local + upload)                 │
 └──────────────────────────────────────────────────────┘
                     │
                     ▼
 ┌──────────────────────────────────────────────────────┐
 │  Backend Server (Node.js + TypeScript)               │
-│  ├─ WebSocket Server (real-time sync)               │
-│  ├─ Matchmaking Service                             │
-│  ├─ Game State Authority (anti-cheat)               │
-│  ├─ Replay Storage & Validation                     │
-│  └─ User Authentication                             │
+│  ├─ WebSocket Server (real-time sync)                │
+│  ├─ Matchmaking Service                              │
+│  ├─ Game State Authority (anti-cheat)                │
+│  ├─ Replay Storage & Validation                      │
+│  └─ User Authentication                              │
 └──────────────────────────────────────────────────────┘
                     │
                     ▼
 ┌──────────────────────────────────────────────────────┐
 │  Database & Storage                                  │
-│  ├─ User accounts (Firebase Auth / Supabase)        │
-│  ├─ Replay data (PostgreSQL / MongoDB)              │
-│  └─ Match history & Elo ratings                     │
+│  ├─ User accounts (Firebase Auth / Supabase)         │
+│  ├─ Replay data (PostgreSQL / MongoDB)               │
+│  └─ Match history & Elo ratings                      │
 └──────────────────────────────────────────────────────┘
 ```
 

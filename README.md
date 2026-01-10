@@ -324,21 +324,17 @@ npm run test:watch    # Watch mode
 
 ### AI Training (Headless)
 ```bash
-npm run train          # Run PPO training (headless)
+npm run train          # Run PPO training with progressive bot curriculum
 npm run progress       # Live-tail eval progress JSONL
 ```
 
-Curriculum (recommended for bootstrapping learning):
-```bash
-TRAIN_CURRICULUM=1 \
-TRAIN_CURRICULUM_DAMAGE_THRESHOLD=20 \
-TRAIN_CURRICULUM_REQUIRED_EVALS=2 \
-npm run train
-```
+Training features:
+- **Progressive Bot Curriculum** - Automatically trains against Tutorial → Guardian → Aggressor → Tactician → Wildcard bots with increasing difficulty
+- **No configuration needed** - Optimal defaults prevent common failures (stalling, passive play)
+- **Custom bot selection** - Override curriculum with specific bot: `TRAIN_BOT_TYPE=GUARDIAN TRAIN_BOT_DIFFICULTY=7 npm run train`
+- **Quick test** - Short run: `TRAIN_STEPS=100000 npm run train`
 
-Notes:
-- Training writes eval checkpoints to `./models/training-progress.jsonl` (override with `TRAIN_PROGRESS_PATH`).
-- Curriculum starts against an easy scripted opponent and switches to a tighter scripted opponent once eval `avgDamageDealt` crosses the threshold for N consecutive evals.
+See [docs/BOT-TRAINING-GUIDE.md](docs/BOT-TRAINING-GUIDE.md) for comprehensive training documentation.
 
 All game logic is fully unit tested (185+ tests).
 

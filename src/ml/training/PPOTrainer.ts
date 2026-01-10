@@ -499,6 +499,7 @@ export class PPOTrainer {
   private scriptedOpponentMixProb: number = 0;
   private scriptedMinEpisodesPerRollout: number = 0;
   private scriptedVariant: 'easy' | 'tight' = 'tight';
+  private customBotActionFn?: (state: any, actorId: string, targetId: string) => ActionBundle;
   private bootstrapMirrorFrames: number = 0;
   private bootstrapProb: number = 0;
   private maxEpisodeFrames: number = 0;
@@ -557,6 +558,14 @@ export class PPOTrainer {
    */
   setScriptedVariant(variant: 'easy' | 'tight'): void {
     this.scriptedVariant = variant;
+  }
+
+  /**
+   * Set custom bot action function for advanced scripted opponents.
+   * When set, this will be used instead of the built-in easy/tight variants.
+   */
+  setCustomBotActionFn(fn: ((state: any, actorId: string, targetId: string) => ActionBundle) | null): void {
+    this.customBotActionFn = fn ?? undefined;
   }
 
   /**
@@ -866,19 +875,25 @@ export class PPOTrainer {
         opponentAction = this.uncanonicalizeBundleForEntity(state, opponentPlayerId, this.actionToBundle(oppAction));
       } else {
         // Use scripted opponent behavior to provide learning signal
-        const variant: 'easy' | 'tight' =
-          forceScriptedTightThisEpisode
-            ? 'tight'
-            : this.opponentMode === 'scripted-easy'
-              ? 'easy'
-              : this.opponentMode === 'scripted-tight'
-                ? 'tight'
-                : this.scriptedVariant;
+        if (this.customBotActionFn) {
+          // Use custom bot action function (advanced bots)
+          opponentAction = this.customBotActionFn(state, opponentPlayerId, policyPlayerId);
+        } else {
+          // Use legacy easy/tight variants
+          const variant: 'easy' | 'tight' =
+            forceScriptedTightThisEpisode
+              ? 'tight'
+              : this.opponentMode === 'scripted-easy'
+                ? 'easy'
+                : this.opponentMode === 'scripted-tight'
+                  ? 'tight'
+                  : this.scriptedVariant;
 
-        opponentAction =
-          variant === 'easy'
-            ? this.getScriptedOpponentActionEasy(state, opponentPlayerId, policyPlayerId)
-            : this.getScriptedOpponentActionTight(state, opponentPlayerId, policyPlayerId);
+          opponentAction =
+            variant === 'easy'
+              ? this.getScriptedOpponentActionEasy(state, opponentPlayerId, policyPlayerId)
+              : this.getScriptedOpponentActionTight(state, opponentPlayerId, policyPlayerId);
+        }
         
         // Debug: Log scripted action first 10 steps
         if (debugEnabled && step < 10) {

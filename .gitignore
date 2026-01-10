@@ -5,6 +5,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Training data
+models/backups/
+models/opponent_pool/
+models/policy/
+models/training-progress.jsonl
+
 # Runtime data
 pids
 *.pid

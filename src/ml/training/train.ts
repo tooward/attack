@@ -19,7 +19,15 @@ import {
 } from './StyleIntegration';
 import { getAllStyles, FightingStyle } from '../inference/StyleConfig';
 import { MUSASHI } from '../../core/data/musashi';
-import { evaluatePolicy, scriptedOpponentActionEasy, scriptedOpponentActionTight } from '../evaluation/evalRunner';
+import { evaluatePolicy } from '../evaluation/evalRunner';
+import { 
+  BotType, 
+  getBotForStep, 
+  createBotActionFn, 
+  resetBotCache,
+  DEFAULT_CURRICULUM,
+  getCurriculumStage 
+} from './BotSelector';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -120,12 +128,16 @@ async function main() {
   const obsEncoder = new ObservationEncoder(obsConfig);
   const obsSize = obsEncoder.getObservationSize();
 
-  // Create reward function
+  // Create reward function with optimized weights for engagement
   const rewardWeights = {
     ...DEFAULT_REWARD_WEIGHTS,
-    stalling: parseEnvFloat('TRAIN_REWARD_STALLING') ?? DEFAULT_REWARD_WEIGHTS.stalling,
-    attackIntent: parseEnvFloat('TRAIN_REWARD_ATTACK_INTENT') ?? DEFAULT_REWARD_WEIGHTS.attackIntent,
-    rangeControl: parseEnvFloat('TRAIN_REWARD_RANGE_CONTROL') ?? DEFAULT_REWARD_WEIGHTS.rangeControl,
+    damageDealt: parseEnvFloat('TRAIN_REWARD_DAMAGE_DEALT') ?? 1.0,
+    damageTaken: parseEnvFloat('TRAIN_REWARD_DAMAGE_TAKEN') ?? -0.5,
+    hitConfirm: parseEnvFloat('TRAIN_REWARD_HIT_CONFIRM') ?? 2.0,      // Reward successful attacks
+    successfulBlock: parseEnvFloat('TRAIN_REWARD_SUCCESSFUL_BLOCK') ?? 0.5,
+    stalling: parseEnvFloat('TRAIN_REWARD_STALLING') ?? -0.5,          // Penalize passive play
+    attackIntent: parseEnvFloat('TRAIN_REWARD_ATTACK_INTENT') ?? 0.05, // Encourage aggression
+    rangeControl: parseEnvFloat('TRAIN_REWARD_RANGE_CONTROL') ?? 0.1,
   };
   const rewardFn = new RewardFunction(rewardWeights);
 
@@ -243,17 +255,16 @@ async function main() {
     console.log(`[OpponentMix] scriptedMinEpisodesPerRollout=${scriptedMinEpisodesPerRollout}`);
   }
 
-  // Optional: force episode boundaries during training rollouts.
-  // Helps produce stable W/L/D stats and prevents ultra-long non-terminal episodes.
-  const maxEpisodeFrames = parseEnvInt('TRAIN_MAX_EPISODE_FRAMES') ?? 0;
+  // Force episode resolution to prevent infinite stalling (default: 1200 frames = ~20 seconds)
+  const maxEpisodeFrames = parseEnvInt('TRAIN_MAX_EPISODE_FRAMES') ?? 1200;
   if (maxEpisodeFrames > 0) {
     trainer.setMaxEpisodeFrames(maxEpisodeFrames);
-    console.log(`[Env] maxEpisodeFrames=${maxEpisodeFrames}`);
+    console.log(`[Episode Limit] maxFrames=${maxEpisodeFrames} (prevents stalling)`);
   }
 
-  // Optional bootstrap: mirror opponent opening moves
-  const bootstrapMirrorFrames = parseEnvInt('TRAIN_BOOTSTRAP_MIRROR_FRAMES') ?? 0;
-  const bootstrapProb = parseEnvFloat('TRAIN_BOOTSTRAP_PROB') ?? 0;
+  // Optional bootstrap: mirror opponent opening moves to encourage engagement
+  const bootstrapMirrorFrames = parseEnvInt('TRAIN_BOOTSTRAP_MIRROR_FRAMES') ?? 30;
+  const bootstrapProb = parseEnvFloat('TRAIN_BOOTSTRAP_PROB') ?? 0.3;
   if (bootstrapMirrorFrames > 0 && bootstrapProb > 0) {
     trainer.setBootstrap(bootstrapMirrorFrames, bootstrapProb);
     console.log(
@@ -286,19 +297,32 @@ async function main() {
   let styleStepCount = 0;
   let lastEvalStep = 0;
 
-  // Curriculum: easy scripted -> tight scripted (gated by eval avg damage dealt)
-  const curriculumEnabled = parseEnvBool('TRAIN_CURRICULUM', false);
-  const curriculumDamageThreshold = parseEnvInt('TRAIN_CURRICULUM_DAMAGE_THRESHOLD') ?? 20;
-  const curriculumRequiredEvals = parseEnvInt('TRAIN_CURRICULUM_REQUIRED_EVALS') ?? 2;
-  let curriculumPhase: 'easy' | 'tight' = curriculumEnabled ? 'easy' : 'tight';
-  let curriculumStreak = 0;
+  // Advanced Bot Curriculum: Progressive difficulty with different bot types (always enabled)
+  const customBotType = parseEnvString('TRAIN_BOT_TYPE'); // Override curriculum with specific bot
+  const customBotDifficulty = parseEnvInt('TRAIN_BOT_DIFFICULTY'); // Override difficulty
+  
+  let currentBotConfig = customBotType
+    ? {
+        botType: customBotType as BotType,
+        difficulty: customBotDifficulty ?? 5,
+        description: `Custom: ${customBotType} (difficulty ${customBotDifficulty ?? 5})`
+      }
+    : getBotForStep(0, DEFAULT_CURRICULUM);
 
-  if (curriculumEnabled) {
-    trainer.setOpponentMode('scripted-easy');
-    console.log(
-      `[Curriculum] enabled: easy -> tight | damageThreshold=${curriculumDamageThreshold} | requiredEvals=${curriculumRequiredEvals}`
-    );
+  if (customBotType) {
+    console.log('\n[Bot Training] Using custom bot:');
+    console.log(`  Bot: ${currentBotConfig.botType} (difficulty ${currentBotConfig.difficulty})`);
+    console.log(`  ${currentBotConfig.description}\n`);
+  } else {
+    console.log('\n[Bot Curriculum] Progressive training enabled:');
+    console.log(`  Starting bot: ${currentBotConfig.botType} (difficulty ${currentBotConfig.difficulty})`);
+    console.log(`  ${currentBotConfig.description}`);
+    console.log(`  Progression: Tutorial → Guardian → Aggressor → Tactician → Wildcard\n`);
   }
+
+  // Set bot action function
+  const botActionFn = createBotActionFn(currentBotConfig.botType, currentBotConfig.difficulty);
+  trainer.setCustomBotActionFn(botActionFn);
   
   console.log(`Starting with style: ${currentStyle}\n`);
 
@@ -578,13 +602,14 @@ async function main() {
         lastEvalStep = step;
         const evalEpisodesScripted = parseEnvInt('TRAIN_EVAL_EPISODES_SCRIPTED') ?? 30;
         const evalEpisodesSnapshots = parseEnvInt('TRAIN_EVAL_EPISODES_SNAPSHOTS') ?? 30;
-        const evalMaxFrames = parseEnvInt('TRAIN_EVAL_MAX_FRAMES') ?? 1800;
+        const evalMaxFrames = parseEnvInt('TRAIN_EVAL_MAX_FRAMES') ?? 1200;
         const evalGreedy = parseEnvBool('TRAIN_EVAL_GREEDY', true);
         const evalStyle = parseEnvString('TRAIN_EVAL_STYLE') ?? 'mixup';
-        const scriptedOpponentAction =
-          curriculumEnabled && curriculumPhase === 'easy'
-            ? scriptedOpponentActionEasy
-            : scriptedOpponentActionTight;
+        
+        // Use current bot from curriculum
+        const botConfig = currentBotConfig;
+        const scriptedOpponentAction = createBotActionFn(botConfig.botType, botConfig.difficulty);
+        console.log(`[Eval @ step ${step}] vs ${botConfig.botType} (difficulty ${botConfig.difficulty})`);
 
         console.log(`\n[Eval @ step ${step}] scripted=${evalEpisodesScripted}, snapshots=${evalEpisodesSnapshots}, maxFrames=${evalMaxFrames}, style=${evalStyle}, greedy=${evalGreedy ? 'yes' : 'no'}`);
         const report = await evaluatePolicy({
@@ -602,7 +627,8 @@ async function main() {
           timestamp: Date.now(),
           step,
           style: currentStyle,
-          phase: curriculumEnabled ? curriculumPhase : undefined,
+          botType: currentBotConfig.botType,
+          botDifficulty: currentBotConfig.difficulty,
           snapshotsLoaded: report.snapshotsLoaded,
           recentTrain: trainer.getLastRolloutEpisodeStats() ?? trainer.getLastRolloutEngagementStats() ?? undefined,
           scripted: report.policyVsScripted,
@@ -619,23 +645,44 @@ async function main() {
         console.log(`[Eval] ${scriptedLine}${snapshotsLine ? ' | ' + snapshotsLine : ''}`);
         console.log(`[Eval] wrote ${config.progressPath}`);
 
-        // Curriculum gating (only advances on eval checkpoints)
-        if (curriculumEnabled && curriculumPhase === 'easy') {
-          const dmg = report.policyVsScripted.avgDamageDealt;
-          if (dmg >= curriculumDamageThreshold) {
-            curriculumStreak++;
+        // Bot Curriculum progression (if not using custom bot)
+        if (!customBotType) {
+          // Safety Check: If win rate is abysmal (< 5%) after 100k steps, demote to Tutorial
+          // This prevents the agent from getting stuck in a "death spiral" against hard bots
+          const winRate = report.policyVsScripted.winRate;
+          const isStuck = winRate < 0.05 && step > 100000;
+          
+          let targetConfig;
+          
+          if (isStuck) {
+             // Demote to Tutorial 1
+             targetConfig = {
+               botType: BotType.TUTORIAL,
+               difficulty: 1,
+               description: 'DEMOTED: Performance too low (<5% WR). Back to basics.'
+             };
+             // Only log if we are actually changing state (prevent log spam)
+             if (currentBotConfig.botType !== BotType.TUTORIAL || currentBotConfig.difficulty !== 1) {
+                console.log(`\n⚠️ [Curriculum] PERFORMANCE ALERT: Win Rate ${(winRate * 100).toFixed(1)}% is too low.`);
+                console.log(`   Demoting to Tutorial Bot (Difficulty 1) to relearn basics.\n`);
+             }
           } else {
-            curriculumStreak = 0;
+             targetConfig = getBotForStep(step, DEFAULT_CURRICULUM);
           }
 
-          console.log(
-            `[Curriculum] phase=easy dmg=${dmg.toFixed(1)} threshold=${curriculumDamageThreshold} streak=${curriculumStreak}/${curriculumRequiredEvals}`
-          );
-
-          if (curriculumStreak >= curriculumRequiredEvals) {
-            curriculumPhase = 'tight';
-            trainer.setOpponentMode('scripted-tight');
-            console.log('[Curriculum] advanced to phase=tight (tight scripted opponent)');
+          if (targetConfig.botType !== currentBotConfig.botType || 
+              targetConfig.difficulty !== currentBotConfig.difficulty) {
+            currentBotConfig = targetConfig;
+            resetBotCache(); // Clear cache when switching bots
+            
+            // Update trainer to use new bot
+            const botActionFn = createBotActionFn(currentBotConfig.botType, currentBotConfig.difficulty);
+            trainer.setCustomBotActionFn(botActionFn);
+            
+            if (!isStuck) {
+                console.log(`\n[Bot Curriculum] Progressed to: ${currentBotConfig.botType} (difficulty ${currentBotConfig.difficulty})`);
+                console.log(`  ${currentBotConfig.description}\n`);
+            }
           }
         }
       }

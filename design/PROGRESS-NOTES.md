@@ -1,6 +1,23 @@
-# Progress Notes - December 28, 2025
+# Progress Notes - January 10, 2026
 
-## Session Summary
+## Current Session: Pivoting to PVP Mobile Track
+
+### Decision
+Pivoting from ML training to PVP mobile development to gain visible progress and collect human gameplay data.
+
+### What We Did
+1. ✅ Reviewed overall project status and roadmap
+2. ✅ Created [ML-TRAINING-CHECKPOINT.md](ML-TRAINING-CHECKPOINT.md) - comprehensive snapshot of ML work for future resumption
+3. ✅ Created [PVP-PHASE-A-PLAN.md](PVP-PHASE-A-PLAN.md) - detailed implementation guide for mobile foundation
+4. ✅ Confirmed PVP plan has full detail for all 4 phases in [PVP-MOBILE-PLAN.md](PVP-MOBILE-PLAN.md)
+
+### Next Steps
+- Begin Phase A implementation: Capacitor setup and touch controls
+- Target: 1-2 weeks to have game running on iOS/Android with touch controls
+
+---
+
+## Previous Session Summary (December 28, 2025)
 
 ### What We Accomplished
 

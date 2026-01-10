@@ -23,7 +23,7 @@
     "test": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js",
     "test:watch": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js --watch",
     "reset:training": "rm -rf models/policy models/opponent_pool models/training-progress.jsonl models/training.log",
-    "train": "bash -lc 'TRAIN_EARLY_ENGAGE_FRAMES=${TRAIN_EARLY_ENGAGE_FRAMES:-180} TRAIN_EARLY_ENGAGE_PENALTY=${TRAIN_EARLY_ENGAGE_PENALTY:--0.02} TRAIN_EARLY_TRAINING_STEPS=${TRAIN_EARLY_TRAINING_STEPS:-300000} TRAIN_ENTROPY_COEF=${TRAIN_ENTROPY_COEF:-0.02} TRAIN_REWARD_RANGE_CONTROL=${TRAIN_REWARD_RANGE_CONTROL:-0.2} TRAIN_OPPONENT_SCRIPTED_PROB=${TRAIN_OPPONENT_SCRIPTED_PROB:-0.35} TRAIN_OPPONENT_SCRIPTED_VARIANT=${TRAIN_OPPONENT_SCRIPTED_VARIANT:-tight} TRAIN_OPPONENT_SCRIPTED_MIN_EPISODES_PER_ROLLOUT=${TRAIN_OPPONENT_SCRIPTED_MIN_EPISODES_PER_ROLLOUT:-4} TRAIN_MAX_EPISODE_FRAMES=${TRAIN_MAX_EPISODE_FRAMES:-1800} TRAIN_SWAP_ROLE_PROB=${TRAIN_SWAP_ROLE_PROB:-0.5} TRAIN_P2_SCRIPTED_MIN_EPISODES_PER_ROLLOUT=${TRAIN_P2_SCRIPTED_MIN_EPISODES_PER_ROLLOUT:-2} TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/training/train.ts'",
+    "train": "bash -lc 'TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/training/train.ts'",
     "train:watch": "bash -lc 'npm run progress & npm run train'",
     "eval": "TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/evaluation/eval.ts",
     "progress": "TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/evaluation/progress.ts",
