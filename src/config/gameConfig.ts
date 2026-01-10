@@ -7,11 +7,19 @@ import InventoryScene from '../scenes/InventoryScene.js';
 import TradeScene from '../scenes/TradeScene.js';
 import PhaserGameScene from '../scenes/PhaserGameScene.js';
 
+// Mobile detection
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || !!(window as any).Capacitor;
+
+// Resolution scaling for mobile
+const baseWidth = 1000;
+const baseHeight = 600;
+const resolutionScale = isMobile ? 1.0 : 1.0; // Keep at 1.0 for now, can reduce to 0.85 if needed
+
 // Centralized game configuration
 export const config = {
     type: AUTO,
-    width: 1000,
-    height: 600,
+    width: baseWidth * resolutionScale,
+    height: baseHeight * resolutionScale,
     backgroundColor: '#000000',
     physics: {
         default: 'arcade',
@@ -28,4 +36,21 @@ export const config = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
+    // Performance optimizations for mobile
+    render: {
+        powerPreference: 'high-performance',
+        roundPixels: true,
+        pixelArt: false,
+        antialias: true
+    },
+    // Reduce audio channels on mobile
+    audio: {
+        disableWebAudio: false,
+        noAudio: false
+    },
+    // FPS configuration
+    fps: {
+        target: 60,
+        forceSetTimeOut: false
+    }
 };

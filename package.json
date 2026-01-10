@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "@capacitor/preferences": "^8.0.0",
     "@tensorflow/tfjs": "^4.22.0",
     "http-server": "^14.1.1",
     "phaser": "^3.88.2",
@@ -17,7 +23,8 @@
     "vite": "^5.4.19"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "vite build",
+    "build:ts": "tsc",
     "start": "tsc && http-server -c-1",
     "dev": "vite",
     "test": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js",

@@ -12,6 +12,7 @@ import { MUSASHI } from '../core/data/musashi';
 import { FighterSprite } from '../phaser/FighterSprite';
 import { InputHandler } from '../phaser/InputHandler';
 import { AudioManager } from '../phaser/AudioManager';
+import { TouchControlsOverlay } from '../phaser/ui/TouchControlsOverlay';
 import { ProceduralAudio } from '../utils/ProceduralAudio';
 import { generateObservation } from '../core/ai/Observation';
 import { RandomBot } from '../core/ai/RandomBot';
@@ -44,6 +45,8 @@ export default class PhaserGameScene extends Scene {
 
   // Input
   private inputHandler!: InputHandler;
+  private touchControls?: TouchControlsOverlay;
+  private inputDebugText?: Phaser.GameObjects.Text;
   private debugKey!: Phaser.Input.Keyboard.Key;
   private botSwitchKey!: Phaser.Input.Keyboard.Key;
   private trainingModeKey!: Phaser.Input.Keyboard.Key;
@@ -196,6 +199,28 @@ export default class PhaserGameScene extends Scene {
 
     // Initialize input
     this.inputHandler = new InputHandler(this);
+    
+    // Add touch controls for mobile devices
+    const isMobile = this.isMobileDevice();
+    
+    if (isMobile) {
+      this.touchControls = new TouchControlsOverlay(this);
+      this.add.existing(this.touchControls);
+      this.touchControls.setDepth(1000);
+      this.touchControls.setScrollFactor(0);
+      
+      // Add input debug display for mobile (can be disabled later)
+      const inputDebugText = this.add.text(10, 80, '', {
+        fontSize: '14px',
+        color: '#00ff00',
+        backgroundColor: '#000000aa',
+        padding: { x: 5, y: 5 }
+      });
+      inputDebugText.setDepth(1001);
+      inputDebugText.setScrollFactor(0);
+      this.inputDebugText = inputDebugText;
+    }
+    
     this.debugKey = this.input.keyboard!.addKey('F1');
     this.botSwitchKey = this.input.keyboard!.addKey('F2');
     this.trainingModeKey = this.input.keyboard!.addKey('F3');
@@ -244,7 +269,7 @@ export default class PhaserGameScene extends Scene {
       color: '#00ff00',
     });
 
-    // Instructions text
+    // Instructions text (hide on mobile to avoid overlap with touch controls)
     const instructions = this.add.text(500, 560, 
       'Arrow Keys + Z/X/C/V | F1: Hitboxes | F2: AI | F3: Training (cycle modes) | F4: Reset Pos | F5: ∞ Meter | F6: Reset HP', {
       fontSize: '11px',
@@ -252,6 +277,9 @@ export default class PhaserGameScene extends Scene {
       align: 'center',
     });
     instructions.setOrigin(0.5, 1);
+    if (this.touchControls) {
+      instructions.setVisible(false);
+    }
 
     // Training mode sub-instructions
     const trainingInstructions = this.add.text(500, 545, 
@@ -261,6 +289,9 @@ export default class PhaserGameScene extends Scene {
       align: 'center',
     });
     trainingInstructions.setOrigin(0.5, 1);
+    if (this.touchControls) {
+      trainingInstructions.setVisible(false);
+    }
 
     // Bot type indicator
     this.botTypeText = this.add.text(500, 580, 
@@ -387,8 +418,26 @@ export default class PhaserGameScene extends Scene {
       return;
     }
 
-    // Capture player 1 input
-    const player1Input = this.inputHandler.captureInput(this.gameState.frame);
+    // Capture player 1 input - use touch controls on mobile, keyboard otherwise
+    const player1Input = this.touchControls 
+      ? this.touchControls.getCurrentInput() 
+      : this.inputHandler.captureInput(this.gameState.frame);
+    
+    // Update input debug display
+    if (this.inputDebugText) {
+      if (player1Input.actions.size > 0) {
+        const actionNames = Array.from(player1Input.actions).map(a => {
+          const names: Record<number, string> = {
+            1: 'LEFT', 2: 'RIGHT', 3: 'UP', 4: 'DOWN',
+            5: 'LP', 6: 'HP', 7: 'LK', 8: 'HK', 9: 'BLOCK'
+          };
+          return names[a] || a;
+        });
+        this.inputDebugText.setText('Input: ' + actionNames.join(' + '));
+      } else {
+        this.inputDebugText.setText('Input: None');
+      }
+    }
 
     // Player 2 (AI bot or training dummy)
     const observation = generateObservation(this.gameState, 'player2');
@@ -882,6 +931,20 @@ export default class PhaserGameScene extends Scene {
     } else {
       console.log('Infinite Meter: OFF');
     }
+  }
+
+  /**
+   * Detect if running on a mobile device
+   */
+  private isMobileDevice(): boolean {
+    // Check if Capacitor is available (native mobile app)
+    if ((window as any).Capacitor) {
+      return true;
+    }
+    
+    // Fallback: Check user agent for mobile browsers
+    const userAgent = navigator.userAgent.toLowerCase();
+    return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
   }
 
   /**

@@ -54,6 +54,10 @@ bower_components
 dist/
 build/
 
+# Capacitor native projects
+ios/
+android/
+
 # dotenv environment variables file
 .env
 
