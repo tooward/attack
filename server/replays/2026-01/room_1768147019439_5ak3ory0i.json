@@ -1,0 +1,167 @@
+{
+  "metadata": {
+    "id": "room_1768147019439_5ak3ory0i",
+    "date": 1768147019439,
+    "version": "1.0.0",
+    "player1": {
+      "userId": "user_1768091242942_l10eqgaxp",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "player2": {
+      "userId": "user_1768091242942_l10eqgaxp",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "winner": 2,
+    "matchDuration": 7772,
+    "averagePing": 0,
+    "region": "global",
+    "training": {
+      "skillLevel": "beginner",
+      "tags": [
+        "long-match"
+      ],
+      "qualityScore": 1
+    }
+  },
+  "frames": [
+    {
+      "frame": 2,
+      "inputs": {
+        "p1": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "p2": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": [
+          4
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": [
+          1
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": []
+      }
+    },
+    {
+      "frame": 2,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": [
+          1
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": [
+          4
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": []
+      }
+    }
+  ],
+  "compressed": true,
+  "checksum": "f2adea1d3b5e2313"
+}

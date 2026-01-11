@@ -94,8 +94,8 @@ export class ActionButton extends Phaser.GameObjects.Container {
     try {
       // Check if Capacitor is available
       if ((window as any).Capacitor) {
-        const { Haptics } = await import('@capacitor/haptics');
-        await Haptics.impact({ style: 'light' });
+        const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+        await Haptics.impact({ style: ImpactStyle.Light });
       }
     } catch (e) {
       // Haptics not available (browser or not loaded)

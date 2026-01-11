@@ -336,6 +336,34 @@ Training features:
 
 See [docs/BOT-TRAINING-GUIDE.md](docs/BOT-TRAINING-GUIDE.md) for comprehensive training documentation.
 
+### Multiplayer Server
+
+The multiplayer server is a separate Node.js project located in the `server/` directory with its own dependencies.
+
+**Server Setup:**
+```bash
+# From the project root, navigate to the server directory
+cd server
+
+# Install server dependencies
+npm install
+
+# Run the server in development mode
+npm run dev
+
+# Or build and run in production
+npm run build
+npm start
+```
+
+**Game Client:**
+```bash
+# Run from the project root directory
+npm run dev
+```
+
+**Note:** Always run `npm install` and game scripts (`npm run dev`, `npm run build`, etc.) from the **project root directory**. Only server-specific commands should be run from the `server/` directory.
+
 All game logic is fully unit tested (185+ tests).
 
 ---

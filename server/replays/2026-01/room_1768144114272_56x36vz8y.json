@@ -1,0 +1,131 @@
+{
+  "metadata": {
+    "id": "room_1768144114272_56x36vz8y",
+    "date": 1768144114272,
+    "version": "1.0.0",
+    "player1": {
+      "userId": "user_1768091242942_l10eqgaxp",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "player2": {
+      "userId": "user_1768091242942_l10eqgaxp",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "winner": 2,
+    "matchDuration": 1832,
+    "averagePing": 0,
+    "region": "global",
+    "training": {
+      "skillLevel": "beginner",
+      "tags": [],
+      "qualityScore": 1
+    }
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [],
+        "p2": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          1
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    }
+  ],
+  "compressed": true,
+  "checksum": "955957755ce8fa37"
+}

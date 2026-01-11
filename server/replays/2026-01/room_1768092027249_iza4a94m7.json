@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "id": "room_1768092027249_iza4a94m7",
+    "date": 1768092027250,
+    "version": "1.0.0",
+    "player1": {
+      "userId": "user_1768091242942_l10eqgaxp",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "player2": {
+      "userId": "user_1768091237798_zkt3q9e69",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "winner": 1,
+    "matchDuration": 6091,
+    "averagePing": 0,
+    "region": "global",
+    "training": {
+      "skillLevel": "beginner",
+      "tags": [
+        "long-match"
+      ],
+      "qualityScore": 1
+    }
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [],
+        "p2": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          1
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          4
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": []
+      }
+    }
+  ],
+  "compressed": true,
+  "checksum": "bb2958d3d909126b"
+}

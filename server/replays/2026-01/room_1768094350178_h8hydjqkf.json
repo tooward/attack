@@ -1,0 +1,187 @@
+{
+  "metadata": {
+    "id": "room_1768094350178_h8hydjqkf",
+    "date": 1768094350178,
+    "version": "1.0.0",
+    "player1": {
+      "userId": "user_1768091237798_zkt3q9e69",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "player2": {
+      "userId": "user_1768091242942_l10eqgaxp",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "winner": 1,
+    "matchDuration": 2848,
+    "averagePing": 0,
+    "region": "global",
+    "training": {
+      "skillLevel": "beginner",
+      "tags": [],
+      "qualityScore": 1
+    }
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [],
+        "p2": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "frame": 1048,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 1062,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1077,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 1091,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1146,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 1161,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1172,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 1184,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1194,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 1208,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1260,
+      "inputs": {
+        "p1": [
+          1
+        ]
+      }
+    },
+    {
+      "frame": 1270,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1281,
+      "inputs": {
+        "p1": [
+          1
+        ]
+      }
+    },
+    {
+      "frame": 1293,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1342,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 1362,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1381,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 1392,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 1405,
+      "inputs": {
+        "p1": [
+          3
+        ]
+      }
+    },
+    {
+      "frame": 1413,
+      "inputs": {
+        "p1": []
+      }
+    }
+  ],
+  "compressed": true,
+  "checksum": "e415394f478a0a6d"
+}

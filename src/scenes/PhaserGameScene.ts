@@ -26,6 +26,8 @@ import { FightingStyle } from '../ml/inference/StyleConfig';
 import { actionToInputFrame, AIAction } from '../core/ai/ActionSpace';
 import * as tf from '@tensorflow/tfjs';
 import { getInputNotation, getDisplayNotation } from '../utils/InputNotation';
+import { OnlineManager, OnlineMatchConfig } from '../network/OnlineManager';
+import { NetworkClient } from '../network/NetworkClient';
 
 export default class PhaserGameScene extends Scene {
   // Core game state (source of truth)
@@ -87,11 +89,26 @@ export default class PhaserGameScene extends Scene {
   private winOverlay!: Phaser.GameObjects.Text | null;
   private roundEndTimer!: Phaser.Time.TimerEvent | null;
 
+  // Online multiplayer
+  private onlineManager?: OnlineManager;
+  private isOnlineMatch: boolean = false;
+  private onlineInitialized: boolean = false;
+  private opponentInfoText?: Phaser.GameObjects.Text;
+  private pingText?: Phaser.GameObjects.Text;
+  private waitingForInputsText?: Phaser.GameObjects.Text;
+
   constructor() {
     super({ key: 'PhaserGameScene' });
   }
 
   create(): void {
+    // Check if this is an online match
+    const onlineMatchData = this.registry.get('onlineMatch');
+    if (onlineMatchData) {
+      this.isOnlineMatch = true;
+      this.setupOnlineMatch(onlineMatchData);
+    }
+
     // Initialize character definitions
     this.characterDefs = new Map([['musashi', MUSASHI]]);
 
@@ -123,6 +140,15 @@ export default class PhaserGameScene extends Scene {
     };
 
     this.gameState = createInitialState(config);
+    
+    // For online matches, set initial frame to the frame delay
+    // This ensures delayed frame lookups work from the start
+    if (this.isOnlineMatch && this.onlineManager) {
+      const initialFrame = this.onlineManager.getFrameDelay();
+      this.gameState.frame = initialFrame;
+      console.log(`[PhaserGameScene] Starting online match at frame ${initialFrame}`);
+      this.onlineInitialized = true; // Mark as ready to send inputs
+    }
 
     // Create background
     this.add.rectangle(500, 300, 1000, 600, 0x222233);
@@ -228,27 +254,29 @@ export default class PhaserGameScene extends Scene {
     this.resetHealthKey = this.input.keyboard!.addKey('F6');
     this.infiniteMeterKey = this.input.keyboard!.addKey('F5');
 
-    // Initialize AI bots - Start with PersonalityBot for better gameplay
-    this.aiBot = new PersonalityBot({
-      aggression: 0.5,       // Reduced from 0.75 - less button mashing
-      riskTolerance: 0.4,    // Reduced from 0.6 - more conservative
-      defenseBias: 0.4,      // Increased from 0.25 - more blocking/spacing
-      spacingTarget: 0.35,   // Increased from 0.3 - maintain better distance
-      comboAmbition: 0.5,    // Reduced from 0.7 - shorter combos
-      jumpRate: 0.1,         // Reduced from 0.15 - less jumping
-      throwRate: 0.08,       // Reduced from 0.1 - less throwing
-      fireballRate: 0.25,    // Reduced from 0.3 - less special spam
-      antiAirCommitment: 0.5, // Reduced from 0.6
-      adaptivity: 0.5,
-      discipline: 0.75,      // Increased from 0.65 - more patient
-      patternAddiction: 0.2, // Reduced from 0.3 - less predictable
-      tiltThreshold: 0.6,
-    });
-    this.neuralPolicy = new NeuralPolicy();
-    this.botType = 'personality';
-    
-    // Try to load trained model (async, doesn't block scene)
-    this.loadNeuralModel();
+    // Initialize AI bots (skip for online matches)
+    if (!this.isOnlineMatch) {
+      this.aiBot = new PersonalityBot({
+        aggression: 0.5,       // Reduced from 0.75 - less button mashing
+        riskTolerance: 0.4,    // Reduced from 0.6 - more conservative
+        defenseBias: 0.4,      // Increased from 0.25 - more blocking/spacing
+        spacingTarget: 0.35,   // Increased from 0.3 - maintain better distance
+        comboAmbition: 0.5,    // Reduced from 0.7 - shorter combos
+        jumpRate: 0.1,         // Reduced from 0.15 - less jumping
+        throwRate: 0.08,       // Reduced from 0.1 - less throwing
+        fireballRate: 0.25,    // Reduced from 0.3 - less special spam
+        antiAirCommitment: 0.5, // Reduced from 0.6
+        adaptivity: 0.5,
+        discipline: 0.75,      // Increased from 0.65 - more patient
+        patternAddiction: 0.2, // Reduced from 0.3 - less predictable
+        tiltThreshold: 0.6,
+      });
+      this.neuralPolicy = new NeuralPolicy();
+      this.botType = 'personality';
+      
+      // Try to load trained model (async, doesn't block scene)
+      this.loadNeuralModel();
+    }
 
     // Create UI text
     this.roundText = this.add.text(500, 20, '', {
@@ -354,6 +382,101 @@ export default class PhaserGameScene extends Scene {
     this.styleKey = this.input.keyboard!.addKey('F9');
   }
 
+  /**
+   * Setup online multiplayer match
+   */
+  private setupOnlineMatch(config: OnlineMatchConfig): void {
+    console.log('Setting up online match:', config);
+    
+    // Create online manager
+    this.onlineManager = new OnlineManager(config);
+    
+    // Set disconnect handler
+    this.onlineManager.setDisconnectHandler(() => {
+      this.handleOnlineDisconnect();
+    });
+    
+    // Create opponent info display
+    const opponent = this.onlineManager.getOpponentInfo();
+    this.opponentInfoText = this.add.text(10, 540, 
+      `Opponent: ${opponent.id.substring(0, 8)}... (Elo: ${opponent.elo})`, {
+      fontSize: '14px',
+      color: '#00ffff',
+      backgroundColor: '#000000aa',
+      padding: { x: 5, y: 5 }
+    });
+    this.opponentInfoText.setDepth(1001);
+    this.opponentInfoText.setScrollFactor(0);
+    
+    // Create ping display
+    this.pingText = this.add.text(10, 560, 
+      `Ping: ${this.onlineManager.getPing()}ms | Delay: ${this.onlineManager.getFrameDelay()}f`, {
+      fontSize: '12px',
+      color: '#00ff00',
+      backgroundColor: '#000000aa',
+      padding: { x: 5, y: 5 }
+    });
+    this.pingText.setDepth(1001);
+    this.pingText.setScrollFactor(0);
+    
+    // Create waiting message (hidden initially)
+    this.waitingForInputsText = this.add.text(500, 300, 
+      'Waiting for opponent...', {
+      fontSize: '24px',
+      color: '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 4
+    });
+    this.waitingForInputsText.setOrigin(0.5);
+    this.waitingForInputsText.setDepth(1001);
+    this.waitingForInputsText.setVisible(false);
+    
+    // Hide AI-related UI
+    if (this.botTypeText) {
+      this.botTypeText.setVisible(false);
+    }
+    if (this.difficultyText) {
+      this.difficultyText.setVisible(false);
+    }
+    if (this.styleText) {
+      this.styleText.setVisible(false);
+    }
+  }
+
+  /**
+   * Handle online disconnect
+   */
+  private handleOnlineDisconnect(): void {
+    console.log('Online match disconnected');
+    
+    // Show disconnect message
+    const overlay = this.add.rectangle(
+      0, 0,
+      this.cameras.main.width,
+      this.cameras.main.height,
+      0x000000, 0.7
+    ).setOrigin(0).setDepth(2000);
+    
+    const text = this.add.text(500, 300, 
+      'Connection Lost\n\nReturning to menu...', {
+      fontSize: '32px',
+      color: '#ff0000',
+      align: 'center',
+      stroke: '#000000',
+      strokeThickness: 4
+    });
+    text.setOrigin(0.5).setDepth(2001);
+    
+    // Return to menu after delay
+    this.time.delayedCall(3000, () => {
+      if (this.onlineManager) {
+        this.onlineManager.destroy();
+      }
+      this.registry.remove('onlineMatch');
+      this.scene.start('MainMenuScene');
+    });
+  }
+
   update(time: number, delta: number): void {
     // Toggle debug mode
     if (Phaser.Input.Keyboard.JustDown(this.debugKey)) {
@@ -419,7 +542,7 @@ export default class PhaserGameScene extends Scene {
     }
 
     // Capture player 1 input - use touch controls on mobile, keyboard otherwise
-    const player1Input = this.touchControls 
+    let player1Input = this.touchControls 
       ? this.touchControls.getCurrentInput() 
       : this.inputHandler.captureInput(this.gameState.frame);
     
@@ -439,73 +562,125 @@ export default class PhaserGameScene extends Scene {
       }
     }
 
-    // Player 2 (AI bot or training dummy)
-    const observation = generateObservation(this.gameState, 'player2');
-    const player2 = this.gameState.entities.find(e => e.id === 'player2');
-    
-    let aiAction = AIAction.IDLE;
+    // Player 2 input - depends on mode
     let player2Input: InputFrame;
     
-    // Training mode overrides AI
-    if (this.gameState.trainingMode?.enabled) {
-      const mode = this.gameState.trainingMode.dummyMode;
+    // Online multiplayer mode
+    if (this.isOnlineMatch && this.onlineManager) {
+      // Don't send inputs until initialization is complete
+      if (!this.onlineInitialized) {
+        return;
+      }
       
-      if (mode === 'record') {
-        // Record player 2's actual inputs (from AI)
-        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot)
-          ? this.aiBot.selectAction(observation, this.gameState.frame)
-          : AIAction.IDLE;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+      // Send our input to opponent
+      const currentFrame = this.gameState.frame;
+      const localInputArray = Array.from(player1Input.actions);
+      this.onlineManager.sendInput(currentFrame, localInputArray);
+      
+      // Try to get synchronized inputs for the delayed frame
+      const frameInputs = this.onlineManager.getFrameInputs(currentFrame);
+      
+      if (!frameInputs) {
+        // Waiting for opponent input - don't advance game
+        if (this.waitingForInputsText) {
+          this.waitingForInputsText.setVisible(true);
+        }
         
-        // Add to recording
-        this.gameState.trainingMode.recording.push(player2Input);
-      } else if (mode === 'playback') {
-        // Play back recorded inputs
-        const recording = this.gameState.trainingMode.recording;
-        if (recording.length > 0) {
-          const index = this.gameState.trainingMode.playbackIndex % recording.length;
-          player2Input = recording[index];
-          this.gameState.trainingMode.playbackIndex++;
+        // Update ping display
+        if (this.pingText) {
+          this.pingText.setText(
+            `Ping: ${this.onlineManager.getPing()}ms | Delay: ${this.onlineManager.getFrameDelay()}f | Frame: ${currentFrame} | Waiting...`
+          );
+        }
+        
+        // Don't increment frame - wait for both players to be ready
+        return; // Skip game logic this frame
+      }
+      
+      // Hide waiting message
+      if (this.waitingForInputsText) {
+        this.waitingForInputsText.setVisible(false);
+      }
+      
+      // Update ping display
+      if (this.pingText) {
+        this.pingText.setText(
+          `Ping: ${this.onlineManager.getPing()}ms | Delay: ${this.onlineManager.getFrameDelay()}f`
+        );
+      }
+      
+      // Use synchronized inputs
+      player1Input = frameInputs.player1!;
+      player2Input = frameInputs.player2!;
+      
+    } else {
+      // Local AI mode
+      const observation = generateObservation(this.gameState, 'player2');
+      const player2 = this.gameState.entities.find(e => e.id === 'player2');
+      
+      let aiAction = AIAction.IDLE;
+      
+      // Training mode overrides AI
+      if (this.gameState.trainingMode?.enabled) {
+        const mode = this.gameState.trainingMode.dummyMode;
+        
+        if (mode === 'record') {
+          // Record player 2's actual inputs (from AI)
+          aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot)
+            ? this.aiBot.selectAction(observation, this.gameState.frame)
+            : AIAction.IDLE;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+          
+          // Add to recording
+          this.gameState.trainingMode.recording.push(player2Input);
+        } else if (mode === 'playback') {
+          // Play back recorded inputs
+          const recording = this.gameState.trainingMode.recording;
+          if (recording.length > 0) {
+            const index = this.gameState.trainingMode.playbackIndex % recording.length;
+            player2Input = recording[index];
+            this.gameState.trainingMode.playbackIndex++;
+          } else {
+            // No recording, idle
+            player2Input = actionToInputFrame(AIAction.IDLE, player2?.facing || 1, this.gameState.frame);
+          }
+        } else if (mode === 'idle') {
+          aiAction = AIAction.IDLE;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        } else if (mode === 'crouch') {
+          aiAction = AIAction.CROUCH;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        } else if (mode === 'jump') {
+          aiAction = AIAction.JUMP;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        } else if (mode === 'block') {
+          aiAction = AIAction.BLOCK;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        } else if (mode === 'cpu') {
+          // Use normal AI
+          aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot)
+            ? this.aiBot.selectAction(observation, this.gameState.frame)
+            : AIAction.IDLE;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
         } else {
-          // No recording, idle
           player2Input = actionToInputFrame(AIAction.IDLE, player2?.facing || 1, this.gameState.frame);
         }
-      } else if (mode === 'idle') {
-        aiAction = AIAction.IDLE;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
-      } else if (mode === 'crouch') {
-        aiAction = AIAction.CROUCH;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
-      } else if (mode === 'jump') {
-        aiAction = AIAction.JUMP;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
-      } else if (mode === 'block') {
-        aiAction = AIAction.BLOCK;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
-      } else if (mode === 'cpu') {
-        // Use normal AI
-        aiAction = (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot)
-          ? this.aiBot.selectAction(observation, this.gameState.frame)
-          : AIAction.IDLE;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
       } else {
-        player2Input = actionToInputFrame(AIAction.IDLE, player2?.facing || 1, this.gameState.frame);
-      }
-    } else {
-      // Normal AI - check bot type
-      if (this.botType === 'ml' && this.mlBot) {
-        // Use ML bot (new RL-trained system)
-        this.mlBotAction = this.mlBot.getAction(this.gameState);
-        aiAction = this.mlBotAction.action as AIAction;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
-      } else if (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot) {
-        // Use legacy bots
-        aiAction = this.aiBot.selectAction(observation, this.gameState.frame);
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
-      } else {
-        // Fallback
-        aiAction = AIAction.IDLE;
-        player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        // Normal AI - check bot type
+        if (this.botType === 'ml' && this.mlBot) {
+          // Use ML bot (new RL-trained system)
+          this.mlBotAction = this.mlBot.getAction(this.gameState);
+          aiAction = this.mlBotAction.action as AIAction;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        } else if (this.aiBot instanceof RandomBot || this.aiBot instanceof PersonalityBot || this.aiBot instanceof ScriptedBot) {
+          // Use legacy bots
+          aiAction = this.aiBot.selectAction(observation, this.gameState.frame);
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        } else {
+          // Fallback
+          aiAction = AIAction.IDLE;
+          player2Input = actionToInputFrame(aiAction, player2?.facing || 1, this.gameState.frame);
+        }
       }
     }
 

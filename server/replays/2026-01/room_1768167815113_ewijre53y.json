@@ -1,0 +1,139 @@
+{
+  "metadata": {
+    "id": "room_1768167815113_ewijre53y",
+    "date": 1768167815113,
+    "version": "1.0.0",
+    "player1": {
+      "userId": "user_1768140654313_f5fj2bsch",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "player2": {
+      "userId": "user_1768140654313_f5fj2bsch",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "winner": 1,
+    "matchDuration": 15949,
+    "averagePing": 0,
+    "region": "global",
+    "training": {
+      "skillLevel": "beginner",
+      "tags": [
+        "long-match"
+      ],
+      "qualityScore": 1
+    }
+  },
+  "frames": [
+    {
+      "frame": 2,
+      "inputs": {
+        "p1": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "p2": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p2": []
+      }
+    },
+    {
+      "frame": 2,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 4,
+      "inputs": {
+        "p1": []
+      }
+    },
+    {
+      "frame": 7,
+      "inputs": {
+        "p2": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 7,
+      "inputs": {
+        "p2": []
+      }
+    },
+    {
+      "frame": 7,
+      "inputs": {
+        "p2": [
+          2
+        ]
+      }
+    },
+    {
+      "frame": 7,
+      "inputs": {
+        "p2": []
+      }
+    }
+  ],
+  "compressed": true,
+  "checksum": "14a8025df50d080b"
+}

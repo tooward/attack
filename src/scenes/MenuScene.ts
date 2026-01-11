@@ -23,8 +23,8 @@ export default class MenuScene extends Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
         
-        // Start game button (initially invisible)
-        this.startButton = this.add.text(width / 2, height / 2, 'Start Game', {
+        // Single Player button (initially invisible)
+        this.startButton = this.add.text(width / 2, height / 2 - 40, 'Single Player', {
             fontSize: '32px',
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -37,7 +37,28 @@ export default class MenuScene extends Scene {
         .on('pointerdown', () => this.startGame())
         .setAlpha(0); // Hide initially
 
-        // Start the rising sun animation
+        // Multiplayer button (initially invisible)
+        const multiplayerButton = this.add.text(width / 2, height / 2 + 40, 'Online Multiplayer', {
+            fontSize: '32px',
+            color: '#fff',
+            padding: { x: 20, y: 10 },
+            backgroundColor: '#000'
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => multiplayerButton.setStyle({ color: '#ff0' }))
+        .on('pointerout', () => multiplayerButton.setStyle({ color: '#fff' }))
+        .on('pointerdown', () => this.startMultiplayer())
+        .setAlpha(0); // Hide initially
+
+        // Show multiplayer button with start button
+        this.tweens.add({
+            targets: multiplayerButton,
+            alpha: 1,
+            duration: 500,
+            ease: 'Power2',
+            delay: 2000 // Same timing as start button
+        });
         this.animateRisingSun(height);
 
         // Optional: Add options button, credits, etc.
@@ -100,5 +121,10 @@ export default class MenuScene extends Scene {
     startGame() {
         // Start the new fighting game scene
         this.scene.start('PhaserGameScene');
+    }
+
+    startMultiplayer() {
+        // Start multiplayer menu
+        this.scene.start('MultiplayerMenuScene');
     }
 }

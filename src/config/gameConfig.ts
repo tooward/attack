@@ -3,6 +3,7 @@ import BootScene from '../scenes/BootScene.js';
 import GameScene from '../scenes/GameScene.js';
 import UIScene from '../scenes/UIScene.js';
 import MenuScene from '../scenes/MenuScene.js';
+import { MultiplayerMenuScene } from '../scenes/MultiplayerMenuScene.js';
 import InventoryScene from '../scenes/InventoryScene.js';
 import TradeScene from '../scenes/TradeScene.js';
 import PhaserGameScene from '../scenes/PhaserGameScene.js';
@@ -31,7 +32,7 @@ export const config = {
     // Define scenes in loading order
     // PhaserGameScene is the new fighting game scene
     // Old GameScene is for side-scrolling adventure (future)
-    scene: [BootScene, MenuScene, PhaserGameScene, GameScene, UIScene, InventoryScene, TradeScene],
+    scene: [BootScene, MenuScene, MultiplayerMenuScene, PhaserGameScene, GameScene, UIScene, InventoryScene, TradeScene],
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,

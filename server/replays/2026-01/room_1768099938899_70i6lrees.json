@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "id": "room_1768099938899_70i6lrees",
+    "date": 1768099938899,
+    "version": "1.0.0",
+    "player1": {
+      "userId": "user_1768095651624_todrqyb3w",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "player2": {
+      "userId": "user_1768095651624_todrqyb3w",
+      "characterId": "musashi",
+      "elo": 1000,
+      "wins": 0,
+      "losses": 0
+    },
+    "winner": 2,
+    "matchDuration": 8047,
+    "averagePing": 0,
+    "region": "global",
+    "training": {
+      "skillLevel": "beginner",
+      "tags": [
+        "long-match"
+      ],
+      "qualityScore": 1
+    }
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "inputs": {
+        "p1": [],
+        "p2": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "compressed": true,
+  "checksum": "e90d4a642c4bb847"
+}
