@@ -101,6 +101,34 @@ export default class PhaserGameScene extends Scene {
     super({ key: 'PhaserGameScene' });
   }
 
+  preload(): void {
+    // Load player sprite sheets (96x96 frames)
+    this.load.spritesheet('player_idle', 'assets/player/IDLE.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_walk', 'assets/player/WALK.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_run', 'assets/player/RUN.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_jump', 'assets/player/JUMP.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_jump_fall', 'assets/player/JUMP-FALL.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_attack1', 'assets/player/ATTACK1.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_attack2', 'assets/player/ATTACK 2.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_attack3', 'assets/player/ATTACK 3.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_special', 'assets/player/SPECIAL ATTACK.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_defend', 'assets/player/DEFEND.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_hurt', 'assets/player/HURT.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('player_death', 'assets/player/DEATH.png', { frameWidth: 96, frameHeight: 96 });
+    
+    // Load enemy sprite sheets (64x64 frames)
+    this.load.spritesheet('enemy_idle', 'assets/enemy/IDLE.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_run', 'assets/enemy/RUN.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_jump', 'assets/enemy/JUMP.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_attack1', 'assets/enemy/ATTACK1.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_attack2', 'assets/enemy/ATTACK2.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_attack3', 'assets/enemy/ATTACK3.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_dash', 'assets/enemy/DASH ATTACK.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_defence', 'assets/enemy/DEFENCE.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_hurt', 'assets/enemy/HURT.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet('enemy_death', 'assets/enemy/DEATH.png', { frameWidth: 64, frameHeight: 64 });
+  }
+
   create(): void {
     // Check if this is an online match
     const onlineMatchData = this.registry.get('onlineMatch');
@@ -175,10 +203,13 @@ export default class PhaserGameScene extends Scene {
 
     // Create fighter sprites
     this.fighterSprites = new Map();
+    console.log('[PhaserGameScene] Creating initial fighter sprites...');
     for (const fighter of this.gameState.entities) {
       const sprite = new FighterSprite(this, fighter);
       this.fighterSprites.set(fighter.id, sprite);
+      console.log(`[PhaserGameScene] Created sprite for ${fighter.id}`);
     }
+    console.log(`[PhaserGameScene] Total sprites in map: ${this.fighterSprites.size}`);
 
     // Create projectile sprites map
     this.projectileSprites = new Map();
@@ -1568,8 +1599,25 @@ export default class PhaserGameScene extends Scene {
       roundsToWin: 2, // Best of 3
     };
 
+    // Destroy old fighter sprites
+    console.log('[startNextRound] Destroying old sprites...');
+    this.fighterSprites.forEach((sprite, id) => {
+      console.log(`[startNextRound] Destroying sprite for ${id}`);
+      sprite.destroy();
+    });
+    this.fighterSprites.clear();
+
     // Start next round
     this.gameState = startNextRound(this.gameState, config);
+    
+    // Recreate fighter sprites for new round
+    console.log('[startNextRound] Creating new sprites...');
+    for (const fighter of this.gameState.entities) {
+      const sprite = new FighterSprite(this, fighter);
+      this.fighterSprites.set(fighter.id, sprite);
+      console.log(`[startNextRound] Created sprite for ${fighter.id}`);
+    }
+    console.log(`[startNextRound] Total sprites in map: ${this.fighterSprites.size}`);
     
     // Clear any overlays - stop tweens first to avoid errors
     if (this.winOverlay) {

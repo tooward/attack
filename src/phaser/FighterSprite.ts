@@ -7,30 +7,37 @@
 import { FighterState, FighterStatus } from '../core/interfaces/types';
 
 export class FighterSprite extends Phaser.GameObjects.Container {
-  private bodyRect: Phaser.GameObjects.Rectangle;
+  private sprite: Phaser.GameObjects.Sprite;
   private healthBar: Phaser.GameObjects.Graphics;
   private energyBar: Phaser.GameObjects.Graphics;
   private nameText: Phaser.GameObjects.Text;
   private currentAnimation: string = '';
+  private teamId: number;
 
   constructor(scene: Phaser.Scene, fighter: FighterState) {
     super(scene, fighter.position.x, fighter.position.y);
 
-    // Create body as colored rectangle (placeholder until real sprites)
-    const color = fighter.teamId === 0 ? 0x4488ff : 0xff4444;
-    this.bodyRect = scene.add.rectangle(0, -40, 60, 80, color);
-    this.add(this.bodyRect);
+    console.log(`[FighterSprite] Constructor called for ${fighter.id}, team ${fighter.teamId}`);
+    this.teamId = fighter.teamId;
+    
+    // Create sprite based on team (player vs enemy) - use frame 0 initially
+    const spritePrefix = fighter.teamId === 0 ? 'player' : 'enemy';
+    this.sprite = new Phaser.GameObjects.Sprite(scene, 0, -10, `${spritePrefix}_idle`, 0);
+    this.sprite.setOrigin(0.5, 1.0); // Anchor to bottom center for ground alignment
+    this.sprite.setScale(2); // Make sprites larger
+    this.add(this.sprite);
+    console.log(`[FighterSprite] Sprite image created and added to container`);
 
     // Create health bar
-    this.healthBar = scene.add.graphics();
+    this.healthBar = new Phaser.GameObjects.Graphics(scene);
     this.add(this.healthBar);
 
     // Create energy bar
-    this.energyBar = scene.add.graphics();
+    this.energyBar = new Phaser.GameObjects.Graphics(scene);
     this.add(this.energyBar);
 
     // Create name text
-    this.nameText = scene.add.text(0, -100, fighter.id, {
+    this.nameText = new Phaser.GameObjects.Text(scene, 0, -140, fighter.id, {
       fontSize: '12px',
       color: '#ffffff',
       align: 'center',
@@ -46,15 +53,12 @@ export class FighterSprite extends Phaser.GameObjects.Container {
    * Flash fighter white when taking damage
    */
   flashDamage(): void {
-    // Store original color
-    const originalColor = this.bodyRect.fillColor;
+    // Flash white tint
+    this.sprite.setTint(0xffffff);
     
-    // Flash white
-    this.bodyRect.setFillStyle(0xffffff);
-    
-    // Return to normal color after 100ms
+    // Return to normal after 100ms
     this.scene.time.delayedCall(100, () => {
-      this.bodyRect.setFillStyle(originalColor);
+      this.sprite.clearTint();
     });
   }
 
@@ -67,7 +71,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     this.setPosition(fighter.position.x, fighter.position.y);
 
     // Update facing (flip sprite horizontally)
-    this.bodyRect.setScale(fighter.facing, 1);
+    this.sprite.setScale(fighter.facing * 2, 2);
 
     // Update animation based on status
     this.updateVisuals(fighter);
@@ -83,64 +87,66 @@ export class FighterSprite extends Phaser.GameObjects.Container {
    * Update visual representation based on fighter state
    */
   private updateVisuals(fighter: FighterState): void {
-    let targetAnimation = '';
+    const spritePrefix = this.teamId === 0 ? 'player' : 'enemy';
+    let spriteKey = '';
 
-    // Determine animation from status
+    // Determine sprite from status
     switch (fighter.status) {
       case FighterStatus.IDLE:
-        targetAnimation = 'idle';
-        this.bodyRect.setFillStyle(fighter.teamId === 0 ? 0x4488ff : 0xff4444);
+        spriteKey = `${spritePrefix}_idle`;
         break;
 
       case FighterStatus.WALK_FORWARD:
       case FighterStatus.WALK_BACKWARD:
-        targetAnimation = 'walk';
-        this.bodyRect.setFillStyle(fighter.teamId === 0 ? 0x5599ff : 0xff5555);
+        // Use walk for player, run for enemy (since enemy doesn't have walk)
+        spriteKey = this.teamId === 0 ? `${spritePrefix}_walk` : `${spritePrefix}_run`;
         break;
 
       case FighterStatus.JUMP:
-        targetAnimation = 'jump';
-        this.bodyRect.setFillStyle(fighter.teamId === 0 ? 0x66aaff : 0xff6666);
+        spriteKey = this.teamId === 0 ? `${spritePrefix}_jump` : `${spritePrefix}_jump`;
         break;
 
       case FighterStatus.CROUCH:
-        targetAnimation = 'crouch';
-        this.bodyRect.setFillStyle(fighter.teamId === 0 ? 0x3377dd : 0xdd3333);
-        this.bodyRect.setSize(60, 60);
-        this.bodyRect.setPosition(0, -30);
+        // No crouch sprite, use idle for now
+        spriteKey = `${spritePrefix}_idle`;
         break;
 
       case FighterStatus.ATTACK:
-        targetAnimation = `attack_${fighter.currentMove || 'default'}`;
-        this.bodyRect.setFillStyle(0xffff00); // Yellow when attacking
+        // Map attack moves to sprite keys
+        if (fighter.currentMove === 'lightPunch' || fighter.currentMove === 'crLightPunch') {
+          spriteKey = `${spritePrefix}_attack1`;
+        } else if (fighter.currentMove === 'heavyPunch' || fighter.currentMove === 'crHeavyPunch') {
+          spriteKey = `${spritePrefix}_attack2`;
+        } else if (fighter.currentMove === 'lightKick' || fighter.currentMove === 'heavyKick') {
+          spriteKey = `${spritePrefix}_attack3`;
+        } else if (fighter.currentMove === 'hadoken' || fighter.currentMove === 'shoryuken') {
+          spriteKey = this.teamId === 0 ? `${spritePrefix}_special` : `${spritePrefix}_dash`;
+        } else {
+          spriteKey = `${spritePrefix}_attack1`;
+        }
         break;
 
       case FighterStatus.BLOCK:
-        targetAnimation = 'block';
-        this.bodyRect.setFillStyle(0x00ff00); // Green when blocking
+        spriteKey = this.teamId === 0 ? `${spritePrefix}_defend` : `${spritePrefix}_defence`;
         break;
 
       case FighterStatus.HITSTUN:
-        targetAnimation = 'hitstun';
-        this.bodyRect.setFillStyle(0xff00ff); // Magenta in hitstun
+        spriteKey = `${spritePrefix}_hurt`;
         break;
 
       case FighterStatus.BLOCKSTUN:
-        targetAnimation = 'blockstun';
-        this.bodyRect.setFillStyle(0x00ffff); // Cyan in blockstun
+        spriteKey = this.teamId === 0 ? `${spritePrefix}_defend` : `${spritePrefix}_defence`;
         break;
 
       default:
-        targetAnimation = 'idle';
+        spriteKey = `${spritePrefix}_idle`;
     }
 
-    // Reset body size if not crouching
-    if (fighter.status !== FighterStatus.CROUCH) {
-      this.bodyRect.setSize(60, 80);
-      this.bodyRect.setPosition(0, -40);
+    // Only update texture if it changed
+    if (spriteKey !== this.currentAnimation) {
+      this.sprite.setTexture(spriteKey, 0); // Use frame 0
+      this.currentAnimation = spriteKey;
     }
-
-    this.currentAnimation = targetAnimation;
   }
 
   /**
@@ -150,7 +156,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     const barWidth = 80;
     const barHeight = 6;
     const barX = -barWidth / 2;
-    const barY = -90;
+    const barY = -130; // Adjusted for new sprite origin
     const healthPercent = Math.max(0, health / maxHealth);
 
     this.healthBar.clear();
@@ -182,7 +188,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     const barWidth = 80;
     const barHeight = 4;
     const barX = -barWidth / 2;
-    const barY = -82; // Just below health bar
+    const barY = -122; // Adjusted for new sprite origin (just below health bar)
     const energyPercent = Math.max(0, energy / maxEnergy);
 
     this.energyBar.clear();
