@@ -89,6 +89,10 @@ export default class PhaserGameScene extends Scene {
   private tieOverlay!: Phaser.GameObjects.Text | null;
   private winOverlay!: Phaser.GameObjects.Text | null;
   private roundEndTimer!: Phaser.Time.TimerEvent | null;
+  
+  // Round start cinematics
+  private roundAnnouncement!: Phaser.GameObjects.Text | null;
+  private fightAnnouncement!: Phaser.GameObjects.Text | null;
 
   // Online multiplayer
   private onlineManager?: OnlineManager;
@@ -405,6 +409,8 @@ export default class PhaserGameScene extends Scene {
     this.tieOverlay = null;
     this.winOverlay = null;
     this.roundEndTimer = null;
+    this.roundAnnouncement = null;
+    this.fightAnnouncement = null;
 
     // Initialize input histories
     this.inputHistories = new Map();
@@ -415,6 +421,11 @@ export default class PhaserGameScene extends Scene {
     this.difficultyUpKey = this.input.keyboard!.addKey('F7');
     this.difficultyDownKey = this.input.keyboard!.addKey('F8');
     this.styleKey = this.input.keyboard!.addKey('F9');
+    
+    // Show round start cinematic after brief delay
+    this.time.delayedCall(500, () => {
+      this.showRoundStartCinematic();
+    });
   }
 
   /**
@@ -1060,11 +1071,44 @@ export default class PhaserGameScene extends Scene {
       const comboText = this.comboTexts.get(fighter.id);
       if (comboText) {
         if (fighter.comboCount > 1) {
-          comboText.setText(`${fighter.comboCount} HIT COMBO!`);
+          // Update text with dramatic styling based on combo size
+          let displayText = `${fighter.comboCount} HIT`;
+          let fontSize = 32;
+          let color = '#ffff00'; // Yellow for small combos
+          let strokeColor = '#000000';
+          let strokeThickness = 4;
+          
+          if (fighter.comboCount >= 10) {
+            displayText = `${fighter.comboCount} HIT COMBO!!!`;
+            fontSize = 48;
+            color = '#ff0000'; // Red for huge combos
+            strokeColor = '#ffff00'; // Yellow stroke
+            strokeThickness = 6;
+          } else if (fighter.comboCount >= 5) {
+            displayText = `${fighter.comboCount} HIT COMBO!`;
+            fontSize = 40;
+            color = '#ff8800'; // Orange for medium combos
+            strokeThickness = 5;
+          }
+          
+          comboText.setText(displayText);
+          comboText.setFontSize(fontSize);
+          comboText.setColor(color);
+          comboText.setStroke(strokeColor, strokeThickness);
           comboText.setPosition(fighter.position.x, fighter.position.y - 150);
+          
+          // Add pulsing scale effect for large combos
+          if (fighter.comboCount >= 5) {
+            const pulseScale = 1 + Math.sin(Date.now() / 100) * 0.1;
+            comboText.setScale(pulseScale);
+          } else {
+            comboText.setScale(1);
+          }
+          
           comboText.setAlpha(1.0);
         } else {
           comboText.setAlpha(0);
+          comboText.setScale(1);
         }
       }
 
@@ -1898,6 +1942,110 @@ export default class PhaserGameScene extends Scene {
       this.tieOverlay.destroy();
       this.tieOverlay = null;
     }
+    
+    // Show round start cinematic
+    this.showRoundStartCinematic();
+  }
+  
+  /**
+   * Show round start cinematic with "ROUND X" and "FIGHT!" announcements
+   */
+  private showRoundStartCinematic(): void {
+    const centerX = 500;
+    const centerY = 300;
+    
+    // Create round announcement text (e.g., "ROUND 1")
+    this.roundAnnouncement = this.add.text(centerX, centerY, 
+      `ROUND ${this.gameState.round.roundNumber}`, {
+      fontSize: '80px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 8,
+    });
+    this.roundAnnouncement.setOrigin(0.5);
+    this.roundAnnouncement.setDepth(2000);
+    this.roundAnnouncement.setAlpha(0);
+    this.roundAnnouncement.setScale(0.5);
+    
+    // Animate round announcement: fade in + scale up
+    this.tweens.add({
+      targets: this.roundAnnouncement,
+      alpha: 1,
+      scale: 1,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Hold for a moment
+        this.time.delayedCall(500, () => {
+          // Fade out
+          this.tweens.add({
+            targets: this.roundAnnouncement,
+            alpha: 0,
+            scale: 1.5,
+            duration: 200,
+            ease: 'Power2',
+            onComplete: () => {
+              if (this.roundAnnouncement) {
+                this.roundAnnouncement.destroy();
+                this.roundAnnouncement = null;
+              }
+              
+              // Show "FIGHT!" after round number fades
+              this.showFightAnnouncement();
+            }
+          });
+        });
+      }
+    });
+  }
+  
+  /**
+   * Show "FIGHT!" announcement
+   */
+  private showFightAnnouncement(): void {
+    const centerX = 500;
+    const centerY = 300;
+    
+    this.fightAnnouncement = this.add.text(centerX, centerY, 'FIGHT!', {
+      fontSize: '120px',
+      fontStyle: 'bold',
+      color: '#ffff00',
+      stroke: '#ff0000',
+      strokeThickness: 10,
+    });
+    this.fightAnnouncement.setOrigin(0.5);
+    this.fightAnnouncement.setDepth(2000);
+    this.fightAnnouncement.setAlpha(0);
+    this.fightAnnouncement.setScale(2);
+    
+    // Animate fight announcement: explosive entrance
+    this.tweens.add({
+      targets: this.fightAnnouncement,
+      alpha: 1,
+      scale: 1,
+      duration: 200,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Hold briefly
+        this.time.delayedCall(400, () => {
+          // Quick fade out
+          this.tweens.add({
+            targets: this.fightAnnouncement,
+            alpha: 0,
+            scale: 0.8,
+            duration: 150,
+            ease: 'Power2',
+            onComplete: () => {
+              if (this.fightAnnouncement) {
+                this.fightAnnouncement.destroy();
+                this.fightAnnouncement = null;
+              }
+            }
+          });
+        });
+      }
+    });
   }
 
   /**
