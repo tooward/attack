@@ -47,7 +47,7 @@ describe('BotSelector GuardianBot Integration', () => {
     for (let i = 0; i < 50; i++) {
       const action = getBotAction(BotType.GUARDIAN, state, 'player', 'opponent', 5);
       
-      expect(['left', 'right', 'neutral', 'forward', 'back']).toContain(action.direction);
+      expect(['left', 'right', 'neutral', 'forward', 'back', 'down', 'up']).toContain(action.direction);
       expect(['lp', 'hp', 'lk', 'hk', 'block', 'none']).toContain(action.button);
       expect(action.holdDuration).toBeGreaterThanOrEqual(0);
     }
