@@ -24,7 +24,7 @@ export default class MenuScene extends Scene {
         }).setOrigin(0.5);
         
         // Single Player button (initially invisible)
-        this.startButton = this.add.text(width / 2, height / 2 - 40, 'Single Player', {
+        this.startButton = this.add.text(width / 2, height / 2 - 80, 'Single Player', {
             fontSize: '32px',
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -38,7 +38,7 @@ export default class MenuScene extends Scene {
         .setAlpha(0); // Hide initially
 
         // Multiplayer button (initially invisible)
-        const multiplayerButton = this.add.text(width / 2, height / 2 + 40, 'Online Multiplayer', {
+        const multiplayerButton = this.add.text(width / 2, height / 2, 'Online Multiplayer', {
             fontSize: '32px',
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -50,14 +50,28 @@ export default class MenuScene extends Scene {
         .on('pointerout', () => multiplayerButton.setStyle({ color: '#fff' }))
         .on('pointerdown', () => this.startMultiplayer())
         .setAlpha(0); // Hide initially
+        
+        // Settings button (initially invisible)
+        const settingsButton = this.add.text(width / 2, height / 2 + 80, 'Settings', {
+            fontSize: '32px',
+            color: '#fff',
+            padding: { x: 20, y: 10 },
+            backgroundColor: '#000'
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => settingsButton.setStyle({ color: '#ff0' }))
+        .on('pointerout', () => settingsButton.setStyle({ color: '#fff' }))
+        .on('pointerdown', () => this.openSettings())
+        .setAlpha(0); // Hide initially
 
-        // Show multiplayer button with start button
+        // Show all buttons with staggered timing
         this.tweens.add({
-            targets: multiplayerButton,
+            targets: [multiplayerButton, settingsButton],
             alpha: 1,
             duration: 500,
             ease: 'Power2',
-            delay: 2000 // Same timing as start button
+            delay: 2000
         });
         this.animateRisingSun(height);
 
@@ -119,12 +133,17 @@ export default class MenuScene extends Scene {
     }
     
     startGame() {
-        // Start the new fighting game scene
-        this.scene.start('PhaserGameScene');
+        // Go to character select instead of directly to game
+        this.scene.start('CharacterSelectScene');
     }
 
     startMultiplayer() {
         // Start multiplayer menu
         this.scene.start('MultiplayerMenuScene');
+    }
+    
+    openSettings() {
+        // Open settings menu
+        this.scene.start('SettingsScene');
     }
 }

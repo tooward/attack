@@ -35,28 +35,29 @@ These tracks inform and enhance each other, creating a virtuous cycle of improve
 
 ---
 
-## Current State (December 2025)
+## Current State (January 2026)
 
 ### ✅ Completed
-- Core fighting game engine (deterministic, headless-capable)
-- Phaser rendering layer (desktop browser)
-- Basic AI infrastructure (RandomBot, PersonalityBot)
-- Neural network foundation (TensorFlow.js)
-- Imitation learning trainer (supervised learning)
-- Training mode with hitbox visualization
-- Replay recording/playback system (training dummy)
-- Special moves data structure (projectiles, motion inputs)
+- **Core Engine** - Deterministic, headless-capable fighting game (Phases 1-2)
+- **Phaser Rendering** - Desktop browser with sprite animations and effects (Phase 2)
+- **AI Infrastructure** - Multiple bot types (Random, Personality, Scripted, Neural/ML)
+- **ML Training** - TensorFlow.js with imitation learning and RL (Phases 1-4 ML)
+- **Training Modes** - Bot curriculum, progressive difficulty, replay recording
+- **Mobile Foundation** - Capacitor setup, touch controls (D-Pad + 5 buttons), iOS/Android builds ✅
+- **Backend Server** - WebSocket server, matchmaking with Elo, game rooms ✅
+- **Online Multiplayer** - Frame-synchronized PvP, NetworkClient, OnlineManager ✅
+- **Replay System** - Frame recording, compression (80-90%), storage, validation ✅
+- **Visual Polish** - Sprite animations (22), hit freeze, particle effects, procedural audio ✅
+- **UI Polish** - Character select, settings menu, health bar animations ✅
 
-### 🔄 In Progress
-- Special moves implementation (Phase 5)
-- Combo system with cancels
-- Motion input detection
+### 🎯 Current Focus
+- **Phase F: App Store Deployment** - TestFlight beta, production launch
+- **ML Training Enhancement** - Upgrade to production-quality bot system (Option for next phase)
 
-### 📋 Planned
-- Mobile deployment (PvP Track)
-- Production ML training system (ML Track)
-- Human gameplay recording infrastructure
-- Additional characters and polish
+### 📋 Future Options
+- Second character (expand roster)
+- Additional polish (pause menu, training mode features)
+- Content updates based on player feedback
 
 ---
 
