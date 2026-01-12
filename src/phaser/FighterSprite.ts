@@ -13,6 +13,11 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   private nameText: Phaser.GameObjects.Text;
   private currentAnimation: string = '';
   private teamId: number;
+  
+  // Health bar animation
+  private displayedHealth: number = 100;
+  private targetHealth: number = 100;
+  private recentDamageHealth: number = 100; // Shows recent damage in red
 
   constructor(scene: Phaser.Scene, fighter: FighterState) {
     super(scene, fighter.position.x, fighter.position.y);
@@ -47,6 +52,11 @@ export class FighterSprite extends Phaser.GameObjects.Container {
 
     scene.add.existing(this);
     this.setDepth(10);
+    
+    // Initialize health values
+    this.displayedHealth = fighter.health;
+    this.targetHealth = fighter.health;
+    this.recentDamageHealth = fighter.health;
   }
 
   /**
@@ -76,11 +86,44 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     // Update animation based on status
     this.updateVisuals(fighter);
 
-    // Update health bar
+    // Update health bar with animation
+    this.updateHealthAnimation(fighter.health);
     this.drawHealthBar(fighter.health, fighter.maxHealth);
     
     // Update energy bar
     this.drawEnergyBar(fighter.energy, fighter.maxEnergy);
+  }
+  
+  /**
+   * Update health animation for smooth transitions
+   */
+  private updateHealthAnimation(currentHealth: number): void {
+    // Detect damage
+    if (currentHealth < this.targetHealth) {
+      // Health decreased - start damage animation
+      this.recentDamageHealth = this.displayedHealth; // Save where we were
+      this.targetHealth = currentHealth;
+    } else if (currentHealth > this.targetHealth) {
+      // Health increased (healing)
+      this.targetHealth = currentHealth;
+      this.recentDamageHealth = currentHealth;
+    }
+    
+    // Smoothly animate displayed health towards target
+    const healthDiff = this.targetHealth - this.displayedHealth;
+    if (Math.abs(healthDiff) > 0.1) {
+      this.displayedHealth += healthDiff * 0.15; // Smooth lerp
+    } else {
+      this.displayedHealth = this.targetHealth;
+    }
+    
+    // Slowly animate recent damage indicator
+    const recentDamageDiff = this.displayedHealth - this.recentDamageHealth;
+    if (recentDamageDiff > 0.1) {
+      this.recentDamageHealth += recentDamageDiff * 0.03; // Slower than main bar
+    } else {
+      this.recentDamageHealth = this.displayedHealth;
+    }
   }
 
   /**
@@ -164,17 +207,25 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     // Background (black)
     this.healthBar.fillStyle(0x000000, 0.8);
     this.healthBar.fillRect(barX, barY, barWidth, barHeight);
+    
+    // Recent damage indicator (red bar showing damage taken)
+    const recentDamagePercent = Math.max(0, this.recentDamageHealth / maxHealth);
+    if (recentDamagePercent > healthPercent) {
+      this.healthBar.fillStyle(0xcc0000, 0.6); // Dark red
+      this.healthBar.fillRect(barX, barY, barWidth * recentDamagePercent, barHeight);
+    }
 
-    // Health (red to yellow to green based on percentage)
+    // Current displayed health (smoothly animated)
+    const displayedPercent = Math.max(0, this.displayedHealth / maxHealth);
     let healthColor = 0xff0000;
-    if (healthPercent > 0.5) {
+    if (displayedPercent > 0.5) {
       healthColor = 0x00ff00;
-    } else if (healthPercent > 0.25) {
+    } else if (displayedPercent > 0.25) {
       healthColor = 0xffff00;
     }
 
     this.healthBar.fillStyle(healthColor);
-    this.healthBar.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+    this.healthBar.fillRect(barX, barY, barWidth * displayedPercent, barHeight);
 
     // Border (white)
     this.healthBar.lineStyle(1, 0xffffff);

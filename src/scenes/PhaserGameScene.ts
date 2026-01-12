@@ -1803,38 +1803,87 @@ export default class PhaserGameScene extends Scene {
     // Only show once
     if (this.winOverlay) return;
 
-    this.winOverlay = this.add.text(500, 300, `${winnerId.toUpperCase()} WINS!`, {
-      fontSize: '20px',
-      color: '#00ff00',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 6,
+    // Apply dramatic slow-motion effect
+    this.time.timeScale = 0.3; // Slow down time
+    
+    // Reset time scale after effect
+    this.time.delayedCall(800, () => {
+      this.time.timeScale = 1.0;
     });
-    this.winOverlay.setOrigin(0.5);
-    this.winOverlay.setDepth(1000);
-    this.winOverlay.setAlpha(0);
 
-    // Grow from small to large in center
+    // Create dramatic "K.O.!" text first
+    const koText = this.add.text(500, 300, 'K.O.!', {
+      fontSize: '120px',
+      color: '#ff0000',
+      fontStyle: 'bold',
+      stroke: '#ffffff',
+      strokeThickness: 10,
+    });
+    koText.setOrigin(0.5);
+    koText.setDepth(1001);
+    koText.setAlpha(0);
+    koText.setScale(3);
+
+    // Explosive K.O. entrance
     this.tweens.add({
-      targets: this.winOverlay,
-      fontSize: '100px',
+      targets: koText,
+      scale: 1,
       alpha: 1,
-      duration: 800,
+      duration: 300,
       ease: 'Back.easeOut',
       onComplete: () => {
-        // Hold for a moment then fade out
-        this.time.delayedCall(1000, () => {
+        // Flash effect
+        this.cameras.main.flash(200, 255, 255, 255, true);
+        
+        // Hold briefly then fade
+        this.time.delayedCall(600, () => {
           this.tweens.add({
-            targets: this.winOverlay,
+            targets: koText,
             alpha: 0,
-            duration: 500,
-            onComplete: () => {
-              this.winOverlay?.destroy();
-              this.winOverlay = null;
-            }
+            scale: 0.5,
+            duration: 300,
+            onComplete: () => koText.destroy()
           });
         });
       }
+    });
+
+    // Show winner announcement after K.O. fades
+    this.time.delayedCall(1200, () => {
+      this.winOverlay = this.add.text(500, 300, `${winnerId.toUpperCase()} WINS!`, {
+        fontSize: '60px',
+        color: '#00ff00',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 8,
+      });
+      this.winOverlay.setOrigin(0.5);
+      this.winOverlay.setDepth(1000);
+      this.winOverlay.setAlpha(0);
+      this.winOverlay.setScale(0.5);
+
+      // Grow from small to large
+      this.tweens.add({
+        targets: this.winOverlay,
+        scale: 1,
+        alpha: 1,
+        duration: 600,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          // Hold then fade out
+          this.time.delayedCall(1500, () => {
+            this.tweens.add({
+              targets: this.winOverlay,
+              alpha: 0,
+              duration: 500,
+              onComplete: () => {
+                this.winOverlay?.destroy();
+                this.winOverlay = null;
+              }
+            });
+          });
+        }
+      });
     });
   }
 
