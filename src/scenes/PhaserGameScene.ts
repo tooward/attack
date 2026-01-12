@@ -44,6 +44,7 @@ export default class PhaserGameScene extends Scene {
   private hitSparks!: Phaser.GameObjects.Particles.ParticleEmitter[];
   private lastHitFrames!: Map<string, number>; // Track last hit frame per fighter
   private lastMoveFrames!: Map<string, { move: string | null; frame: number }>; // Track move changes
+  private hitFreezeFrames: number = 0; // Frames remaining in hit freeze
 
   // Input
   private inputHandler!: InputHandler;
@@ -136,6 +137,9 @@ export default class PhaserGameScene extends Scene {
       this.isOnlineMatch = true;
       this.setupOnlineMatch(onlineMatchData);
     }
+
+    // Create sprite animations
+    this.createAnimations();
 
     // Initialize character definitions
     this.characterDefs = new Map([['musashi', MUSASHI]]);
@@ -414,6 +418,160 @@ export default class PhaserGameScene extends Scene {
   }
 
   /**
+   * Create sprite animations for all character states
+   */
+  private createAnimations(): void {
+    // Player animations (96x96 sprites)
+    this.anims.create({
+      key: 'player_idle_anim',
+      frames: this.anims.generateFrameNumbers('player_idle', { start: 0, end: -1 }),
+      frameRate: 8,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'player_walk_anim',
+      frames: this.anims.generateFrameNumbers('player_walk', { start: 0, end: -1 }),
+      frameRate: 10,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'player_run_anim',
+      frames: this.anims.generateFrameNumbers('player_run', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'player_jump_anim',
+      frames: this.anims.generateFrameNumbers('player_jump', { start: 0, end: -1 }),
+      frameRate: 10,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'player_attack1_anim',
+      frames: this.anims.generateFrameNumbers('player_attack1', { start: 0, end: -1 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'player_attack2_anim',
+      frames: this.anims.generateFrameNumbers('player_attack2', { start: 0, end: -1 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'player_attack3_anim',
+      frames: this.anims.generateFrameNumbers('player_attack3', { start: 0, end: -1 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'player_special_anim',
+      frames: this.anims.generateFrameNumbers('player_special', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'player_defend_anim',
+      frames: this.anims.generateFrameNumbers('player_defend', { start: 0, end: -1 }),
+      frameRate: 8,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'player_hurt_anim',
+      frames: this.anims.generateFrameNumbers('player_hurt', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'player_death_anim',
+      frames: this.anims.generateFrameNumbers('player_death', { start: 0, end: -1 }),
+      frameRate: 10,
+      repeat: 0
+    });
+
+    // Enemy animations (64x64 sprites)
+    this.anims.create({
+      key: 'enemy_idle_anim',
+      frames: this.anims.generateFrameNumbers('enemy_idle', { start: 0, end: -1 }),
+      frameRate: 8,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'enemy_run_anim',
+      frames: this.anims.generateFrameNumbers('enemy_run', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'enemy_jump_anim',
+      frames: this.anims.generateFrameNumbers('enemy_jump', { start: 0, end: -1 }),
+      frameRate: 10,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'enemy_attack1_anim',
+      frames: this.anims.generateFrameNumbers('enemy_attack1', { start: 0, end: -1 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'enemy_attack2_anim',
+      frames: this.anims.generateFrameNumbers('enemy_attack2', { start: 0, end: -1 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'enemy_attack3_anim',
+      frames: this.anims.generateFrameNumbers('enemy_attack3', { start: 0, end: -1 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'enemy_dash_anim',
+      frames: this.anims.generateFrameNumbers('enemy_dash', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'enemy_defence_anim',
+      frames: this.anims.generateFrameNumbers('enemy_defence', { start: 0, end: -1 }),
+      frameRate: 8,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'enemy_hurt_anim',
+      frames: this.anims.generateFrameNumbers('enemy_hurt', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'enemy_death_anim',
+      frames: this.anims.generateFrameNumbers('enemy_death', { start: 0, end: -1 }),
+      frameRate: 10,
+      repeat: 0
+    });
+  }
+
+  /**
    * Setup online multiplayer match
    */
   private setupOnlineMatch(config: OnlineMatchConfig): void {
@@ -517,6 +675,19 @@ export default class PhaserGameScene extends Scene {
     // Switch AI bot type
     if (Phaser.Input.Keyboard.JustDown(this.botSwitchKey)) {
       this.switchBotType();
+    }
+
+    // Check for hit freeze - pause game logic if frozen
+    if (this.hitFreezeFrames > 0) {
+      this.hitFreezeFrames--;
+      // Still update visuals during freeze
+      for (const fighter of this.gameState.entities) {
+        const sprite = this.fighterSprites.get(fighter.id);
+        if (sprite) {
+          sprite.sync(fighter);
+        }
+      }
+      return; // Skip game logic during freeze
     }
 
     // Difficulty and Style controls (only active for ML bot)
@@ -829,6 +1000,12 @@ export default class PhaserGameScene extends Scene {
     const currentProjectileIds = new Set(this.gameState.projectiles.map(p => p.id));
     for (const [id, sprite] of this.projectileSprites.entries()) {
       if (!currentProjectileIds.has(id)) {
+        // Clean up trail emitter if it exists
+        const trail = (sprite as any).trailEmitter;
+        if (trail) {
+          trail.stop();
+          this.time.delayedCall(300, () => trail.destroy());
+        }
         sprite.destroy();
         this.projectileSprites.delete(id);
       }
@@ -839,7 +1016,7 @@ export default class PhaserGameScene extends Scene {
       let sprite = this.projectileSprites.get(projectile.id);
       
       if (!sprite) {
-        // Create new projectile sprite
+        // Create new projectile sprite with glow effect
         const color = projectile.teamId === 0 ? 0x00ffff : 0xff00ff;
         sprite = this.add.rectangle(
           projectile.position.x,
@@ -851,6 +1028,22 @@ export default class PhaserGameScene extends Scene {
         );
         sprite.setDepth(20);
         this.projectileSprites.set(projectile.id, sprite);
+        
+        // Add particle trail effect
+        const trailColor = projectile.teamId === 0 ? 0x00ffff : 0xff00ff;
+        const trail = this.add.particles(projectile.position.x, projectile.position.y, 'particle', {
+          follow: sprite,
+          speed: 20,
+          scale: { start: 0.8, end: 0 },
+          alpha: { start: 0.6, end: 0 },
+          lifespan: 200,
+          tint: trailColor,
+          frequency: 20,
+        });
+        
+        // Store trail emitter to clean up later
+        (sprite as any).trailEmitter = trail;
+        
       } else {
         // Update existing sprite position
         sprite.setPosition(projectile.position.x, projectile.position.y);
@@ -1289,39 +1482,104 @@ export default class PhaserGameScene extends Scene {
    * Create particle emitters for hit effects
    */
   private createHitParticles(): void {
-    // Create simple circle graphics for particles (no texture needed)
+    // Create circle particle texture for hit sparks
     const graphics = this.add.graphics();
     graphics.fillStyle(0xffffff);
     graphics.fillCircle(2, 2, 2);
     graphics.generateTexture('particle', 4, 4);
     graphics.destroy();
+    
+    // Create star particle texture for critical/heavy hits
+    const starGraphics = this.add.graphics();
+    starGraphics.fillStyle(0xffffff);
+    starGraphics.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+      const x = 4 + Math.cos(angle) * 4;
+      const y = 4 + Math.sin(angle) * 4;
+      if (i === 0) starGraphics.moveTo(x, y);
+      else starGraphics.lineTo(x, y);
+    }
+    starGraphics.closePath();
+    starGraphics.fillPath();
+    starGraphics.generateTexture('star_particle', 8, 8);
+    starGraphics.destroy();
+    
+    // Create ring particle texture for blocked hits
+    const ringGraphics = this.add.graphics();
+    ringGraphics.lineStyle(2, 0xffffff);
+    ringGraphics.strokeCircle(4, 4, 3);
+    ringGraphics.generateTexture('ring_particle', 8, 8);
+    ringGraphics.destroy();
   }
 
   /**
    * Spawn hit spark effect at position
    */
   private spawnHitSpark(x: number, y: number, wasBlocked: boolean, damage: number): void {
-    const color = wasBlocked ? 0x888888 : (damage > 20 ? 0xff8800 : 0xffff00);
-    const particleCount = wasBlocked ? 6 : (damage > 20 ? 20 : 12);
-    const speed = damage > 20 ? 200 : 100;
-    
-    // Create temporary emitter
-    const emitter = this.add.particles(x, y, 'particle', {
-      speed: { min: speed * 0.5, max: speed },
-      angle: { min: 0, max: 360 },
-      scale: { start: damage > 20 ? 1.5 : 1, end: 0 },
-      lifespan: 300,
-      gravityY: 200,
-      tint: color,
-      emitting: false,
-    });
-    
-    emitter.explode(particleCount);
-    
-    // Clean up after animation
-    this.time.delayedCall(500, () => {
-      emitter.destroy();
-    });
+    if (wasBlocked) {
+      // Blocked hits - gray rings spreading outward
+      const emitter = this.add.particles(x, y, 'ring_particle', {
+        speed: { min: 50, max: 100 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.5, end: 1.5 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 300,
+        tint: 0x888888,
+        emitting: false,
+      });
+      emitter.explode(6);
+      this.time.delayedCall(500, () => emitter.destroy());
+      
+    } else if (damage > 25) {
+      // Heavy hits - orange/red stars with extra impact
+      const colors = [0xff0000, 0xff4400, 0xff8800];
+      const emitter = this.add.particles(x, y, 'star_particle', {
+        speed: { min: 150, max: 250 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 2, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 400,
+        gravityY: 300,
+        tint: colors,
+        emitting: false,
+      });
+      emitter.explode(25);
+      
+      // Add secondary burst of circles
+      const circleEmitter = this.add.particles(x, y, 'particle', {
+        speed: { min: 100, max: 200 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1.5, end: 0 },
+        lifespan: 300,
+        gravityY: 200,
+        tint: 0xff6600,
+        emitting: false,
+      });
+      circleEmitter.explode(15);
+      
+      this.time.delayedCall(500, () => {
+        emitter.destroy();
+        circleEmitter.destroy();
+      });
+      
+    } else {
+      // Normal hits - yellow/white particles
+      const color = damage > 15 ? 0xffaa00 : 0xffff00;
+      const emitter = this.add.particles(x, y, 'particle', {
+        speed: { min: 80, max: 150 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1.2, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 300,
+        gravityY: 200,
+        tint: color,
+        emitting: false,
+      });
+      emitter.explode(12);
+      
+      this.time.delayedCall(500, () => emitter.destroy());
+    }
   }
 
   /**
@@ -1379,6 +1637,16 @@ export default class PhaserGameScene extends Scene {
         
         // Play hit sound
         this.audioManager.playHitSound(estimatedDamage, wasBlocked);
+        
+        // Apply hit freeze based on damage
+        if (!wasBlocked) {
+          // Strong hits freeze longer (2-6 frames)
+          const freezeDuration = Math.floor(Math.min(6, 2 + estimatedDamage / 10));
+          this.hitFreezeFrames = freezeDuration;
+        } else {
+          // Blocked hits have minimal freeze (1-2 frames)
+          this.hitFreezeFrames = Math.floor(Math.min(2, 1 + estimatedDamage / 20));
+        }
         
         // Update tracking
         this.lastHitFrames.set(fighter.id, currentFrame);

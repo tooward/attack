@@ -88,64 +88,64 @@ export class FighterSprite extends Phaser.GameObjects.Container {
    */
   private updateVisuals(fighter: FighterState): void {
     const spritePrefix = this.teamId === 0 ? 'player' : 'enemy';
-    let spriteKey = '';
+    let animKey = '';
 
-    // Determine sprite from status
+    // Determine animation from status
     switch (fighter.status) {
       case FighterStatus.IDLE:
-        spriteKey = `${spritePrefix}_idle`;
+        animKey = `${spritePrefix}_idle_anim`;
         break;
 
       case FighterStatus.WALK_FORWARD:
       case FighterStatus.WALK_BACKWARD:
         // Use walk for player, run for enemy (since enemy doesn't have walk)
-        spriteKey = this.teamId === 0 ? `${spritePrefix}_walk` : `${spritePrefix}_run`;
+        animKey = this.teamId === 0 ? `${spritePrefix}_walk_anim` : `${spritePrefix}_run_anim`;
         break;
 
       case FighterStatus.JUMP:
-        spriteKey = this.teamId === 0 ? `${spritePrefix}_jump` : `${spritePrefix}_jump`;
+        animKey = `${spritePrefix}_jump_anim`;
         break;
 
       case FighterStatus.CROUCH:
         // No crouch sprite, use idle for now
-        spriteKey = `${spritePrefix}_idle`;
+        animKey = `${spritePrefix}_idle_anim`;
         break;
 
       case FighterStatus.ATTACK:
-        // Map attack moves to sprite keys
+        // Map attack moves to animation keys
         if (fighter.currentMove === 'lightPunch' || fighter.currentMove === 'crLightPunch') {
-          spriteKey = `${spritePrefix}_attack1`;
+          animKey = `${spritePrefix}_attack1_anim`;
         } else if (fighter.currentMove === 'heavyPunch' || fighter.currentMove === 'crHeavyPunch') {
-          spriteKey = `${spritePrefix}_attack2`;
+          animKey = `${spritePrefix}_attack2_anim`;
         } else if (fighter.currentMove === 'lightKick' || fighter.currentMove === 'heavyKick') {
-          spriteKey = `${spritePrefix}_attack3`;
+          animKey = `${spritePrefix}_attack3_anim`;
         } else if (fighter.currentMove === 'hadoken' || fighter.currentMove === 'shoryuken') {
-          spriteKey = this.teamId === 0 ? `${spritePrefix}_special` : `${spritePrefix}_dash`;
+          animKey = this.teamId === 0 ? `${spritePrefix}_special_anim` : `${spritePrefix}_dash_anim`;
         } else {
-          spriteKey = `${spritePrefix}_attack1`;
+          animKey = `${spritePrefix}_attack1_anim`;
         }
         break;
 
       case FighterStatus.BLOCK:
-        spriteKey = this.teamId === 0 ? `${spritePrefix}_defend` : `${spritePrefix}_defence`;
+        animKey = this.teamId === 0 ? `${spritePrefix}_defend_anim` : `${spritePrefix}_defence_anim`;
         break;
 
       case FighterStatus.HITSTUN:
-        spriteKey = `${spritePrefix}_hurt`;
+        animKey = `${spritePrefix}_hurt_anim`;
         break;
 
       case FighterStatus.BLOCKSTUN:
-        spriteKey = this.teamId === 0 ? `${spritePrefix}_defend` : `${spritePrefix}_defence`;
+        animKey = this.teamId === 0 ? `${spritePrefix}_defend_anim` : `${spritePrefix}_defence_anim`;
         break;
 
       default:
-        spriteKey = `${spritePrefix}_idle`;
+        animKey = `${spritePrefix}_idle_anim`;
     }
 
-    // Only update texture if it changed
-    if (spriteKey !== this.currentAnimation) {
-      this.sprite.setTexture(spriteKey, 0); // Use frame 0
-      this.currentAnimation = spriteKey;
+    // Only update animation if it changed
+    if (animKey !== this.currentAnimation) {
+      this.sprite.play(animKey);
+      this.currentAnimation = animKey;
     }
   }
 
