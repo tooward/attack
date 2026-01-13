@@ -24,7 +24,7 @@ export default class MenuScene extends Scene {
         }).setOrigin(0.5);
         
         // Single Player button (initially invisible)
-        this.startButton = this.add.text(width / 2, height / 2 - 80, 'Single Player', {
+        this.startButton = this.add.text(width / 2, height / 2 - 120, 'Single Player', {
             fontSize: '32px',
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -37,8 +37,22 @@ export default class MenuScene extends Scene {
         .on('pointerdown', () => this.startGame())
         .setAlpha(0); // Hide initially
 
+        // Practice Mode button (initially invisible)
+        const practiceButton = this.add.text(width / 2, height / 2 - 40, 'Practice Mode', {
+            fontSize: '32px',
+            color: '#fff',
+            padding: { x: 20, y: 10 },
+            backgroundColor: '#000'
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => practiceButton.setStyle({ color: '#ff0' }))
+        .on('pointerout', () => practiceButton.setStyle({ color: '#fff' }))
+        .on('pointerdown', () => this.startPracticeMode())
+        .setAlpha(0); // Hide initially
+
         // Multiplayer button (initially invisible)
-        const multiplayerButton = this.add.text(width / 2, height / 2, 'Online Multiplayer', {
+        const multiplayerButton = this.add.text(width / 2, height / 2 + 40, 'Online Multiplayer', {
             fontSize: '32px',
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -52,7 +66,7 @@ export default class MenuScene extends Scene {
         .setAlpha(0); // Hide initially
         
         // Settings button (initially invisible)
-        const settingsButton = this.add.text(width / 2, height / 2 + 80, 'Settings', {
+        const settingsButton = this.add.text(width / 2, height / 2 + 120, 'Settings', {
             fontSize: '32px',
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -67,7 +81,7 @@ export default class MenuScene extends Scene {
 
         // Show all buttons with staggered timing
         this.tweens.add({
-            targets: [multiplayerButton, settingsButton],
+            targets: [practiceButton, multiplayerButton, settingsButton],
             alpha: 1,
             duration: 500,
             ease: 'Power2',
@@ -135,6 +149,11 @@ export default class MenuScene extends Scene {
     startGame() {
         // Go to character select instead of directly to game
         this.scene.start('CharacterSelectScene');
+    }
+
+    startPracticeMode() {
+        // Go to bot selection for practice mode
+        this.scene.start('BotSelectionScene');
     }
 
     startMultiplayer() {

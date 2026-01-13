@@ -51,14 +51,14 @@ export interface RewardWeights {
  * Increased rewards for offensive actions to avoid passive play.
  */
 export const DEFAULT_REWARD_WEIGHTS: RewardWeights = {
-  damageDealt: 10.0,           // Massive reward for damage - primary learning signal
+  damageDealt: 50.0,           // Massive reward for damage - primary learning signal
   damageTaken: -2.0,           // Punish taking damage to encourage defense
   knockdown: 30.0,             // Huge reward for knockdowns
   roundWin: 100.0,
   roundLoss: -100.0,
 
-  attackIntent: 0.02,          // Tiny bonus for starting an attack when close
-  hitConfirm: 15.0,            // Huge reward for landing hits
+  attackIntent: 1.0,           // Reward attempting attacks when in range
+  hitConfirm: 30.0,            // Huge reward for landing hits
   successfulBlock: 3.0,        // Good reward for blocking
   whiffPunish: 20.0,           // Massive reward for punishing whiffs
   antiAir: 12.0,               // Big reward for anti-airs
@@ -68,7 +68,7 @@ export const DEFAULT_REWARD_WEIGHTS: RewardWeights = {
   escapingCorner: 0.2,         // Small escape reward
   rangeControl: 0.05,          // Minimal range reward
 
-  stalling: -1.0,              // Heavy penalty for stalling
+  stalling: -50.0,             // CRUSHING penalty for stalling - force engagement
   moveDiversity: 0.2,          // Small variety bonus
   repetitionPenalty: -3.0,     // Heavy repetition penalty
   timeoutPenalty: -100.0,

@@ -49,15 +49,17 @@ These tracks inform and enhance each other, creating a virtuous cycle of improve
 - **Replay System** - Frame recording, compression (80-90%), storage, validation ✅
 - **Visual Polish** - Sprite animations (22), hit freeze, particle effects, procedural audio ✅
 - **UI Polish** - Character select, settings menu, health bar animations ✅
+- **Bot Training** - Imitation learning pre-training, progressive curriculum, 5 advanced scripted bots ✅
 
 ### 🎯 Current Focus
-- **Phase F: App Store Deployment** - TestFlight beta, production launch
-- **ML Training Enhancement** - Upgrade to production-quality bot system (Option for next phase)
+- **ML Training Optimization** - Testing new reward weights and self-play enforcement
+- **Phase 4 Completion** - Exhibition mode UI integration and testing
 
-### 📋 Future Options
-- Second character (expand roster)
-- Additional polish (pause menu, training mode features)
-- Content updates based on player feedback
+### 📋 Next Steps
+- **Character System** - 3 unique fighters (Musashi, Kaze, Tetsuo) with special moves
+- **Motion Input System** - Mobile-friendly special move execution
+- **Matchup Training** - Retrain ML for all 9 character matchups (3x3)
+- **App Store Deployment** - TestFlight beta, production launch
 
 ---
 
@@ -141,7 +143,36 @@ Both tracks can proceed in parallel with these synchronization points:
 
 ## Development Phases
 
-### Current: Phase 5 - Special Moves & Combos (Week 5-6)
+### Current: ML Training Optimization (Week 0-1)
+**Focus:** Fix stalling issues and improve training quality
+- Imitation learning pre-training from bot replays
+- Increased reward weights for engagement
+- Self-play enforcement (8 episodes minimum per rollout)
+- Harder bot curriculum (start at difficulty 3-5 instead of 1-3)
+
+**Status:** Testing in progress
+
+---
+
+### Next: Character System (Week 1-4)
+**Focus:** Add 3 unique characters with distinct playstyles
+- **Week 1:** Character data structure and stats system
+- **Week 2:** Motion input detection (QCF, DP, charge moves)
+- **Week 3:** Special moves implementation (projectiles, invincibility, armor)
+- **Week 4:** Character-specific balance and ML training integration
+
+**Deliverables:**
+- 3 playable characters (Musashi, Kaze, Tetsuo)
+- Mobile-friendly special move inputs
+- Character-specific bot behavior
+- 9 matchup training (3x3)
+- Updated user manual
+
+**See:** [design/CHARACTER-SYSTEM-PLAN.md](CHARACTER-SYSTEM-PLAN.md) for detailed implementation.
+
+---
+
+### Future: Phase 5 - Special Moves & Combos (Week 5-6)
 **Focus:** Complete core fighting mechanics
 - Motion input system
 - Projectile physics

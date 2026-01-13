@@ -31,6 +31,7 @@
     "test:watch": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js --watch",
     "reset:training": "rm -rf models/policy models/opponent_pool models/training-progress.jsonl models/training.log",
     "train": "bash -lc 'TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/training/train.ts'",
+    "train:pretrain": "bash -lc 'TRAIN_PRETRAIN_REPLAYS=./replays TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/training/train.ts'",
     "train:watch": "bash -lc 'npm run progress & npm run train'",
     "eval": "TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/evaluation/eval.ts",
     "progress": "TS_NODE_PROJECT=tsconfig.node.json node --no-warnings --no-deprecation -r ts-node/register src/ml/evaluation/progress.ts",

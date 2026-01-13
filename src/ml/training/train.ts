@@ -129,17 +129,7 @@ async function main() {
   const obsSize = obsEncoder.getObservationSize();
 
   // Create reward function with optimized weights for engagement
-  const rewardWeights = {
-    ...DEFAULT_REWARD_WEIGHTS,
-    damageDealt: parseEnvFloat('TRAIN_REWARD_DAMAGE_DEALT') ?? 1.0,
-    damageTaken: parseEnvFloat('TRAIN_REWARD_DAMAGE_TAKEN') ?? -0.5,
-    hitConfirm: parseEnvFloat('TRAIN_REWARD_HIT_CONFIRM') ?? 2.0,      // Reward successful attacks
-    successfulBlock: parseEnvFloat('TRAIN_REWARD_SUCCESSFUL_BLOCK') ?? 0.5,
-    stalling: parseEnvFloat('TRAIN_REWARD_STALLING') ?? -0.5,          // Penalize passive play
-    attackIntent: parseEnvFloat('TRAIN_REWARD_ATTACK_INTENT') ?? 0.05, // Encourage aggression
-    rangeControl: parseEnvFloat('TRAIN_REWARD_RANGE_CONTROL') ?? 0.1,
-  };
-  const rewardFn = new RewardFunction(rewardWeights);
+  const rewardFn = new RewardFunction(DEFAULT_REWARD_WEIGHTS);
 
   // Optional: punish early-episode passivity (helps avoid "do nothing" collapse).
   // Gate it to the early *training* phase if TRAIN_EARLY_TRAINING_STEPS is set.
@@ -180,6 +170,66 @@ async function main() {
     }
   } else {
     console.log('Starting with fresh model\n');
+    
+    // Pre-training from bot replays (if enabled)
+    const pretrainReplayDir = process.env.TRAIN_PRETRAIN_REPLAYS;
+    if (pretrainReplayDir && fs.existsSync(pretrainReplayDir)) {
+      console.log('='.repeat(80));
+      console.log('🎓 IMITATION LEARNING PRE-TRAINING');
+      console.log('='.repeat(80));
+      console.log(`Loading replays from: ${pretrainReplayDir}\n`);
+      
+      try {
+        const { ImitationTrainer } = await import('../../training/ImitationTrainer');
+        const replayFiles = fs.readdirSync(pretrainReplayDir)
+          .filter(f => f.endsWith('.json'))
+          .map(f => path.join(pretrainReplayDir, f));
+        
+        console.log(`Found ${replayFiles.length} replay files`);
+        
+        // Load replays
+        const replays = [];
+        for (const file of replayFiles.slice(0, 50)) { // Use first 50 replays
+          try {
+            const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+            replays.push(data);
+          } catch (e) {
+            console.warn(`Failed to load ${file}: ${e}`);
+          }
+        }
+        
+        if (replays.length > 0) {
+          console.log(`Loaded ${replays.length} replays for pre-training\n`);
+          
+          // Create imitation trainer and pre-train
+          const imitationTrainer = new ImitationTrainer(policy as any);
+          const pretrainConfig = {
+            batchSize: 64,
+            epochs: 10,
+            validationSplit: 0.1,
+            shuffle: true,
+            verbose: true
+          };
+          
+          const metrics = await imitationTrainer.train(replays, pretrainConfig);
+          
+          console.log('\n✓ Pre-training complete!');
+          console.log(`  Final accuracy: ${(metrics.trainAccuracy[metrics.trainAccuracy.length - 1] * 100).toFixed(1)}%`);
+          console.log(`  Final loss: ${metrics.trainLoss[metrics.trainLoss.length - 1].toFixed(4)}\n`);
+          
+          // Save pre-trained model
+          await policy.save(config.modelPath);
+          console.log(`✓ Saved pre-trained model to ${config.modelPath}\n`);
+        } else {
+          console.log('⚠ No replays loaded, skipping pre-training\n');
+        }
+      } catch (error) {
+        console.error('⚠ Pre-training failed:', error);
+        console.log('Continuing with untrained model\n');
+      }
+      
+      console.log('='.repeat(80) + '\n');
+    }
   }
 
   console.log(`Observation size: ${obsSize}`);
@@ -207,13 +257,13 @@ async function main() {
   console.log(`  Epochs per batch: ${ppoConfig.epochsPerBatch}`);
   
   console.log('\nReward Weights:');
-  console.log(`  Damage dealt: ${rewardWeights.damageDealt}`);
-  console.log(`  Damage taken: ${rewardWeights.damageTaken}`);
-  console.log(`  Hit confirm: ${rewardWeights.hitConfirm}`);
-  console.log(`  Successful block: ${rewardWeights.successfulBlock}`);
-  console.log(`  Stalling penalty: ${rewardWeights.stalling}`);
-  console.log(`  Attack intent: ${rewardWeights.attackIntent}`);
-  console.log(`  Range control: ${rewardWeights.rangeControl}`);
+  console.log(`  Damage dealt: ${DEFAULT_REWARD_WEIGHTS.damageDealt}`);
+  console.log(`  Damage taken: ${DEFAULT_REWARD_WEIGHTS.damageTaken}`);
+  console.log(`  Hit confirm: ${DEFAULT_REWARD_WEIGHTS.hitConfirm}`);
+  console.log(`  Successful block: ${DEFAULT_REWARD_WEIGHTS.successfulBlock}`);
+  console.log(`  Stalling penalty: ${DEFAULT_REWARD_WEIGHTS.stalling}`);
+  console.log(`  Attack intent: ${DEFAULT_REWARD_WEIGHTS.attackIntent}`);
+  console.log(`  Range control: ${DEFAULT_REWARD_WEIGHTS.rangeControl}`);
   
   console.log('\nTraining Schedule:');
   console.log(`  Total steps: ${config.totalSteps.toLocaleString()}`);
@@ -253,6 +303,14 @@ async function main() {
   if (scriptedMinEpisodesPerRollout > 0) {
     trainer.setScriptedMinEpisodesPerRollout(scriptedMinEpisodesPerRollout);
     console.log(`[OpponentMix] scriptedMinEpisodesPerRollout=${scriptedMinEpisodesPerRollout}`);
+  }
+
+  // Force minimum self-play episodes to prevent over-reliance on bot exploitation
+  // This ensures agent learns to beat itself, not just scripted bots
+  const selfPlayMinEpisodesPerRollout = parseEnvInt('TRAIN_SELFPLAY_MIN_EPISODES_PER_ROLLOUT') ?? 8;
+  if (selfPlayMinEpisodesPerRollout > 0 && opponentPool.getAllSnapshots().length > 0) {
+    trainer.setSelfPlayMinEpisodesPerRollout(selfPlayMinEpisodesPerRollout);
+    console.log(`[SelfPlay] minEpisodesPerRollout=${selfPlayMinEpisodesPerRollout} (force agent vs agent training)`);
   }
 
   // Force episode resolution to prevent infinite stalling (default: 1200 frames = ~20 seconds)
@@ -699,7 +757,7 @@ async function main() {
         ppo: DEFAULT_PPO_CONFIG,
         pool: DEFAULT_POOL_CONFIG,
         observation: obsConfig,
-        rewards: rewardWeights,
+        rewards: DEFAULT_REWARD_WEIGHTS,
       },
       metrics: allMetrics,
       poolState: opponentPool.export(),

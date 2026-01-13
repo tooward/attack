@@ -498,6 +498,7 @@ export class PPOTrainer {
   private opponentMode: 'auto' | 'scripted-easy' | 'scripted-tight' | 'pool' = 'auto';
   private scriptedOpponentMixProb: number = 0;
   private scriptedMinEpisodesPerRollout: number = 0;
+  private selfPlayMinEpisodesPerRollout: number = 0;
   private scriptedVariant: 'easy' | 'tight' = 'tight';
   private customBotActionFn?: (state: any, actorId: string, targetId: string) => ActionBundle;
   private bootstrapMirrorFrames: number = 0;
@@ -551,6 +552,14 @@ export class PPOTrainer {
    */
   setScriptedMinEpisodesPerRollout(minEpisodes: number): void {
     this.scriptedMinEpisodesPerRollout = Math.max(0, Math.trunc(minEpisodes));
+  }
+
+  /**
+   * Guarantee a minimum number of self-play episodes per rollout.
+   * Forces agent to learn to beat itself, not just exploit scripted bots.
+   */
+  setSelfPlayMinEpisodesPerRollout(minEpisodes: number): void {
+    this.selfPlayMinEpisodesPerRollout = Math.max(0, Math.trunc(minEpisodes));
   }
 
   /**
@@ -762,6 +771,7 @@ export class PPOTrainer {
 
     let useScriptedThisEpisode = false;
     let scriptedEpisodesScheduledThisRollout = 0;
+    let selfPlayEpisodesScheduledThisRollout = 0;
     let p2ScriptedEpisodesScheduledThisRollout = 0;
     let forceScriptedTightThisEpisode = false;
     const selectOpponentForEpisode = () => {
@@ -772,7 +782,19 @@ export class PPOTrainer {
         return;
       }
 
-      // Hard guarantee: schedule a minimum number of scripted episodes per rollout.
+      // Hard guarantee 1: schedule minimum self-play episodes per rollout
+      // This ensures agent learns to beat itself, not just exploit bots
+      if (this.selfPlayMinEpisodesPerRollout > 0 && 
+          this.opponentPool && 
+          this.opponentPool.getAllSnapshots().length > 0 &&
+          selfPlayEpisodesScheduledThisRollout < this.selfPlayMinEpisodesPerRollout) {
+        this.currentOpponent = this.opponentPool.sampleOpponent();
+        useScriptedThisEpisode = false;
+        selfPlayEpisodesScheduledThisRollout++;
+        return;
+      }
+
+      // Hard guarantee 2: schedule a minimum number of scripted episodes per rollout.
       if (scriptedEpisodesScheduledThisRollout < this.scriptedMinEpisodesPerRollout) {
         this.currentOpponent = undefined;
         useScriptedThisEpisode = true;

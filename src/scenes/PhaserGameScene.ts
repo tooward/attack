@@ -6,7 +6,7 @@
  */
 
 import { Scene } from 'phaser';
-import { GameState, CharacterDefinition, InputFrame, FighterState } from '../core/interfaces/types';
+import { GameState, CharacterDefinition, InputFrame, FighterState, InputAction } from '../core/interfaces/types';
 import { createInitialState, tick, startNextRound } from '../core/Game';
 import { MUSASHI } from '../core/data/musashi';
 import { FighterSprite } from '../phaser/FighterSprite';
@@ -62,12 +62,17 @@ export default class PhaserGameScene extends Scene {
 
   // AI
   private aiBot!: RandomBot | PersonalityBot | NeuralBot | ScriptedBot;
-  private botType: 'random' | 'personality' | 'defensive' | 'scripted' | 'neural' | 'ml' = 'personality';
+  private botType: 'random' | 'personality' | 'defensive' | 'scripted' | 'neural' | 'ml' | 'exhibition' = 'personality';
   private neuralPolicy!: NeuralPolicy;
   private mlBot?: BotRuntime;
   private currentDifficulty: DifficultyLevel = 5;
   private currentStyle: FightingStyle = 'rushdown';
   private mlBotAction?: BotAction;
+  
+  // Exhibition mode (practice vs advanced bots)
+  private exhibitionBotType?: any;
+  private exhibitionBotDifficulty?: number;
+  private exhibitionGetBotAction?: any;
   
   // Audio
   private audioManager!: AudioManager;
@@ -295,26 +300,63 @@ export default class PhaserGameScene extends Scene {
 
     // Initialize AI bots (skip for online matches)
     if (!this.isOnlineMatch) {
-      this.aiBot = new PersonalityBot({
-        aggression: 0.5,       // Reduced from 0.75 - less button mashing
-        riskTolerance: 0.4,    // Reduced from 0.6 - more conservative
-        defenseBias: 0.4,      // Increased from 0.25 - more blocking/spacing
-        spacingTarget: 0.35,   // Increased from 0.3 - maintain better distance
-        comboAmbition: 0.5,    // Reduced from 0.7 - shorter combos
-        jumpRate: 0.1,         // Reduced from 0.15 - less jumping
-        throwRate: 0.08,       // Reduced from 0.1 - less throwing
-        fireballRate: 0.25,    // Reduced from 0.3 - less special spam
-        antiAirCommitment: 0.5, // Reduced from 0.6
-        adaptivity: 0.5,
-        discipline: 0.75,      // Increased from 0.65 - more patient
-        patternAddiction: 0.2, // Reduced from 0.3 - less predictable
-        tiltThreshold: 0.6,
-      });
-      this.neuralPolicy = new NeuralPolicy();
-      this.botType = 'personality';
+      // Check if this is exhibition mode (practice against selected bot)
+      const exhibitionMode = this.registry.get('exhibitionMode');
       
-      // Try to load trained model (async, doesn't block scene)
-      this.loadNeuralModel();
+      if (exhibitionMode) {
+        // Exhibition mode - use selected bot from BotSelectionScene
+        const botType = this.registry.get('botType');
+        const botDifficulty = this.registry.get('botDifficulty') || 5;
+        
+        console.log(`[Exhibition Mode] Bot: ${botType}, Difficulty: ${botDifficulty}`);
+        
+        // Import getBotAction for exhibition mode
+        import('../ml/training/BotSelector.js').then(({ getBotAction }) => {
+          this.exhibitionBotType = botType;
+          this.exhibitionBotDifficulty = botDifficulty;
+          this.exhibitionGetBotAction = getBotAction;
+        });
+        
+        // Use a placeholder bot until the async import completes
+        this.aiBot = new PersonalityBot({
+          aggression: 0.5,
+          riskTolerance: 0.5,
+          defenseBias: 0.5,
+          spacingTarget: 0.3,
+          comboAmbition: 0.5,
+          jumpRate: 0.3,
+          throwRate: 0.3,
+          fireballRate: 0.4,
+          antiAirCommitment: 0.5,
+          adaptivity: 0.5,
+          discipline: 0.5,
+          patternAddiction: 0.3,
+          tiltThreshold: 0.5
+        });
+        this.botType = 'exhibition';
+      } else {
+        // Normal mode - default AI
+        this.aiBot = new PersonalityBot({
+          aggression: 0.5,       // Reduced from 0.75 - less button mashing
+          riskTolerance: 0.4,    // Reduced from 0.6 - more conservative
+          defenseBias: 0.4,      // Increased from 0.25 - more blocking/spacing
+          spacingTarget: 0.35,   // Increased from 0.3 - maintain better distance
+          comboAmbition: 0.5,    // Reduced from 0.7 - shorter combos
+          jumpRate: 0.1,         // Reduced from 0.15 - less jumping
+          throwRate: 0.08,       // Reduced from 0.1 - less throwing
+          fireballRate: 0.25,    // Reduced from 0.3 - less special spam
+          antiAirCommitment: 0.5, // Reduced from 0.6
+          adaptivity: 0.5,
+          discipline: 0.75,      // Increased from 0.65 - more patient
+          patternAddiction: 0.2, // Reduced from 0.3 - less predictable
+          tiltThreshold: 0.6,
+        });
+        this.neuralPolicy = new NeuralPolicy();
+        this.botType = 'personality';
+        
+        // Try to load trained model (async, doesn't block scene)
+        this.loadNeuralModel();
+      }
     }
 
     // Create UI text
@@ -880,7 +922,19 @@ export default class PhaserGameScene extends Scene {
         }
       } else {
         // Normal AI - check bot type
-        if (this.botType === 'ml' && this.mlBot) {
+        if (this.botType === 'exhibition' && this.exhibitionGetBotAction && this.exhibitionBotType) {
+          // Exhibition mode - use advanced scripted bot from BotSelector
+          const actionBundle = this.exhibitionGetBotAction(
+            this.exhibitionBotType,
+            this.gameState,
+            'player2',
+            'player1',
+            this.exhibitionBotDifficulty
+          );
+          
+          // Convert ActionBundle to InputFrame
+          player2Input = this.actionBundleToInputFrame(actionBundle, player2?.facing || 1, this.gameState.frame);
+        } else if (this.botType === 'ml' && this.mlBot) {
           // Use ML bot (new RL-trained system)
           this.mlBotAction = this.mlBot.getAction(this.gameState);
           aiAction = this.mlBotAction.action as AIAction;
@@ -955,6 +1009,58 @@ export default class PhaserGameScene extends Scene {
     } else {
       this.debugGraphics.clear();
     }
+  }
+
+  /**
+   * Convert ActionBundle (from advanced bots) to InputFrame
+   */
+  private actionBundleToInputFrame(bundle: any, facing: number, timestamp: number): InputFrame {
+    const actions = new Set<InputAction>();
+
+    // Convert direction
+    switch (bundle.direction) {
+      case 'left':
+        actions.add(InputAction.LEFT);
+        break;
+      case 'right':
+        actions.add(InputAction.RIGHT);
+        break;
+      case 'up':
+        actions.add(InputAction.UP);
+        break;
+      case 'down':
+        actions.add(InputAction.DOWN);
+        break;
+      case 'forward':
+        actions.add(facing === 1 ? InputAction.RIGHT : InputAction.LEFT);
+        break;
+      case 'back':
+        actions.add(facing === 1 ? InputAction.LEFT : InputAction.RIGHT);
+        break;
+      // 'neutral' = no direction
+    }
+
+    // Convert button
+    switch (bundle.button) {
+      case 'lp':
+        actions.add(InputAction.LIGHT_PUNCH);
+        break;
+      case 'hp':
+        actions.add(InputAction.HEAVY_PUNCH);
+        break;
+      case 'lk':
+        actions.add(InputAction.LIGHT_KICK);
+        break;
+      case 'hk':
+        actions.add(InputAction.HEAVY_KICK);
+        break;
+      case 'block':
+        actions.add(InputAction.BLOCK);
+        break;
+      // 'none' = no button
+    }
+
+    return { timestamp, actions };
   }
 
   /**
@@ -1401,6 +1507,7 @@ export default class PhaserGameScene extends Scene {
       'neural': 'Neural Bot',
       'random': 'Random Bot',
       'ml': `ML Bot (RL-Trained) | Lv${this.currentDifficulty} ${this.currentStyle}`,
+      'exhibition': `Practice Bot (${this.exhibitionBotType || 'Unknown'})`,
     };
     this.botTypeText.setText(`AI: ${typeNames[this.botType]}`);
   }

@@ -149,15 +149,15 @@ export const DEFAULT_CURRICULUM: CurriculumStage[] = [
     minStep: 0,
     maxStep: 500_000,
     botType: BotType.TUTORIAL,
-    difficulty: 1,
-    description: 'Tutorial bot (diff 1) - Learn basic controls and movement'
+    difficulty: 3,
+    description: 'Tutorial bot (diff 3) - Learn basic controls and movement'
   },
   {
     minStep: 500_000,
     maxStep: 1_000_000,
     botType: BotType.TUTORIAL,
-    difficulty: 3,
-    description: 'Tutorial bot (diff 3) - Practice simple attacks and defense'
+    difficulty: 5,
+    description: 'Tutorial bot (diff 5) - Practice simple attacks and defense'
   },
   
   // Stage 2: Learn defense (1M-2M steps)
@@ -165,15 +165,15 @@ export const DEFAULT_CURRICULUM: CurriculumStage[] = [
     minStep: 1_000_000,
     maxStep: 1_500_000,
     botType: BotType.GUARDIAN,
-    difficulty: 3,
-    description: 'Guardian bot (diff 3) - Learn blocking and anti-air'
+    difficulty: 5,
+    description: 'Guardian bot (diff 5) - Learn blocking and anti-air'
   },
   {
     minStep: 1_500_000,
     maxStep: 2_000_000,
     botType: BotType.GUARDIAN,
-    difficulty: 5,
-    description: 'Guardian bot (diff 5) - Master defensive fundamentals'
+    difficulty: 7,
+    description: 'Guardian bot (diff 7) - Master defensive fundamentals'
   },
   
   // Stage 3: Learn offense (2M-4M steps)
