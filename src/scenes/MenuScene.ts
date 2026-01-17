@@ -1,8 +1,8 @@
 import { Scene } from 'phaser';
 
 export default class MenuScene extends Scene {
-    private sun!: Phaser.GameObjects.Graphics;
-    private sunTween!: Phaser.Tweens.Tween;
+    // private sun!: Phaser.GameObjects.Graphics;
+    // private sunTween!: Phaser.Tweens.Tween;
     private startButton!: Phaser.GameObjects.Text;
 
     constructor() {
@@ -14,18 +14,18 @@ export default class MenuScene extends Scene {
         const height = this.sys.game.config.height as number;
         
         // Create rising sun (initially below screen)
-        this.createRisingSun(width, height);
+        // this.createRisingSun(width, height);
         
         // Title text
-        this.add.text(width / 2, height / 3, 'Five Rings', {
-            fontSize: '64px',
+        this.add.text(width / 2, height * 0.15, 'Five Rings', {
+            fontSize: `${height * 0.075}px`,
             color: '#fff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
         
         // Single Player button (initially invisible)
-        this.startButton = this.add.text(width / 2, height / 2 - 120, 'Single Player', {
-            fontSize: '32px',
+        this.startButton = this.add.text(width / 2, height * 0.35, 'Single Player', {
+            fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
             backgroundColor: '#000'
@@ -38,8 +38,8 @@ export default class MenuScene extends Scene {
         .setAlpha(0); // Hide initially
 
         // Practice Mode button (initially invisible)
-        const practiceButton = this.add.text(width / 2, height / 2 - 40, 'Practice Mode', {
-            fontSize: '32px',
+        const practiceButton = this.add.text(width / 2, height * 0.47, 'Practice Mode', {
+            fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
             backgroundColor: '#000'
@@ -52,8 +52,8 @@ export default class MenuScene extends Scene {
         .setAlpha(0); // Hide initially
 
         // Multiplayer button (initially invisible)
-        const multiplayerButton = this.add.text(width / 2, height / 2 + 40, 'Online Multiplayer', {
-            fontSize: '32px',
+        const multiplayerButton = this.add.text(width / 2, height * 0.59, 'Online Multiplayer', {
+            fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
             backgroundColor: '#000'
@@ -65,9 +65,23 @@ export default class MenuScene extends Scene {
         .on('pointerdown', () => this.startMultiplayer())
         .setAlpha(0); // Hide initially
         
+        // Character Test button (initially invisible)
+        const characterTestButton = this.add.text(width / 2, height * 0.71, 'Character Test Lab', {
+            fontSize: `${height * 0.035}px`,
+            color: '#0ff',
+            padding: { x: 20, y: 10 },
+            backgroundColor: '#001'
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => characterTestButton.setStyle({ color: '#ff0' }))
+        .on('pointerout', () => characterTestButton.setStyle({ color: '#0ff' }))
+        .on('pointerdown', () => this.startCharacterTest())
+        .setAlpha(0); // Hide initially
+        
         // Settings button (initially invisible)
-        const settingsButton = this.add.text(width / 2, height / 2 + 120, 'Settings', {
-            fontSize: '32px',
+        const settingsButton = this.add.text(width / 2, height * 0.83, 'Settings', {
+            fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
             backgroundColor: '#000'
@@ -79,20 +93,19 @@ export default class MenuScene extends Scene {
         .on('pointerdown', () => this.openSettings())
         .setAlpha(0); // Hide initially
 
-        // Show all buttons with staggered timing
+        // Show all buttons immediately (sun animation disabled)
         this.tweens.add({
-            targets: [practiceButton, multiplayerButton, settingsButton],
+            targets: [this.startButton, practiceButton, multiplayerButton, characterTestButton, settingsButton],
             alpha: 1,
             duration: 500,
-            ease: 'Power2',
-            delay: 2000
+            ease: 'Power2'
         });
-        this.animateRisingSun(height);
+        // this.animateRisingSun(height);
 
         // Optional: Add options button, credits, etc.
     }
     
-    createRisingSun(width: number, height: number) {
+    /* createRisingSun(width: number, height: number) {
         const sunRadius = width * 0.15;
         const startY = height + sunRadius; // Start below the screen
         
@@ -122,9 +135,9 @@ export default class MenuScene extends Scene {
         
         // Position the sun below the screen initially
         this.sun.setY(startY);
-    }
+    } */
     
-    animateRisingSun(height: number) {
+    /* animateRisingSun(height: number) {
         // Calculate the final Y position (above the title text)
         const finalY = height * 0.2 + 100;
         
@@ -144,7 +157,7 @@ export default class MenuScene extends Scene {
                 });
             }
         });
-    }
+    } */
     
     startGame() {
         // Go to character select instead of directly to game
@@ -159,6 +172,11 @@ export default class MenuScene extends Scene {
     startMultiplayer() {
         // Start multiplayer menu
         this.scene.start('MultiplayerMenuScene');
+    }
+
+    startCharacterTest() {
+        // Launch Character Test Lab for balance testing
+        this.scene.start('CharacterTestScene');
     }
     
     openSettings() {

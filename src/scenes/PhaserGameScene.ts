@@ -59,6 +59,18 @@ export default class PhaserGameScene extends Scene {
   private difficultyUpKey!: Phaser.Input.Keyboard.Key;
   private difficultyDownKey!: Phaser.Input.Keyboard.Key;
   private styleKey!: Phaser.Input.Keyboard.Key;
+  private helpKey!: Phaser.Input.Keyboard.Key;
+  private movesKey!: Phaser.Input.Keyboard.Key;
+  
+  // Help overlays
+  private helpOverlay?: Phaser.GameObjects.Container;
+  private movesOverlay?: Phaser.GameObjects.Container;
+  private movesButton?: Phaser.GameObjects.Container;
+  private instructionsText?: Phaser.GameObjects.Text;
+  private currentMenu: 'main' | 'moves' | null = null;
+  private botShortName: string = '';
+  private currentMenu: 'main' | 'moves' | null = null;
+  private botShortName: string = '';
 
   // AI
   private aiBot!: RandomBot | PersonalityBot | NeuralBot | ScriptedBot;
@@ -81,7 +93,6 @@ export default class PhaserGameScene extends Scene {
   private roundText!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
   private fpsText!: Phaser.GameObjects.Text;
-  private botTypeText!: Phaser.GameObjects.Text;
   private difficultyText!: Phaser.GameObjects.Text;
   private styleText!: Phaser.GameObjects.Text;
   private comboTexts!: Map<string, Phaser.GameObjects.Text>;
@@ -194,31 +205,15 @@ export default class PhaserGameScene extends Scene {
     // Create background
     this.add.rectangle(500, 300, 1000, 600, 0x222233);
 
-    // Draw ground line
-    const groundLine = this.add.graphics();
-    groundLine.lineStyle(2, 0x666666);
-    groundLine.lineBetween(
-      config.arena.leftBound,
-      config.arena.groundLevel,
-      config.arena.rightBound,
-      config.arena.groundLevel
-    );
-
-    // Draw arena bounds
-    const boundsGraphics = this.add.graphics();
-    boundsGraphics.lineStyle(2, 0x444444);
-    boundsGraphics.strokeRect(
-      config.arena.leftBound,
-      0,
-      config.arena.rightBound - config.arena.leftBound,
-      config.arena.height
-    );
+    // Ground line and arena bounds removed for cleaner look
 
     // Create fighter sprites
     this.fighterSprites = new Map();
     console.log('[PhaserGameScene] Creating initial fighter sprites...');
     for (const fighter of this.gameState.entities) {
-      const sprite = new FighterSprite(this, fighter);
+      // Use bot short name for player2 in exhibition mode
+      const displayName = (fighter.id === 'player2' && this.botShortName) ? this.botShortName : undefined;
+      const sprite = new FighterSprite(this, fighter, displayName);
       this.fighterSprites.set(fighter.id, sprite);
       console.log(`[PhaserGameScene] Created sprite for ${fighter.id}`);
     }
@@ -267,8 +262,8 @@ export default class PhaserGameScene extends Scene {
     ProceduralAudio.generateAllSounds(this);
     this.audioManager = new AudioManager(this);
 
-    // Initialize input
-    this.inputHandler = new InputHandler(this);
+    // Initialize input (player 1 starts facing right)
+    this.inputHandler = new InputHandler(this, true);
     
     // Add touch controls for mobile devices
     const isMobile = this.isMobileDevice();
@@ -278,6 +273,9 @@ export default class PhaserGameScene extends Scene {
       this.add.existing(this.touchControls);
       this.touchControls.setDepth(1000);
       this.touchControls.setScrollFactor(0);
+      
+      // Add special moves button for mobile
+      this.createMovesButton();
       
       // Add input debug display for mobile (can be disabled later)
       const inputDebugText = this.add.text(10, 80, '', {
@@ -293,6 +291,8 @@ export default class PhaserGameScene extends Scene {
     
     this.debugKey = this.input.keyboard!.addKey('F1');
     this.botSwitchKey = this.input.keyboard!.addKey('F2');
+    this.helpKey = this.input.keyboard!.addKey('F1'); // Reusing F1 for help menu
+    this.movesKey = this.input.keyboard!.addKey('F2'); // Reusing F2 for moves
     this.trainingModeKey = this.input.keyboard!.addKey('F3');
     this.resetPositionKey = this.input.keyboard!.addKey('F4');
     this.resetHealthKey = this.input.keyboard!.addKey('F6');
@@ -315,6 +315,16 @@ export default class PhaserGameScene extends Scene {
           this.exhibitionBotType = botType;
           this.exhibitionBotDifficulty = botDifficulty;
           this.exhibitionGetBotAction = getBotAction;
+          
+          // Set short bot name
+          const shortNames: Record<string, string> = {
+            'tutorial': 'Tutorial',
+            'guardian': 'Defensive',
+            'aggressor': 'Aggressive',
+            'tactician': 'Tactical',
+            'wildcard': 'Wildcard'
+          };
+          this.botShortName = shortNames[botType] || 'CPU';
         });
         
         // Use a placeholder bot until the async import completes
@@ -378,38 +388,17 @@ export default class PhaserGameScene extends Scene {
       color: '#00ff00',
     });
 
-    // Instructions text (hide on mobile to avoid overlap with touch controls)
-    const instructions = this.add.text(500, 560, 
-      'Arrow Keys + Z/X/C/V | F1: Hitboxes | F2: AI | F3: Training (cycle modes) | F4: Reset Pos | F5: ∞ Meter | F6: Reset HP', {
+    // Instructions text at bottom showing available keys
+    this.instructionsText = this.add.text(500, 560, 
+      'F1: Help | F2: Special Moves', {
       fontSize: '11px',
       color: '#888888',
       align: 'center',
     });
-    instructions.setOrigin(0.5, 1);
+    this.instructionsText.setOrigin(0.5, 1);
     if (this.touchControls) {
-      instructions.setVisible(false);
+      this.instructionsText.setVisible(false);
     }
-
-    // Training mode sub-instructions
-    const trainingInstructions = this.add.text(500, 545, 
-      'Training Modes: Idle → Crouch → Jump → Block → CPU → Record → Playback', {
-      fontSize: '9px',
-      color: '#666666',
-      align: 'center',
-    });
-    trainingInstructions.setOrigin(0.5, 1);
-    if (this.touchControls) {
-      trainingInstructions.setVisible(false);
-    }
-
-    // Bot type indicator
-    this.botTypeText = this.add.text(500, 580, 
-      'AI: Personality Bot (Aggressive)', {
-      fontSize: '14px',
-      color: '#ffff00',
-      align: 'center',
-    });
-    this.botTypeText.setOrigin(0.5, 1);
 
     // Difficulty and Style indicators (for ML bot)
     this.difficultyText = this.add.text(850, 560, 
@@ -674,9 +663,6 @@ export default class PhaserGameScene extends Scene {
     this.waitingForInputsText.setVisible(false);
     
     // Hide AI-related UI
-    if (this.botTypeText) {
-      this.botTypeText.setVisible(false);
-    }
     if (this.difficultyText) {
       this.difficultyText.setVisible(false);
     }
@@ -720,13 +706,38 @@ export default class PhaserGameScene extends Scene {
   }
 
   update(time: number, delta: number): void {
-    // Toggle debug mode
-    if (Phaser.Input.Keyboard.JustDown(this.debugKey)) {
-      this.debugMode = !this.debugMode;
+    // Toggle menu (F1)
+    if (Phaser.Input.Keyboard.JustDown(this.helpKey)) {
+      if (this.currentMenu === 'moves') {
+        // Return to main menu
+        this.toggleMovesMenu(); // Close moves
+        this.toggleHelpMenu(); // Open main
+      } else if (this.currentMenu === 'main') {
+        // Close main menu
+        this.toggleHelpMenu();
+      } else {
+        // Open main menu
+        this.toggleHelpMenu();
+      }
+    }
+    
+    // Toggle special moves menu (F2)
+    if (Phaser.Input.Keyboard.JustDown(this.movesKey)) {
+      if (this.currentMenu === 'main') {
+        // Close main, open moves
+        this.toggleHelpMenu(); // Close main
+        this.toggleMovesMenu(); // Open moves
+      } else if (this.currentMenu === 'moves') {
+        // Close moves
+        this.toggleMovesMenu();
+      } else {
+        // Open moves
+        this.toggleMovesMenu();
+      }
     }
 
-    // Switch AI bot type
-    if (Phaser.Input.Keyboard.JustDown(this.botSwitchKey)) {
+    // Switch AI bot type (moved to F3)
+    if (Phaser.Input.Keyboard.JustDown(this.trainingModeKey)) {
       this.switchBotType();
     }
 
@@ -796,6 +807,16 @@ export default class PhaserGameScene extends Scene {
       return;
     }
 
+    // Update input handler facing direction based on player position
+    if (this.gameState.entities) {
+      const player1 = this.gameState.entities.find(e => e.id === 'player1');
+      const player2 = this.gameState.entities.find(e => e.id === 'player2');
+      if (player1 && player2) {
+        const facingRight = player1.position.x < player2.position.x;
+        this.inputHandler.setFacingRight(facingRight);
+      }
+    }
+
     // Capture player 1 input - use touch controls on mobile, keyboard otherwise
     let player1Input = this.touchControls 
       ? this.touchControls.getCurrentInput() 
@@ -803,18 +824,28 @@ export default class PhaserGameScene extends Scene {
     
     // Update input debug display
     if (this.inputDebugText) {
+      let debugText = '';
+      
       if (player1Input.actions.size > 0) {
         const actionNames = Array.from(player1Input.actions).map(a => {
           const names: Record<number, string> = {
             1: 'LEFT', 2: 'RIGHT', 3: 'UP', 4: 'DOWN',
-            5: 'LP', 6: 'HP', 7: 'LK', 8: 'HK', 9: 'BLOCK'
+            5: 'LP', 6: 'HP', 7: 'LK', 8: 'HK', 9: 'BLOCK', 13: 'SPECIAL'
           };
           return names[a] || a;
         });
-        this.inputDebugText.setText('Input: ' + actionNames.join(' + '));
+        debugText = 'Input: ' + actionNames.join(' + ');
       } else {
-        this.inputDebugText.setText('Input: None');
+        debugText = 'Input: None';
       }
+      
+      // Add special move detection info
+      if (player1Input.detectedMotion) {
+        const motion = player1Input.detectedMotion;
+        debugText += `\nMotion: ${motion.motionType} + ${motion.button} (${(motion.confidence * 100).toFixed(0)}%)`;
+      }
+      
+      this.inputDebugText.setText(debugText);
     }
 
     // Player 2 input - depends on mode
@@ -968,7 +999,7 @@ export default class PhaserGameScene extends Scene {
     }
 
     // Apply infinite meter if enabled (before tick)
-    if (this.gameState.trainingMode?.infiniteMeter) {
+    if (this.gameState.trainingMode?.infiniteMeter && this.gameState.entities) {
       this.gameState.entities.forEach(fighter => {
         fighter.superMeter = fighter.maxSuperMeter;
         fighter.energy = fighter.maxEnergy;
@@ -983,7 +1014,11 @@ export default class PhaserGameScene extends Scene {
     this.detectAndSpawnHitEffects();
     this.detectAndPlayAttackSounds();
     
-    // Sync sprites with new state
+    // Sync sprites with new state - check entities exists
+    if (!this.gameState.entities) {
+      return;
+    }
+    
     for (const fighter of this.gameState.entities) {
       const sprite = this.fighterSprites.get(fighter.id);
       if (sprite) {
@@ -1084,7 +1119,9 @@ export default class PhaserGameScene extends Scene {
           (f) => f.id === this.gameState.round.winner
         );
         if (winnerFighter) {
-          this.showWinOverlay(winnerFighter.id);
+          // Check if any fighter has 0 health (knockout)
+          const hasKnockout = this.gameState.entities.some(f => f.health <= 0);
+          this.showWinOverlay(winnerFighter.id, hasKnockout);
           this.roundText.setText(
             `Round ${this.gameState.round.roundNumber} - ${winnerFighter.id} wins!`
           );
@@ -1415,10 +1452,9 @@ export default class PhaserGameScene extends Scene {
         console.log(`Training Mode: ${this.gameState.trainingMode.dummyMode}`);
       }
       
-      this.botTypeText.setText(`Training: ${this.gameState.trainingMode.dummyMode.toUpperCase()}`);
+      // Training mode display removed - info shown via sprite names
     } else {
       console.log('Training Mode: OFF');
-      this.updateBotTypeText();
     }
   }
 
@@ -1497,22 +1533,6 @@ export default class PhaserGameScene extends Scene {
   }
 
   /**
-   * Update bot type text
-   */
-  private updateBotTypeText(): void {
-    const typeNames = {
-      'personality': 'Personality Bot (Aggressive)',
-      'defensive': 'Defensive Bot (Zoner)',
-      'scripted': 'Scripted Bot (Tight)',
-      'neural': 'Neural Bot',
-      'random': 'Random Bot',
-      'ml': `ML Bot (RL-Trained) | Lv${this.currentDifficulty} ${this.currentStyle}`,
-      'exhibition': `Practice Bot (${this.exhibitionBotType || 'Unknown'})`,
-    };
-    this.botTypeText.setText(`AI: ${typeNames[this.botType]}`);
-  }
-
-  /**
    * Switch between different AI bot types
    */
   private switchBotType(): void {
@@ -1534,14 +1554,12 @@ export default class PhaserGameScene extends Scene {
         tiltThreshold: 0.7,
       });
       this.botType = 'defensive';
-      this.botTypeText.setText('AI: Defensive Bot (Zoner)');
       this.difficultyText.setVisible(false);
       this.styleText.setVisible(false);
     } else if (this.botType === 'defensive') {
       // Switch to scripted bot (playtesting baseline)
       this.aiBot = new ScriptedBot('tight');
       this.botType = 'scripted';
-      this.botTypeText.setText('AI: Scripted Bot (Tight)');
       this.difficultyText.setVisible(false);
       this.styleText.setVisible(false);
     } else if (this.botType === 'scripted') {
@@ -1552,21 +1570,18 @@ export default class PhaserGameScene extends Scene {
         useGreedy: false,
       });
       this.botType = 'neural';
-      this.botTypeText.setText('AI: Neural Bot');
       this.difficultyText.setVisible(false);
       this.styleText.setVisible(false);
     } else if (this.botType === 'neural') {
       // Switch to ML bot (new RL-trained system)
       if (this.mlBot) {
         this.botType = 'ml';
-        this.updateBotTypeText();
         this.difficultyText.setVisible(true);
         this.styleText.setVisible(true);
       } else {
         // ML bot not loaded, skip to random
         this.aiBot = new RandomBot();
         this.botType = 'random';
-        this.botTypeText.setText('AI: Random Bot (ML Bot not loaded)');
         this.difficultyText.setVisible(false);
         this.styleText.setVisible(false);
       }
@@ -1574,7 +1589,6 @@ export default class PhaserGameScene extends Scene {
       // Switch to random bot
       this.aiBot = new RandomBot();
       this.botType = 'random';
-      this.botTypeText.setText('AI: Random Bot');
       this.difficultyText.setVisible(false);
       this.styleText.setVisible(false);
     } else {
@@ -1595,7 +1609,6 @@ export default class PhaserGameScene extends Scene {
         tiltThreshold: 0.6,
       });
       this.botType = 'personality';
-      this.botTypeText.setText('AI: Personality Bot (Aggressive)');
       this.difficultyText.setVisible(false);
       this.styleText.setVisible(false);
     }
@@ -1846,7 +1859,6 @@ export default class PhaserGameScene extends Scene {
         style: this.currentStyle,
         playerIndex: 2,
       });
-      this.updateBotTypeText();
     } catch (error) {
       console.error('Failed to recreate ML bot:', error);
     }
@@ -1906,21 +1918,22 @@ export default class PhaserGameScene extends Scene {
   /**
    * Show animated win overlay
    */
-  private showWinOverlay(winnerId: string): void {
+  private showWinOverlay(winnerId: string, isKnockout: boolean = true): void {
     // Only show once
     if (this.winOverlay) return;
 
-    // Apply dramatic slow-motion effect
-    this.time.timeScale = 0.3; // Slow down time
-    
-    // Reset time scale after effect
-    this.time.delayedCall(800, () => {
-      this.time.timeScale = 1.0;
-    });
+    // Apply dramatic slow-motion effect only for knockouts
+    if (isKnockout) {
+      this.time.timeScale = 0.3; // Slow down time
+      
+      // Reset time scale after effect
+      this.time.delayedCall(800, () => {
+        this.time.timeScale = 1.0;
+      });
 
-    // Create dramatic "K.O.!" text first
-    const koText = this.add.text(500, 300, 'K.O.!', {
-      fontSize: '120px',
+      // Create dramatic "K.O.!" text first
+      const koText = this.add.text(500, 300, 'K.O.!', {
+        fontSize: '120px',
       color: '#ff0000',
       fontStyle: 'bold',
       stroke: '#ffffff',
@@ -1943,7 +1956,7 @@ export default class PhaserGameScene extends Scene {
         this.cameras.main.flash(200, 255, 255, 255, true);
         
         // Hold briefly then fade
-        this.time.delayedCall(600, () => {
+        this.time.delayedCall(300, () => {
           this.tweens.add({
             targets: koText,
             alpha: 0,
@@ -1953,10 +1966,12 @@ export default class PhaserGameScene extends Scene {
           });
         });
       }
-    });
+      });
+    }
 
-    // Show winner announcement after K.O. fades
-    this.time.delayedCall(1200, () => {
+    // Show winner announcement (after K.O. fades for knockouts, immediately for time-outs)
+    const winnerDelay = isKnockout ? 900 : 0;
+    this.time.delayedCall(winnerDelay, () => {
       this.winOverlay = this.add.text(500, 300, `${winnerId.toUpperCase()} WINS!`, {
         fontSize: '60px',
         color: '#00ff00',
@@ -1979,15 +1994,18 @@ export default class PhaserGameScene extends Scene {
         onComplete: () => {
           // Hold then fade out
           this.time.delayedCall(1500, () => {
-            this.tweens.add({
-              targets: this.winOverlay,
-              alpha: 0,
-              duration: 500,
-              onComplete: () => {
-                this.winOverlay?.destroy();
-                this.winOverlay = null;
-              }
-            });
+            // Check if overlay still exists before tweening
+            if (this.winOverlay) {
+              this.tweens.add({
+                targets: this.winOverlay,
+                alpha: 0,
+                duration: 500,
+                onComplete: () => {
+                  this.winOverlay?.destroy();
+                  this.winOverlay = null;
+                }
+              });
+            }
           });
         }
       });
@@ -2022,15 +2040,18 @@ export default class PhaserGameScene extends Scene {
       onComplete: () => {
         // Hold for a moment then fade out
         this.time.delayedCall(1000, () => {
-          this.tweens.add({
-            targets: this.tieOverlay,
-            alpha: 0,
-            duration: 500,
-            onComplete: () => {
-              this.tieOverlay?.destroy();
-              this.tieOverlay = null;
-            }
-          });
+          // Check if overlay still exists before tweening
+          if (this.tieOverlay) {
+            this.tweens.add({
+              targets: this.tieOverlay,
+              alpha: 0,
+              duration: 500,
+              onComplete: () => {
+                this.tieOverlay?.destroy();
+                this.tieOverlay = null;
+              }
+            });
+          }
         });
       }
     });
@@ -2040,6 +2061,34 @@ export default class PhaserGameScene extends Scene {
    * Start the next round
    */
   private startNextRound(): void {
+    // Clear all pending timers to prevent callbacks from old round
+    if (this.roundEndTimer) {
+      this.roundEndTimer.remove();
+      this.roundEndTimer = null;
+    }
+    
+    // Stop and clean up all active tweens and text objects
+    if (this.roundAnnouncement) {
+      this.tweens.killTweensOf(this.roundAnnouncement);
+      this.roundAnnouncement.destroy();
+      this.roundAnnouncement = null;
+    }
+    if (this.fightAnnouncement) {
+      this.tweens.killTweensOf(this.fightAnnouncement);
+      this.fightAnnouncement.destroy();
+      this.fightAnnouncement = null;
+    }
+    if (this.winOverlay) {
+      this.tweens.killTweensOf(this.winOverlay);
+      this.winOverlay.destroy();
+      this.winOverlay = null;
+    }
+    if (this.tieOverlay) {
+      this.tweens.killTweensOf(this.tieOverlay);
+      this.tieOverlay.destroy();
+      this.tieOverlay = null;
+    }
+    
     // Get config from current game state
     const config = {
       entities: [
@@ -2078,26 +2127,19 @@ export default class PhaserGameScene extends Scene {
     // Start next round
     this.gameState = startNextRound(this.gameState, config);
     
+    // Reset motion detector for clean slate
+    this.inputHandler.resetMotionDetector();
+    
     // Recreate fighter sprites for new round
     console.log('[startNextRound] Creating new sprites...');
     for (const fighter of this.gameState.entities) {
-      const sprite = new FighterSprite(this, fighter);
+      // Use bot short name for player2 in exhibition mode
+      const displayName = (fighter.id === 'player2' && this.botShortName) ? this.botShortName : undefined;
+      const sprite = new FighterSprite(this, fighter, displayName);
       this.fighterSprites.set(fighter.id, sprite);
       console.log(`[startNextRound] Created sprite for ${fighter.id}`);
     }
     console.log(`[startNextRound] Total sprites in map: ${this.fighterSprites.size}`);
-    
-    // Clear any overlays - stop tweens first to avoid errors
-    if (this.winOverlay) {
-      this.tweens.killTweensOf(this.winOverlay);
-      this.winOverlay.destroy();
-      this.winOverlay = null;
-    }
-    if (this.tieOverlay) {
-      this.tweens.killTweensOf(this.tieOverlay);
-      this.tieOverlay.destroy();
-      this.tieOverlay = null;
-    }
     
     // Show round start cinematic
     this.showRoundStartCinematic();
@@ -2134,23 +2176,26 @@ export default class PhaserGameScene extends Scene {
       onComplete: () => {
         // Hold for a moment
         this.time.delayedCall(500, () => {
-          // Fade out
-          this.tweens.add({
-            targets: this.roundAnnouncement,
-            alpha: 0,
-            scale: 1.5,
-            duration: 200,
-            ease: 'Power2',
-            onComplete: () => {
-              if (this.roundAnnouncement) {
-                this.roundAnnouncement.destroy();
-                this.roundAnnouncement = null;
+          // Check if still exists before tweening
+          if (this.roundAnnouncement) {
+            // Fade out
+            this.tweens.add({
+              targets: this.roundAnnouncement,
+              alpha: 0,
+              scale: 1.5,
+              duration: 200,
+              ease: 'Power2',
+              onComplete: () => {
+                if (this.roundAnnouncement) {
+                  this.roundAnnouncement.destroy();
+                  this.roundAnnouncement = null;
+                }
+                
+                // Show "FIGHT!" after round number fades
+                this.showFightAnnouncement();
               }
-              
-              // Show "FIGHT!" after round number fades
-              this.showFightAnnouncement();
-            }
-          });
+            });
+          }
         });
       }
     });
@@ -2185,20 +2230,23 @@ export default class PhaserGameScene extends Scene {
       onComplete: () => {
         // Hold briefly
         this.time.delayedCall(400, () => {
-          // Quick fade out
-          this.tweens.add({
-            targets: this.fightAnnouncement,
-            alpha: 0,
-            scale: 0.8,
-            duration: 150,
-            ease: 'Power2',
-            onComplete: () => {
-              if (this.fightAnnouncement) {
-                this.fightAnnouncement.destroy();
-                this.fightAnnouncement = null;
+          // Check if still exists before tweening
+          if (this.fightAnnouncement) {
+            // Quick fade out
+            this.tweens.add({
+              targets: this.fightAnnouncement,
+              alpha: 0,
+              scale: 0.8,
+              duration: 150,
+              ease: 'Power2',
+              onComplete: () => {
+                if (this.fightAnnouncement) {
+                  this.fightAnnouncement.destroy();
+                  this.fightAnnouncement = null;
+                }
               }
-            }
-          });
+            });
+          }
         });
       }
     });
@@ -2255,9 +2303,10 @@ export default class PhaserGameScene extends Scene {
     this.matchEndContainer.add(replayBtn);
     this.matchEndContainer.add(replayText);
 
-    // Main menu button
-    const menuBtn = this.add.rectangle(0, 70, 250, 50, 0x888888);
-    const menuText = this.add.text(0, 70, 'MAIN MENU', {
+    // Main menu button (position depends on exhibition mode)
+    const menuY = this.botType === 'exhibition' ? 140 : 70;
+    const menuBtn = this.add.rectangle(0, menuY, 250, 50, 0x888888);
+    const menuText = this.add.text(0, menuY, 'MAIN MENU', {
       fontSize: '24px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -2273,6 +2322,27 @@ export default class PhaserGameScene extends Scene {
     });
     this.matchEndContainer.add(menuBtn);
     this.matchEndContainer.add(menuText);
+
+    // Exhibition mode: Change opponent button
+    if (this.botType === 'exhibition') {
+      const changeBtn = this.add.rectangle(0, 70, 250, 50, 0xff8800);
+      const changeText = this.add.text(0, 70, 'CHANGE OPPONENT', {
+        fontSize: '24px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      });
+      changeText.setOrigin(0.5);
+      changeBtn.setInteractive({ useHandCursor: true });
+      changeBtn.on('pointerover', () => changeBtn.setFillStyle(0xffaa22));
+      changeBtn.on('pointerout', () => changeBtn.setFillStyle(0xff8800));
+      changeBtn.on('pointerdown', () => {
+        this.matchEndContainer?.destroy();
+        this.matchEndContainer = null;
+        this.scene.start('BotSelectionScene');
+      });
+      this.matchEndContainer.add(changeBtn);
+      this.matchEndContainer.add(changeText);
+    }
 
     // Fade in animation
     this.matchEndContainer.setAlpha(0);
@@ -2327,5 +2397,176 @@ export default class PhaserGameScene extends Scene {
     }
     
     this.neuralPolicy.dispose();
+  }
+
+  /**
+   * Update exhibition mode UI display
+   */
+  /**
+   * Create special moves button for mobile
+   */
+  private createMovesButton(): void {
+    const buttonX = 920;
+    const buttonY = 60;
+    
+    const bg = this.add.rectangle(0, 0, 60, 40, 0x444444, 0.8);
+    const text = this.add.text(0, 0, '?', {
+      fontSize: '24px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    });
+    text.setOrigin(0.5);
+    
+    this.movesButton = this.add.container(buttonX, buttonY, [bg, text]);
+    this.movesButton.setDepth(1001);
+    this.movesButton.setInteractive(new Phaser.Geom.Rectangle(-30, -20, 60, 40), Phaser.Geom.Rectangle.Contains);
+    
+    this.movesButton.on('pointerdown', () => {
+      this.toggleMovesMenu();
+    });
+  }
+
+  /**
+   * Toggle keyboard help menu (F1)
+   */
+  private toggleHelpMenu(): void {
+    if (this.helpOverlay) {
+      this.helpOverlay.destroy();
+      this.helpOverlay = undefined;
+      this.currentMenu = null;
+      // Show instructions again
+      if (this.instructionsText) {
+        this.instructionsText.setVisible(!this.touchControls);
+      }
+      return;
+    }
+
+    // Hide instructions when showing menu
+    if (this.instructionsText) {
+      this.instructionsText.setVisible(false);
+    }
+
+    // Position below ground line
+    const centerX = 500;
+    const baseY = 505;
+    
+    // Controls list in compact 3-column format
+    const leftControls = [
+      'Arrow Keys - Move',
+      'Z - Light Attack',
+      'X - Heavy Attack',
+      'C - Special Move'
+    ];
+    
+    const middleControls = [
+      'V - Block',
+      'ESC - Pause',
+      'F1 - Help Menu',
+      'F2 - Special Moves'
+    ];
+    
+    const rightControls = [
+      'F3 - Switch Bot',
+      'F4 - Reset Position',
+      'F5 - Infinite Meter',
+      'F6 - Reset Health'
+    ];
+
+    const leftText = this.add.text(-280, 0, leftControls.join('\n'), {
+      fontSize: '10px',
+      color: '#888888',
+      align: 'left',
+      lineSpacing: 2
+    });
+    leftText.setOrigin(0, 0);
+
+    const middleText = this.add.text(-60, 0, middleControls.join('\n'), {
+      fontSize: '10px',
+      color: '#888888',
+      align: 'left',
+      lineSpacing: 2
+    });
+    middleText.setOrigin(0, 0);
+
+    const rightText = this.add.text(160, 0, rightControls.join('\n'), {
+      fontSize: '10px',
+      color: '#888888',
+      align: 'left',
+      lineSpacing: 2
+    });
+    rightText.setOrigin(0, 0);
+
+    this.helpOverlay = this.add.container(centerX, baseY, [leftText, middleText, rightText]);
+    this.helpOverlay.setDepth(2000);
+    this.currentMenu = 'main';
+  }
+
+  /**
+   * Toggle special moves menu (F2)
+   */
+  private toggleMovesMenu(): void {
+    if (this.movesOverlay) {
+      this.movesOverlay.destroy();
+      this.movesOverlay = undefined;
+      this.currentMenu = null;
+      return;
+    }
+
+    // Hide instructions when showing menu
+    if (this.instructionsText) {
+      this.instructionsText.setVisible(false);
+    }
+
+    // Position below ground line
+    const centerX = 500;
+    const baseY = 505;
+    
+    // Header with return instruction
+    const header = this.add.text(0, 0, this.touchControls ? 'SPECIAL MOVES (Tap to close)' : 'SPECIAL MOVES (F1: Back)', {
+      fontSize: '11px',
+      color: '#888888',
+      fontStyle: 'bold',
+      align: 'center'
+    });
+    header.setOrigin(0.5, 0);
+
+    // Moves list in compact 2-column format
+    const leftMoves = [
+      'FIREBALL',
+      '↓↘→ + C',
+      '',
+      'UPPERCUT (DP)',
+      '→↓↘ + C',
+      'Anti-air invincibility'
+    ];
+    
+    const rightMoves = [
+      'COUNTER',
+      '↓↙← + C',
+      '',
+      'COMMAND GRAB',
+      '→→ + C',
+      'Unblockable throw'
+    ];
+
+    const leftText = this.add.text(-250, 15, leftMoves.join('\n'), {
+      fontSize: '10px',
+      color: '#888888',
+      align: 'left',
+      lineSpacing: 2
+    });
+    leftText.setOrigin(0, 0);
+
+    const rightText = this.add.text(50, 15, rightMoves.join('\n'), {
+      fontSize: '10px',
+      color: '#888888',
+      align: 'left',
+      lineSpacing: 2
+    });
+    rightText.setOrigin(0, 0);
+
+    this.movesOverlay = this.add.container(centerX, baseY, [header, leftText, rightText]);
+    this.movesOverlay.setDepth(2000);
+    this.currentMenu = 'moves';
   }
 }

@@ -10,6 +10,7 @@ import PhaserGameScene from '../scenes/PhaserGameScene.js';
 import CharacterSelectScene from '../scenes/CharacterSelectScene.js';
 import SettingsScene from '../scenes/SettingsScene.js';
 import BotSelectionScene from '../scenes/BotSelectionScene.js';
+import CharacterTestScene from '../scenes/CharacterTestScene.js';
 
 // Mobile detection
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || !!(window as any).Capacitor;
@@ -35,7 +36,7 @@ export const config = {
     // Define scenes in loading order
     // PhaserGameScene is the new fighting game scene
     // Old GameScene is for side-scrolling adventure (future)
-    scene: [BootScene, MenuScene, CharacterSelectScene, BotSelectionScene, SettingsScene, MultiplayerMenuScene, PhaserGameScene, GameScene, UIScene, InventoryScene, TradeScene],
+    scene: [BootScene, MenuScene, CharacterSelectScene, BotSelectionScene, SettingsScene, MultiplayerMenuScene, PhaserGameScene, CharacterTestScene, GameScene, UIScene, InventoryScene, TradeScene],
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,

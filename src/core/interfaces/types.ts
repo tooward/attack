@@ -39,11 +39,17 @@ export enum InputAction {
   SPECIAL_1 = 10,
   SPECIAL_2 = 11,
   SUPER = 12,
+  SPECIAL_MOVE = 13,  // Special move detected via motion input
 }
 
 export interface InputFrame {
   actions: Set<InputAction>;  // All buttons currently pressed
   timestamp: number;           // Frame number when this input was recorded
+  detectedMotion?: {           // Special move motion detected this frame
+    motionType: string;        // MotionInputType value
+    button: string;            // MotionButton value
+    confidence: number;        // 0-1, match quality
+  };
 }
 
 // ============================================================================
@@ -106,9 +112,45 @@ export interface FighterState {
   cancelAvailable: boolean;    // Can cancel current move?
   lastCancelFrame: number;     // Frame of last cancel (prevent loops)
   
+  // Special move state
+  activeSpecialMove: string | null; // ID of currently executing special move
+  specialMoveFrame: number;    // Frame within special move animation
+  invincibilityState: InvincibilityState | null; // Active invincibility
+  armorState: ArmorState | null; // Active armor/super armor
+  
   // Hitboxes (computed per frame based on current move)
   hurtboxes: Rect[];           // Where this fighter can be hit
   hitboxes: Rect[];            // Active attack hitboxes
+}
+
+// ============================================================================
+// SPECIAL MOVE STATES
+// ============================================================================
+
+export interface InvincibilityState {
+  type: 'full' | 'strike' | 'throw' | 'projectile'; // What attacks it's immune to
+  startFrame: number;          // When invincibility began
+  endFrame: number;            // When it expires
+}
+
+export interface ArmorState {
+  hitsRemaining: number;       // Number of hits before armor breaks
+  damageReduction: number;     // 0-1, how much damage is reduced
+  startFrame: number;
+  endFrame: number;
+}
+
+export interface InvincibilityState {
+  type: 'full' | 'strike' | 'throw' | 'projectile';
+  startFrame: number;
+  endFrame: number;
+}
+
+export interface ArmorState {
+  hitsRemaining: number;
+  damageReduction: number;     // 0-1 (0.5 = half damage)
+  startFrame: number;
+  endFrame: number;
 }
 
 // ============================================================================
@@ -172,6 +214,13 @@ export interface MoveDefinition {
 // CHARACTER DEFINITIONS
 // ============================================================================
 
+export enum CharacterArchetype {
+  BALANCED = 'balanced',
+  RUSHDOWN = 'rushdown',
+  GRAPPLER = 'grappler',
+  ZONER = 'zoner',
+}
+
 export interface CharacterStats {
   maxHealth: number;
   maxEnergy: number;
@@ -179,11 +228,17 @@ export interface CharacterStats {
   jumpForce: number;
   gravity: number;
   weight: number;              // Affects knockback received
+  
+  // New: Character-specific modifiers
+  speedModifier: number;       // 0.7-1.3x (1.0 = standard)
+  damageModifier: number;      // 0.9-1.3x (1.0 = standard)
+  jumpHeightModifier: number;  // 0.8-1.2x (1.0 = standard)
 }
 
 export interface CharacterDefinition {
   id: string;
   name: string;
+  archetype: CharacterArchetype;
   stats: CharacterStats;
   
   // Collision boxes
@@ -193,9 +248,92 @@ export interface CharacterDefinition {
   
   // Moves
   moves: Map<string, MoveDefinition>;
+  specialMoves?: SpecialMoveDefinition[];
   
   // Progression (for future side-scroller)
   moveUnlockLevels?: Map<string, number>;
+}
+
+// ============================================================================
+// SPECIAL MOVES & MOTION INPUTS
+// ============================================================================
+
+export enum MotionInputType {
+  QUARTER_CIRCLE_FORWARD = 'qcf',     // ↓↘→
+  QUARTER_CIRCLE_BACK = 'qcb',        // ↓↙←
+  DRAGON_PUNCH = 'dp',                // →↓↘
+  HALF_CIRCLE_FORWARD = 'hcf',        // ←↙↓↘→
+  HALF_CIRCLE_BACK = 'hcb',           // →↘↓↙←
+  CHARGE_BACK_FORWARD = 'charge_bf',  // ←(hold)→
+  CHARGE_DOWN_UP = 'charge_du',       // ↓(hold)↑
+  DOUBLE_TAP_FORWARD = 'dash_f',      // →→
+  DOUBLE_TAP_BACK = 'dash_b',         // ←←
+  FULL_CIRCLE = '360',                // Full circle any direction
+}
+
+export enum MotionButton {
+  PUNCH = 'punch',
+  KICK = 'kick',
+  ANY = 'any',
+}
+
+export interface MotionInput {
+  motion: MotionInputType;
+  button: MotionButton;
+  chargeTime?: number;         // Frames required for charge moves (default: 30)
+  bufferWindow?: number;       // Frames to complete input (default: 10)
+}
+
+export interface InvincibilityFrames {
+  start: number;               // First invincible frame
+  end: number;                 // Last invincible frame
+  type: 'full' | 'strike' | 'throw' | 'projectile'; // What it's invincible to
+}
+
+export interface ArmorProperties {
+  hits: number;                // How many hits it absorbs (1-2)
+  start: number;               // First armor frame
+  end: number;                 // Last armor frame
+  damageReduction: number;     // 0-1 (0 = full damage absorbed, 0.5 = half damage)
+}
+
+export interface MovementProperties {
+  horizontal: number;          // Units per frame
+  vertical: number;            // Units per frame  
+  duration: number;            // Frames of movement
+}
+
+export interface SpecialMoveVariant {
+  damage: number;
+  startupFrames: number;
+  activeFrames: number;
+  recoveryFrames: number;
+  blockAdvantage: number;
+  hitAdvantage: number;
+  
+  // Special properties
+  projectile?: ProjectileDefinition;
+  invincibility?: InvincibilityFrames[];
+  armor?: ArmorProperties;
+  movement?: MovementProperties;
+  
+  // Command grab specific
+  isCommandGrab?: boolean;
+  grabRange?: number;          // Multiplier on normal throw range (1.5x, 2x)
+}
+
+export interface SpecialMoveDefinition {
+  id: string;
+  name: string;
+  input: MotionInput;
+  
+  variants: {
+    light: SpecialMoveVariant;
+    heavy: SpecialMoveVariant;
+  };
+  
+  // Animation (will be used by renderer)
+  animationKey?: string;
 }
 
 // ============================================================================

@@ -277,10 +277,134 @@
    - Input notation display
    - Frame data (optional, advanced)
 
-4. Tutorial/Training mode
-   - Teach motion inputs
-   - Practice special moves
-   - Character-specific tutorials
+### **Phase 7: Character Training Mode** (Week 4-5)
+
+**Goal:** Interactive tutorial system that teaches players moves with visual demonstrations - feels like a guided experience, not a match
+
+**Key Philosophy:** Practice mode should feel like a game with instructions and walkthroughs, not a combat scenario
+
+**Tasks:**
+1. Create CharacterTrainingScene
+   - Character select screen (pick from 3 characters)
+   - Shows character portrait, name, archetype, special move list preview
+   - "Enter Training" button transitions to training room
+   - **NO OPPONENT spawned** (solo practice only)
+   - **NO falling bomb obstacles** (clean, distraction-free environment)
+   - Player cannot die or lose
+
+2. Onscreen Control Walkthrough
+   - Display interactive tutorial at start
+   - Walk through basic controls step-by-step (movement, attacks, block, jump)
+   - Visual highlights show which buttons to press
+   - Tutorial flow feels guided and game-like
+   - Player progresses through tutorial before accessing full move list
+
+3. Move List Display (Right Side of Screen)
+   - **Always visible** scrollable move list on right side
+   - Each move shows:
+     - Move name (e.g., "Hadoken")
+     - Input notation (e.g., "↓↘→ + Punch")
+     - Damage value
+     - Frame data (startup, advantage)
+     - Execution success rate (e.g., "8/10 successful")
+   - Move list organized by category: Normals, Special Moves, Command Grabs
+   - Selected move is highlighted
+
+4. Move Selection & Demonstration System
+   **When player selects a move from list:**
+   
+   a. **Demonstration Phase (Automatic):**
+   - Camera focuses on character
+   - Character **automatically performs** the selected move
+   - Move statistics overlay appears:
+     - Damage, startup frames, block advantage
+     - Motion input diagram (visual arrows for QCF, DP, etc.)
+   - **Control visualization:**
+     - Highlight the keys/buttons used for the move
+     - Place **numbers on keys** showing order/timing (e.g., "1→2→3")
+     - Animate the input sequence with timing
+     - Example: For QCF+P, show "Down(1) → Forward(2) → Punch(3)"
+   - Slow-motion option available (toggle for 0.5x speed)
+   
+   b. **Practice Prompt:**
+   - After demo completes, show: "Practice this move? [Yes] [No]"
+   - **Yes**: Enter practice mode for that specific move
+     - Practice counter appears (e.g., "0/10 successful")
+     - Input display shows current inputs
+     - Visual feedback: Green checkmark on success, red X on failure
+     - Audio cue on successful execution
+   - **No**: Return to move list to select another move
+   
+5. Practice Mode Features
+   - **Solo practice** - No opponent present
+   - **Clean environment** - No hazards, obstacles, or distractions
+   - Input history display (shows last 10 inputs on bottom of screen)
+   - Successful execution counter per move (persists across sessions)
+   - Visual feedback on execution:
+     - Green border flash on successful special move
+     - Red border pulse on failed attempt
+     - Confetti/particle effect on milestone (10/10, 25/25, etc.)
+   - Combo damage display (for combo sequences)
+   - Reset position button (returns character to center)
+   - Infinite health/meter enabled by default
+   - "Return to Move List" button always accessible
+
+6. Training dummy options (OPTIONAL - Advanced Practice)
+   - Default: **No opponent** (solo practice)
+   - Optional dummy toggle in menu:
+     - **Standing Dummy** - Doesn't move, absorbs hits
+     - **Blocking Dummy** - Always blocks, practice block strings
+     - **Combo Dummy** - Gets hit, shows juggle state
+   - Note: Dummies are clearly OPTIONAL and not required for learning
+
+7. Character-specific tutorials
+   - **Musashi Tutorial**: 
+     - Hadoken execution (5 successful)
+     - Shoryuken anti-air timing (3 successful)
+     - Spacing and zoning concepts
+   - **Kaze Tutorial**: 
+     - Lightning Strike dash punch (5 successful)
+     - Flash Kick charge timing (3 successful)
+     - Rushdown pressure sequences
+   - **Tetsuo Tutorial**: 
+     - Spinning Piledriver 360° input (3 successful)
+     - Charging Bull armor usage (hit through 2 dummy attacks)
+     - Command grab setups and tick throws
+   - Each tutorial includes:
+     - Step-by-step demonstrations with highlighted controls
+     - Clear success criteria
+     - Progress tracking
+     - Completion reward (unlock character portrait/badge)
+   
+8. Menu integration
+   - Add "Character Training" button to main menu (distinct from "Practice Mode")
+   - Button placement: Main Menu → [Play] [Character Training] [Settings]
+   - Character select screen shows:
+     - Character portrait (large)
+     - Name and archetype
+     - Special move preview (3 move names)
+     - "Enter Training" button
+     - Progress indicator (e.g., "12/15 moves mastered")
+   - Can exit back to character select or main menu anytime
+   - Training mode clearly labeled as "Tutorial & Practice" to distinguish from regular Play mode
+   - **Combo Dummy** - Gets hit, shows juggle state and combo counter
+   
+4. Training features
+   - Input history display (shows last 10 inputs on screen)
+   - Successful special move counter (track execution rate)
+   - Combo damage display
+   - Reset position button
+   - Infinite health/meter toggle
+
+5. Character-specific tutorials
+   - **Musashi Tutorial**: Fireball zoning, anti-air timing, spacing
+   - **Kaze Tutorial**: Dash mixups, frame traps, pressure sequences
+   - **Tetsuo Tutorial**: Command grab setups, armor usage, tick throws
+   
+6. Menu integration
+   - Add "Character Training" button to main menu (between Practice and Settings)
+   - Character select screen shows: Portrait, Name, Archetype, "Enter Training"
+   - Can exit back to character select or main menu
 
 ---
 
@@ -323,6 +447,11 @@
 - [ ] Each character has viable gameplan against others
 - [ ] Bot can use special moves appropriately (>50% of optimal usage)
 - [ ] Win rates balanced across all 9 matchups (45-55%)
+- [ ] Character Training mode accessible from main menu
+- [ ] Move list display shows all moves with notation
+- [ ] Players can practice special moves without opponent
+- [ ] Character-specific tutorials completable in <5 minutes each
+- [ ] Input history display helps players understand motion inputs
 - [ ] Player can complete character tutorial in <5 minutes
 - [ ] Move list is accessible and understandable
 
@@ -344,11 +473,13 @@
 ## Next Steps
 
 1. ✅ Get user approval on character designs
-2. Create USER-MANUAL.md with character movesets
-3. Implement Phase 1 (character data structure)
-4. Begin Phase 2 (motion input system)
-5. Update current training to complete
-6. Plan asset creation (sprites/animations)
+2. ✅ Add Character Training Mode to implementation plan
+3. Create USER-MANUAL.md with character movesets (✅ Complete)
+4. Implement Phase 1 (character data structure)
+5. Begin Phase 2 (motion input system)
+6. Update current training to complete
+7. Plan asset creation (sprites/animations)
+8. Design training mode UI mockups
 
 ---
 

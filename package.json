@@ -27,6 +27,7 @@
     "build:ts": "tsc",
     "start": "tsc && http-server -c-1",
     "dev": "vite",
+    "ios": "npm run build && npx cap sync ios && npx cap open ios",
     "test": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js",
     "test:watch": "node --no-warnings --no-deprecation ./node_modules/jest/bin/jest.js --watch",
     "reset:training": "rm -rf models/policy models/opponent_pool models/training-progress.jsonl models/training.log",

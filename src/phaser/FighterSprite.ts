@@ -19,7 +19,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   private targetHealth: number = 100;
   private recentDamageHealth: number = 100; // Shows recent damage in red
 
-  constructor(scene: Phaser.Scene, fighter: FighterState) {
+  constructor(scene: Phaser.Scene, fighter: FighterState, displayName?: string) {
     super(scene, fighter.position.x, fighter.position.y);
 
     console.log(`[FighterSprite] Constructor called for ${fighter.id}, team ${fighter.teamId}`);
@@ -41,8 +41,9 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     this.energyBar = new Phaser.GameObjects.Graphics(scene);
     this.add(this.energyBar);
 
-    // Create name text
-    this.nameText = new Phaser.GameObjects.Text(scene, 0, -140, fighter.id, {
+    // Create name text - use displayName if provided, otherwise use fighter.id
+    const labelText = displayName || fighter.id;
+    this.nameText = new Phaser.GameObjects.Text(scene, 0, -140, labelText, {
       fontSize: '12px',
       color: '#ffffff',
       align: 'center',

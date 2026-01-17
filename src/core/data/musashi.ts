@@ -3,7 +3,17 @@
  * Balanced all-rounder fighter with good fundamentals
  */
 
-import { CharacterDefinition, InputAction, MoveDefinition, Rect } from '../interfaces/types';
+import { 
+  CharacterDefinition, 
+  InputAction, 
+  MoveDefinition, 
+  Rect,
+  CharacterArchetype,
+  SpecialMoveDefinition,
+  MotionInputType,
+  MotionButton,
+  ProjectileDefinition
+} from '../interfaces/types';
 
 // Hurtboxes
 const STANDING_HURTBOX: Rect = { x: 0, y: 0, width: 60, height: 80 };
@@ -382,6 +392,7 @@ const SUPER_COMBO: MoveDefinition = {
 export const MUSASHI: CharacterDefinition = {
   id: 'musashi',
   name: 'Musashi',
+  archetype: CharacterArchetype.BALANCED,
   stats: {
     maxHealth: 100,
     maxEnergy: 100,
@@ -389,6 +400,9 @@ export const MUSASHI: CharacterDefinition = {
     jumpForce: 16,
     gravity: 0.8,
     weight: 1.0,
+    speedModifier: 1.0,
+    damageModifier: 1.0,
+    jumpHeightModifier: 1.0,
   },
   standingHurtbox: STANDING_HURTBOX,
   crouchingHurtbox: CROUCHING_HURTBOX,
@@ -403,4 +417,155 @@ export const MUSASHI: CharacterDefinition = {
     ['shoryuken', SHORYUKEN],
     ['super_combo', SUPER_COMBO],
   ]),
+  specialMoves: [
+    // Hadoken (Projectile)
+    {
+      id: 'hadoken',
+      name: 'Hadoken',
+      input: {
+        motion: MotionInputType.QUARTER_CIRCLE_FORWARD,
+        button: MotionButton.PUNCH,
+        bufferWindow: 10,
+      },
+      variants: {
+        light: {
+          damage: 8,
+          startupFrames: 15,
+          activeFrames: 0,
+          recoveryFrames: 18,
+          blockAdvantage: 4,
+          hitAdvantage: 10,
+          projectile: {
+            id: 'hadoken_light',
+            name: 'Hadoken (Light)',
+            speed: 10,
+            gravity: 0,
+            acceleration: 0,
+            damage: 8,
+            chipDamage: 1,
+            hitstun: 15,
+            blockstun: 10,
+            knockback: { x: 3, y: 0 },
+            lifespan: 120,
+            hitLimit: 1,
+            hitbox: { x: -16, y: -16, width: 32, height: 32 },
+            destroyOnHit: true,
+          },
+        },
+        heavy: {
+          damage: 15,
+          startupFrames: 22,
+          activeFrames: 0,
+          recoveryFrames: 20,
+          blockAdvantage: 0,
+          hitAdvantage: 8,
+          projectile: {
+            id: 'hadoken_heavy',
+            name: 'Hadoken (Heavy)',
+            speed: 6,
+            gravity: 0,
+            acceleration: 0,
+            damage: 15,
+            chipDamage: 2,
+            hitstun: 20,
+            blockstun: 14,
+            knockback: { x: 6, y: 0 },
+            lifespan: 150,
+            hitLimit: 1,
+            hitbox: { x: -20, y: -20, width: 40, height: 40 },
+            destroyOnHit: true,
+          },
+        },
+      },
+      animationKey: 'hadoken',
+    },
+    // Shoryuken (Anti-air)
+    {
+      id: 'shoryuken',
+      name: 'Shoryuken',
+      input: {
+        motion: MotionInputType.DRAGON_PUNCH,
+        button: MotionButton.PUNCH,
+        bufferWindow: 12,
+      },
+      variants: {
+        light: {
+          damage: 12,
+          startupFrames: 10,
+          activeFrames: 6,
+          recoveryFrames: 20,
+          blockAdvantage: -12,
+          hitAdvantage: 15,
+          invincibility: [{
+            start: 1,
+            end: 8,
+            type: 'full',
+          }],
+          movement: {
+            horizontal: 0,
+            vertical: -12,
+            duration: 6,
+          },
+        },
+        heavy: {
+          damage: 18,
+          startupFrames: 8,
+          activeFrames: 8,
+          recoveryFrames: 24,
+          blockAdvantage: -18,
+          hitAdvantage: 20,
+          invincibility: [{
+            start: 1,
+            end: 10,
+            type: 'full',
+          }],
+          movement: {
+            horizontal: 0,
+            vertical: -16,
+            duration: 8,
+          },
+        },
+      },
+      animationKey: 'shoryuken',
+    },
+    // Hurricane Kick (Advancing spin)
+    {
+      id: 'hurricane_kick',
+      name: 'Hurricane Kick',
+      input: {
+        motion: MotionInputType.QUARTER_CIRCLE_BACK,
+        button: MotionButton.KICK,
+        bufferWindow: 10,
+      },
+      variants: {
+        light: {
+          damage: 10,
+          startupFrames: 12,
+          activeFrames: 8,
+          recoveryFrames: 14,
+          blockAdvantage: -2,
+          hitAdvantage: 10,
+          movement: {
+            horizontal: 8,
+            vertical: 0,
+            duration: 12,
+          },
+        },
+        heavy: {
+          damage: 18,
+          startupFrames: 16,
+          activeFrames: 12,
+          recoveryFrames: 18,
+          blockAdvantage: -4,
+          hitAdvantage: 15,
+          movement: {
+            horizontal: 10,
+            vertical: 0,
+            duration: 16,
+          },
+        },
+      },
+      animationKey: 'hurricane_kick',
+    },
+  ],
 };

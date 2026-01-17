@@ -9,7 +9,7 @@ export default class CharacterSelectScene extends Scene {
   private selectedCharacter: string = 'musashi';
   private titleText!: Phaser.GameObjects.Text;
   private characterName!: Phaser.GameObjects.Text;
-  private characterPortrait!: Phaser.GameObjects.Rectangle;
+  private characterSprite!: Phaser.GameObjects.Sprite;
   private startButton!: Phaser.GameObjects.Container;
   private backButton!: Phaser.GameObjects.Container;
 
@@ -20,47 +20,57 @@ export default class CharacterSelectScene extends Scene {
   create(): void {
     const centerX = 500;
     const centerY = 300;
+    const height = this.sys.game.config.height as number;
 
     // Background
     this.add.rectangle(0, 0, 1000, 600, 0x1a1a2e).setOrigin(0);
 
     // Title
     this.titleText = this.add.text(centerX, 50, 'SELECT YOUR FIGHTER', {
-      fontSize: '48px',
+      fontSize: `${height * 0.06}px`,
       fontStyle: 'bold',
       color: '#00ff00',
       stroke: '#000000',
-      strokeThickness: 6,
+      strokeThickness: 4,
     });
     this.titleText.setOrigin(0.5);
 
-    // Character portrait area
-    this.characterPortrait = this.add.rectangle(centerX, centerY - 20, 200, 200, 0x333366);
-    this.characterPortrait.setStrokeStyle(4, 0xffffff);
+    // Character sprite (animated idle)
+    this.characterSprite = this.add.sprite(centerX, 180, 'dude-idle');
+    this.characterSprite.setScale(4);
+    this.characterSprite.play('idle');
 
     // Character name
-    this.characterName = this.add.text(centerX, centerY + 120, 'MUSASHI', {
-      fontSize: '36px',
+    this.characterName = this.add.text(centerX, 320, 'MUSASHI', {
+      fontSize: `${height * 0.045}px`,
       fontStyle: 'bold',
       color: '#ffffff',
       stroke: '#000000',
-      strokeThickness: 4,
+      strokeThickness: 3,
     });
     this.characterName.setOrigin(0.5);
 
     // Character stats/info
-    const statsText = this.add.text(centerX, centerY + 170, 
+    const statsText = this.add.text(centerX, 370, 
       'Balanced fighter with versatile special moves\nFireball • Uppercut • Counter', {
-      fontSize: '16px',
+      fontSize: `${height * 0.022}px`,
       color: '#aaaaaa',
       align: 'center',
     });
     statsText.setOrigin(0.5);
 
+    // Instructions
+    const instructionText = this.add.text(centerX, 430, 
+      'Press ENTER to start or ESC to go back', {
+      fontSize: `${height * 0.018}px`,
+      color: '#888888',
+    });
+    instructionText.setOrigin(0.5);
+
     // Character selection (currently only Musashi available)
     const availableText = this.add.text(centerX, 480, 
       'More characters coming soon!', {
-      fontSize: '14px',
+      fontSize: `${height * 0.018}px`,
       color: '#666666',
       fontStyle: 'italic',
     });
@@ -72,14 +82,6 @@ export default class CharacterSelectScene extends Scene {
     // Back button
     this.createButton(centerX - 120, 530, 'BACK', () => this.goBack());
 
-    // Instructions
-    const instructionText = this.add.text(centerX, 420, 
-      'Press ENTER to start or ESC to go back', {
-      fontSize: '14px',
-      color: '#888888',
-    });
-    instructionText.setOrigin(0.5);
-
     // Keyboard shortcuts
     this.input.keyboard!.on('keydown-ENTER', () => this.startMatch());
     this.input.keyboard!.on('keydown-ESC', () => this.goBack());
@@ -90,8 +92,9 @@ export default class CharacterSelectScene extends Scene {
     bg.setInteractive({ useHandCursor: true });
     bg.setStrokeStyle(2, 0x00ff00);
 
+    const height = this.sys.game.config.height as number;
     const label = this.add.text(0, 0, text, {
-      fontSize: '20px',
+      fontSize: `${height * 0.027}px`,
       fontStyle: 'bold',
       color: '#ffffff',
     });

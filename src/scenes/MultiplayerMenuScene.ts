@@ -20,22 +20,23 @@ export class MultiplayerMenuScene extends Phaser.Scene {
   create() {
     const centerX = this.cameras.main.width / 2;
     const centerY = this.cameras.main.height / 2;
+    const height = this.cameras.main.height;
 
     // Title
     this.add.text(centerX, 80, 'Online Multiplayer', {
-      fontSize: '48px',
+      fontSize: `${height * 0.06}px`,
       color: '#ffffff'
     }).setOrigin(0.5);
 
     // Status text
     this.statusText = this.add.text(centerX, 150, 'Not Connected', {
-      fontSize: '24px',
+      fontSize: `${height * 0.032}px`,
       color: '#888888'
     }).setOrigin(0.5);
 
     // Matchmaking status (hidden by default)
     this.matchmakingText = this.add.text(centerX, 220, '', {
-      fontSize: '20px',
+      fontSize: `${height * 0.027}px`,
       color: '#ffaa00'
     }).setOrigin(0.5);
     this.matchmakingText.setVisible(false);
@@ -81,8 +82,9 @@ export class MultiplayerMenuScene extends Phaser.Scene {
   }
 
   private createButton(x: number, y: number, text: string, callback: () => void): Phaser.GameObjects.Text {
+    const height = this.cameras.main.height;
     const button = this.add.text(x, y, text, {
-      fontSize: '28px',
+      fontSize: `${height * 0.035}px`,
       color: '#ffffff',
       backgroundColor: '#4a90e2',
       padding: { x: 20, y: 10 }
@@ -286,8 +288,9 @@ export class MultiplayerMenuScene extends Phaser.Scene {
     const dialogBg = this.add.rectangle(centerX, centerY, 500, 300, 0x222222)
       .setStrokeStyle(2, 0xffffff);
 
+    const height = this.cameras.main.height;
     const title = this.add.text(centerX, centerY - 80, 'Disconnected', {
-      fontSize: '32px',
+      fontSize: `${height * 0.04}px`,
       color: '#ff0000'
     }).setOrigin(0.5);
 
@@ -295,7 +298,7 @@ export class MultiplayerMenuScene extends Phaser.Scene {
       centerX, centerY - 20,
       'Connection to opponent lost.\nReturning to menu...',
       {
-        fontSize: '20px',
+        fontSize: `${height * 0.027}px`,
         color: '#ffffff',
         align: 'center'
       }

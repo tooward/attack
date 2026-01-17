@@ -12,6 +12,7 @@ import {
   MoveDefinition,
 } from '../interfaces/types';
 import { applyHitstun, applyBlockstun } from '../entities/Fighter';
+import { SpecialMoveExecutor } from '../special/SpecialMoveExecutor';
 
 /**
  * Check if two rectangles overlap
@@ -60,7 +61,12 @@ export function checkHit(
     return null;
   }
 
-  // Can't hit invincible fighters
+  // Check invincibility to strikes
+  if (SpecialMoveExecutor.isInvincible(defender, 'strike')) {
+    return null;
+  }
+
+  // Can't hit invincible fighters (legacy system)
   if (defender.invincibleFrames > 0) {
     return null;
   }
@@ -159,8 +165,17 @@ export function resolveHit(
 
     return [newAttacker, newDefender];
   } else {
-    // Clean hit
-    const damage = calculateDamage(move.damage, attacker.comboScaling);
+    // Clean hit - check for armor
+    let damage = calculateDamage(move.damage, attacker.comboScaling);
+    let applyHitstunToDefender = true;
+    
+    // Check for armor
+    const armorResult = SpecialMoveExecutor.processArmorHit(defender, damage);
+    if (armorResult.absorbed) {
+      // Armor absorbed the hit
+      damage *= 1 - armorResult.damageReduction;
+      applyHitstunToDefender = false; // No hitstun with armor
+    }
     
     // Defender gains meter when taking damage (defensive meter gain)
     const defenderMeterGain = damage * 1.5; // Gain 1.5 meter per damage point
@@ -170,24 +185,37 @@ export function resolveHit(
       y: move.knockback.y,
     };
 
-    const newDefender = applyHitstun(
-      {
+    let newDefender: FighterState;
+    if (applyHitstunToDefender) {
+      newDefender = applyHitstun(
+        {
+          ...defender,
+          health: Math.max(0, defender.health - damage),
+          comboCount: 0, // Reset defender's combo
+          comboScaling: 1.0,
+          lastHitByFrame: currentFrame,
+          superMeter: Math.min(
+            defender.maxSuperMeter,
+            defender.superMeter + defenderMeterGain
+          ),
+        },
+        move.hitstun,
+        knockback
+      );
+    } else {
+      // Armor absorbed hit - no hitstun, just damage
+      newDefender = {
         ...defender,
         health: Math.max(0, defender.health - damage),
-        comboCount: 0, // Reset defender's combo
-        comboScaling: 1.0,
-        lastHitByFrame: currentFrame,
         superMeter: Math.min(
           defender.maxSuperMeter,
           defender.superMeter + defenderMeterGain
         ),
-      },
-      move.hitstun,
-      knockback
-    );
+      };
+    }
 
-    // Update attacker's combo state
-    const newComboCount = attacker.comboCount + 1;
+    // Update attacker's combo state (only if hit not armored)
+    const newComboCount = applyHitstunToDefender ? attacker.comboCount + 1 : attacker.comboCount;
     const comboStartFrame = attacker.comboCount === 0 ? currentFrame : attacker.comboStartFrame;
     
     // Combo scaling: each hit reduces damage by 10%, minimum 30% damage

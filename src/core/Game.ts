@@ -21,6 +21,7 @@ import { stepAllPhysics } from './systems/Physics';
 import { scanForHits, updateHurtboxes, checkComboTimeout } from './systems/Combat';
 import { createInputBuffer, addInput, InputBuffer } from './systems/InputBuffer';
 import { createProjectile, updateProjectile, checkProjectileHit, applyProjectileHit } from './entities/Projectile';
+import { SpecialMoveExecutor } from './special/SpecialMoveExecutor';
 
 /**
  * Create the initial game state from configuration
@@ -63,6 +64,12 @@ export function createInitialState(config: GameConfig): GameState {
     // Frame Data
     stunFramesRemaining: 0,
     invincibleFrames: 0,
+    
+    // Special Move State
+    activeSpecialMove: null,
+    specialMoveFrame: 0,
+    invincibilityState: null,
+    armorState: null,
     
     // Cancel tracking
     cancelAvailable: false,
@@ -153,32 +160,69 @@ export function tick(
   // Track new projectiles spawned this frame
   const newProjectiles: ProjectileState[] = [];
 
-  // 1. Update fighter states (input processing + state machine)
+  // 1. Process special moves from motion inputs (BEFORE normal move processing)
+  newState.entities = newState.entities.map(fighter => {
+    const input = inputs.get(fighter.id) || { actions: new Set(), timestamp: state.frame };
+    const characterDef = characterDefs?.get(fighter.characterId);
+    
+    // Try to execute special move if motion detected
+    if (characterDef && input.detectedMotion) {
+      const result = SpecialMoveExecutor.tryExecuteSpecialMove(
+        fighter,
+        characterDef,
+        input,
+        newState
+      );
+      
+      if (result.executed && result.spawnedProjectile) {
+        newProjectiles.push(result.spawnedProjectile);
+      }
+    }
+    
+    // Update special move state
+    if (characterDef) {
+      SpecialMoveExecutor.updateSpecialMoveState(fighter, characterDef, newState.frame);
+    }
+    
+    return fighter;
+  });
+
+  // 2. Update fighter states (input processing + state machine for normal moves)
   newState.entities = newState.entities.map(fighter => {
     const input = inputs.get(fighter.id) || { actions: new Set(), timestamp: state.frame };
     const characterDef = characterDefs?.get(fighter.characterId);
     const moves = characterDef?.moves || new Map();
     const inputBuffer = inputBuffers?.get(fighter.id);
     
-    const updatedFighter = updateFighterState(fighter, input, moves, inputBuffer, newState.frame);
-    
-    // Check if fighter just started a special move that spawns a projectile
-    if (updatedFighter.currentMove && updatedFighter.moveFrame === 0) {
-      const move = moves.get(updatedFighter.currentMove);
-      if (move?.projectile) {
-        // Spawn projectile
-        const projectile = createProjectile(move.projectile, updatedFighter, newState.frame);
-        newProjectiles.push(projectile);
+    // Only process normal moves if not executing a special move
+    if (fighter.activeSpecialMove === null) {
+      const updatedFighter = updateFighterState(fighter, input, moves, inputBuffer, newState.frame);
+      
+      // Check if fighter just started a move that spawns a projectile
+      if (updatedFighter.currentMove && updatedFighter.moveFrame === 0) {
+        const move = moves.get(updatedFighter.currentMove);
+        if (move?.projectile) {
+          // Spawn projectile
+          const projectile = createProjectile(move.projectile, updatedFighter, newState.frame);
+          newProjectiles.push(projectile);
+        }
       }
+      
+      return updatedFighter;
     }
     
-    return updatedFighter;
+    return fighter;
   });
 
-  // 2. Apply physics to all fighters
+  // 3. Apply physics to all fighters
   newState.entities = stepAllPhysics(newState.entities, newState.arena);
 
-  // 3. Check for hits and resolve combat
+  // 3b. Process command grabs (after physics, before combat)
+  if (characterDefs) {
+    SpecialMoveExecutor.processCommandGrabs(newState, characterDefs);
+  }
+
+  // 4. Check for hits and resolve combat
   if (characterDefs) {
     // Convert CharacterDefinition map to move map for scanForHits
     const moveMaps = new Map<string, Map<string, import('./interfaces/types').MoveDefinition>>();
@@ -212,51 +256,14 @@ export function tick(
   });
 
   // 4. Update projectiles
-  // Update existing projectiles
-  let activeProjectiles = state.projectiles.map(proj => 
-    updateProjectile(proj, newState.frame, newState.arena.width)
-  ).filter(proj => proj !== null) as ProjectileState[];
+  // Update existing projectiles using SpecialMoveExecutor
+  SpecialMoveExecutor.updateProjectiles(newState);
   
   // Add newly spawned projectiles
-  activeProjectiles = [...activeProjectiles, ...newProjectiles];
+  newState.projectiles = [...newState.projectiles, ...newProjectiles];
   
-  // Check projectile-fighter collisions
-  for (const projectile of activeProjectiles) {
-    for (let i = 0; i < newState.entities.length; i++) {
-      const fighter = newState.entities[i];
-      
-      // Can't hit yourself or teammates
-      if (fighter.id === projectile.ownerId || fighter.teamId === projectile.teamId) {
-        continue;
-      }
-      
-      // Check collision
-      if (checkProjectileHit(projectile, fighter)) {
-        const wasBlocked = fighter.status === FighterStatus.BLOCK;
-        const result = applyProjectileHit(projectile, fighter, wasBlocked);
-        
-        // Update fighter
-        newState.entities[i] = result.fighter;
-        
-        // Update or remove projectile
-        const projIndex = activeProjectiles.indexOf(projectile);
-        if (result.projectile) {
-          activeProjectiles[projIndex] = result.projectile;
-        } else {
-          // Projectile destroyed
-          activeProjectiles.splice(projIndex, 1);
-        }
-        
-        // Trigger visual effects
-        newState = triggerHitFreeze(newState, projectile.damage, wasBlocked);
-        newState = triggerScreenShake(newState, projectile.damage, wasBlocked);
-        
-        break; // Projectile hit someone, stop checking
-      }
-    }
-  }
-  
-  newState.projectiles = activeProjectiles;
+  // Check projectile-fighter collisions (handles invincibility & armor)
+  SpecialMoveExecutor.checkProjectileCollisions(newState);
   
   // 5. Update hurtboxes based on stance
   newState.entities = newState.entities.map(fighter => {

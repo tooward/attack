@@ -92,7 +92,7 @@ export default class BotSelectionScene extends Scene {
 
     // Title
     this.add.text(width / 2, 40, 'Practice Mode - Select Opponent', {
-      fontSize: '36px',
+      fontSize: `${height * 0.045}px`,
       color: '#fff',
       fontStyle: 'bold'
     }).setOrigin(0.5);
@@ -107,10 +107,13 @@ export default class BotSelectionScene extends Scene {
     this.createActionButtons(width, height);
 
     // Controls hint
-    this.add.text(width / 2, height - 20, 'Select bot and difficulty, then click Start', {
-      fontSize: '16px',
+    this.add.text(width / 2, height - 20, 'Arrow Keys: Navigate | Enter: Start | Esc: Back | +/-: Adjust Difficulty', {
+      fontSize: `${height * 0.018}px`,
       color: '#888'
     }).setOrigin(0.5);
+
+    // Setup keyboard controls
+    this.setupKeyboardControls();
   }
 
   private createBotCards(width: number, height: number) {
@@ -133,7 +136,7 @@ export default class BotSelectionScene extends Scene {
 
       // Bot name
       this.add.text(x + cardWidth / 2, startY + 20, bot.name, {
-        fontSize: '18px',
+        fontSize: `${height * 0.025}px`,
         color: '#fff',
         fontStyle: 'bold',
         wordWrap: { width: cardWidth - 20 }
@@ -141,7 +144,7 @@ export default class BotSelectionScene extends Scene {
 
       // Style
       this.add.text(x + cardWidth / 2, startY + 50, bot.style, {
-        fontSize: '12px',
+        fontSize: `${height * 0.017}px`,
         color: '#ddd',
         wordWrap: { width: cardWidth - 20 },
         align: 'center'
@@ -149,7 +152,7 @@ export default class BotSelectionScene extends Scene {
 
       // Description
       this.add.text(x + 10, startY + 80, bot.description, {
-        fontSize: '11px',
+        fontSize: `${height * 0.015}px`,
         color: '#ccc',
         wordWrap: { width: cardWidth - 20 }
       }).setOrigin(0, 0);
@@ -157,17 +160,17 @@ export default class BotSelectionScene extends Scene {
       // Stats
       const statsY = startY + 180;
       this.add.text(x + 10, statsY, `Block: ${bot.blockRate}`, {
-        fontSize: '11px',
+        fontSize: `${height * 0.015}px`,
         color: '#aaa'
       }).setOrigin(0, 0);
 
       this.add.text(x + 10, statsY + 20, `Anti-Air: ${bot.antiAir}`, {
-        fontSize: '11px',
+        fontSize: `${height * 0.015}px`,
         color: '#aaa'
       }).setOrigin(0, 0);
 
       this.add.text(x + 10, statsY + 40, `Difficulty: ${bot.difficultyRange}`, {
-        fontSize: '11px',
+        fontSize: `${height * 0.015}px`,
         color: '#aaa'
       }).setOrigin(0, 0);
 
@@ -184,7 +187,7 @@ export default class BotSelectionScene extends Scene {
 
     // Label
     this.add.text(sliderX, sliderY - 40, `Difficulty: ${this.selectedDifficulty}`, {
-      fontSize: '24px',
+      fontSize: `${height * 0.032}px`,
       color: '#fff',
       fontStyle: 'bold'
     }).setOrigin(0.5).setName('difficultyLabel');
@@ -199,7 +202,7 @@ export default class BotSelectionScene extends Scene {
       
       // Number labels
       this.add.text(notchX, sliderY + 20, i.toString(), {
-        fontSize: '14px',
+        fontSize: `${height * 0.018}px`,
         color: '#888'
       }).setOrigin(0.5);
     }
@@ -241,7 +244,7 @@ export default class BotSelectionScene extends Scene {
 
     // Start button
     const startButton = this.add.text(width / 2 - 120, buttonY, 'Start Match', {
-      fontSize: '28px',
+      fontSize: `${height * 0.035}px`,
       color: '#fff',
       padding: { x: 30, y: 15 },
       backgroundColor: '#4CAF50'
@@ -254,7 +257,7 @@ export default class BotSelectionScene extends Scene {
 
     // Back button
     const backButton = this.add.text(width / 2 + 120, buttonY, 'Back', {
-      fontSize: '28px',
+      fontSize: `${height * 0.035}px`,
       color: '#fff',
       padding: { x: 30, y: 15 },
       backgroundColor: '#666'
@@ -271,15 +274,32 @@ export default class BotSelectionScene extends Scene {
 
     this.selectedBotIndex = index;
 
-    // Update card highlights
+    // Update card highlights with animation
     this.children.getAll().forEach((child) => {
       if (child instanceof Phaser.GameObjects.Rectangle && child.getData('index') !== undefined) {
         const cardIndex = child.getData('index');
         const bot = child.getData('bot');
         const isSelected = cardIndex === index;
         
+        // Stop any existing tweens on this card
+        this.tweens.killTweensOf(child);
+        
         child.setAlpha(isSelected ? 1 : 0.3);
         child.setStrokeStyle(isSelected ? 4 : 2, isSelected ? 0xffffff : 0x666666);
+        
+        // Add pulse animation to selected card
+        if (isSelected) {
+          this.tweens.add({
+            targets: child,
+            scaleX: 1.05,
+            scaleY: 1.05,
+            duration: 200,
+            yoyo: true,
+            ease: 'Sine.easeInOut'
+          });
+        } else {
+          child.setScale(1);
+        }
       }
     });
   }
@@ -298,5 +318,65 @@ export default class BotSelectionScene extends Scene {
 
   private goBack() {
     this.scene.start('MenuScene');
+  }
+
+  private setupKeyboardControls() {
+    // Left/Right arrow keys to change bot
+    this.input.keyboard?.on('keydown-LEFT', () => {
+      const newIndex = (this.selectedBotIndex - 1 + this.bots.length) % this.bots.length;
+      this.selectBot(newIndex);
+    });
+
+    this.input.keyboard?.on('keydown-RIGHT', () => {
+      const newIndex = (this.selectedBotIndex + 1) % this.bots.length;
+      this.selectBot(newIndex);
+    });
+
+    // Plus/Minus or Up/Down to adjust difficulty
+    this.input.keyboard?.on('keydown-PLUS', () => {
+      this.changeDifficulty(1);
+    });
+
+    this.input.keyboard?.on('keydown-MINUS', () => {
+      this.changeDifficulty(-1);
+    });
+
+    this.input.keyboard?.on('keydown-UP', () => {
+      this.changeDifficulty(1);
+    });
+
+    this.input.keyboard?.on('keydown-DOWN', () => {
+      this.changeDifficulty(-1);
+    });
+
+    // Enter to start match
+    this.input.keyboard?.on('keydown-ENTER', () => {
+      this.startMatch();
+    });
+
+    // Escape to go back
+    this.input.keyboard?.on('keydown-ESC', () => {
+      this.goBack();
+    });
+  }
+
+  private changeDifficulty(delta: number) {
+    const newDifficulty = Phaser.Math.Clamp(this.selectedDifficulty + delta, 1, 10);
+    
+    if (newDifficulty !== this.selectedDifficulty) {
+      this.selectedDifficulty = newDifficulty;
+      
+      // Update slider handle position
+      const handle = this.children.getByName('difficultyHandle') as Phaser.GameObjects.Arc;
+      const width = this.sys.game.config.width as number;
+      const sliderWidth = 500;
+      const sliderX = width / 2;
+      const handleX = sliderX - sliderWidth / 2 + (this.selectedDifficulty - 0.5) * (sliderWidth / 10);
+      handle.setX(handleX);
+      
+      // Update label
+      const label = this.children.getByName('difficultyLabel') as Phaser.GameObjects.Text;
+      label.setText(`Difficulty: ${this.selectedDifficulty}`);
+    }
   }
 }
