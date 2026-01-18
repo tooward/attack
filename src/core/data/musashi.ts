@@ -52,7 +52,7 @@ const LIGHT_PUNCH: MoveDefinition = {
     [
       6,
       [
-        { x: 40, y: 20, width: 30, height: 20 }, // Frame 6 (retract)
+        { x: 40, y: -60, width: 30, height: 20 }, // Frame 6 (retract)
       ],
     ],
   ]),
@@ -85,25 +85,25 @@ const HEAVY_PUNCH: MoveDefinition = {
     [
       8,
       [
-        { x: 50, y: 15, width: 40, height: 30 },
+        { x: 50, y: -60, width: 40, height: 30 },
       ],
     ],
     [
       9,
       [
-        { x: 55, y: 15, width: 45, height: 30 },
+        { x: 55, y: -60, width: 45, height: 30 },
       ],
     ],
     [
       10,
       [
-        { x: 55, y: 15, width: 45, height: 30 },
+        { x: 55, y: -60, width: 45, height: 30 },
       ],
     ],
     [
       11,
       [
-        { x: 50, y: 15, width: 40, height: 30 },
+        { x: 50, y: -60, width: 40, height: 30 },
       ],
     ],
   ]),
@@ -136,19 +136,19 @@ const LIGHT_KICK: MoveDefinition = {
     [
       5,
       [
-        { x: 45, y: 35, width: 35, height: 25 },
+        { x: 45, y: -38, width: 35, height: 25 },
       ],
     ],
     [
       6,
       [
-        { x: 50, y: 35, width: 40, height: 25 },
+        { x: 50, y: -38, width: 40, height: 25 },
       ],
     ],
     [
       7,
       [
-        { x: 45, y: 35, width: 35, height: 25 },
+        { x: 45, y: -38, width: 35, height: 25 },
       ],
     ],
   ]),
@@ -181,31 +181,31 @@ const HEAVY_KICK: MoveDefinition = {
     [
       10,
       [
-        { x: 55, y: 30, width: 45, height: 35 },
+        { x: 55, y: -50, width: 45, height: 35 },
       ],
     ],
     [
       11,
       [
-        { x: 60, y: 30, width: 50, height: 35 },
+        { x: 60, y: -50, width: 50, height: 35 },
       ],
     ],
     [
       12,
       [
-        { x: 60, y: 30, width: 50, height: 35 },
+        { x: 60, y: -50, width: 50, height: 35 },
       ],
     ],
     [
       13,
       [
-        { x: 60, y: 30, width: 50, height: 35 },
+        { x: 60, y: -50, width: 50, height: 35 },
       ],
     ],
     [
       14,
       [
-        { x: 55, y: 30, width: 45, height: 35 },
+        { x: 55, y: -50, width: 45, height: 35 },
       ],
     ],
   ]),

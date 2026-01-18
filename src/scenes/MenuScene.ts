@@ -10,8 +10,13 @@ export default class MenuScene extends Scene {
     }
 
     create() {
+        console.log('=== MenuScene CREATE ===');
+        console.log('Menu scene starting...');
+        
         const width = this.sys.game.config.width as number;
         const height = this.sys.game.config.height as number;
+        
+        console.log(`Screen dimensions: ${width}x${height}`);
         
         // Create rising sun (initially below screen)
         // this.createRisingSun(width, height);
@@ -23,8 +28,8 @@ export default class MenuScene extends Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5);
         
-        // Single Player button (initially invisible)
-        this.startButton = this.add.text(width / 2, height * 0.35, 'Single Player', {
+        // Practice Mode button (renamed, consolidated)
+        this.startButton = this.add.text(width / 2, height * 0.35, 'Practice Mode', {
             fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -34,25 +39,11 @@ export default class MenuScene extends Scene {
         .setInteractive({ useHandCursor: true })
         .on('pointerover', () => this.startButton.setStyle({ color: '#ff0' }))
         .on('pointerout', () => this.startButton.setStyle({ color: '#fff' }))
-        .on('pointerdown', () => this.startGame())
-        .setAlpha(0); // Hide initially
-
-        // Practice Mode button (initially invisible)
-        const practiceButton = this.add.text(width / 2, height * 0.47, 'Practice Mode', {
-            fontSize: `${height * 0.04}px`,
-            color: '#fff',
-            padding: { x: 20, y: 10 },
-            backgroundColor: '#000'
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-        .on('pointerover', () => practiceButton.setStyle({ color: '#ff0' }))
-        .on('pointerout', () => practiceButton.setStyle({ color: '#fff' }))
         .on('pointerdown', () => this.startPracticeMode())
         .setAlpha(0); // Hide initially
 
-        // Multiplayer button (initially invisible)
-        const multiplayerButton = this.add.text(width / 2, height * 0.59, 'Online Multiplayer', {
+        // Multiplayer button
+        const multiplayerButton = this.add.text(width / 2, height * 0.47, 'Online Multiplayer', {
             fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -65,22 +56,8 @@ export default class MenuScene extends Scene {
         .on('pointerdown', () => this.startMultiplayer())
         .setAlpha(0); // Hide initially
         
-        // Character Test button - DEPRECATED: Functionality moved to Practice Mode
-        // const characterTestButton = this.add.text(width / 2, height * 0.71, 'Character Test Lab', {
-        //     fontSize: `${height * 0.035}px`,
-        //     color: '#0ff',
-        //     padding: { x: 20, y: 10 },
-        //     backgroundColor: '#001'
-        // })
-        // .setOrigin(0.5)
-        // .setInteractive({ useHandCursor: true })
-        // .on('pointerover', () => characterTestButton.setStyle({ color: '#ff0' }))
-        // .on('pointerout', () => characterTestButton.setStyle({ color: '#0ff' }))
-        // .on('pointerdown', () => this.startCharacterTest())
-        // .setAlpha(0); // Hide initially
-        
-        // Settings button (initially invisible)
-        const settingsButton = this.add.text(width / 2, height * 0.71, 'Settings', {
+        // Settings button
+        const settingsButton = this.add.text(width / 2, height * 0.59, 'Settings', {
             fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -95,7 +72,7 @@ export default class MenuScene extends Scene {
 
         // Show all buttons immediately (sun animation disabled)
         this.tweens.add({
-            targets: [this.startButton, practiceButton, multiplayerButton, settingsButton],
+            targets: [this.startButton, multiplayerButton, settingsButton],
             alpha: 1,
             duration: 500,
             ease: 'Power2'
@@ -159,17 +136,14 @@ export default class MenuScene extends Scene {
         });
     } */
     
-    startGame() {
-        // Go to character select instead of directly to game
-        this.scene.start('CharacterSelectScene');
-    }
-
     startPracticeMode() {
+        console.log('Starting Practice Mode - going to BotSelectionScene');
         // Go to bot selection for practice mode
         this.scene.start('BotSelectionScene');
     }
 
     startMultiplayer() {
+        console.log('Starting Multiplayer - going to MultiplayerMenuScene');
         // Start multiplayer menu
         this.scene.start('MultiplayerMenuScene');
     }

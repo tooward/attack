@@ -43,14 +43,14 @@ export class MultiplayerMenuScene extends Phaser.Scene {
 
     // Connect button
     this.connectButton = this.createButton(
-      centerX, centerY - 50,
+      centerX, centerY - 30,
       'Connect to Server',
       () => this.handleConnect()
     );
 
     // Find match button (hidden initially)
     this.findMatchButton = this.createButton(
-      centerX, centerY,
+      centerX, centerY + 10,
       'Find Match',
       () => this.handleFindMatch()
     );
@@ -58,7 +58,7 @@ export class MultiplayerMenuScene extends Phaser.Scene {
 
     // Cancel button (hidden initially)
     this.cancelButton = this.createButton(
-      centerX, centerY + 50,
+      centerX, centerY + 10,
       'Cancel',
       () => this.handleCancel()
     );
@@ -66,7 +66,7 @@ export class MultiplayerMenuScene extends Phaser.Scene {
 
     // Back button
     this.backButton = this.createButton(
-      centerX, centerY + 150,
+      centerX, centerY + 80,
       'Back to Menu',
       () => this.handleBack()
     );
@@ -85,17 +85,17 @@ export class MultiplayerMenuScene extends Phaser.Scene {
     const height = this.cameras.main.height;
     const button = this.add.text(x, y, text, {
       fontSize: `${height * 0.035}px`,
-      color: '#ffffff',
-      backgroundColor: '#4a90e2',
+      color: '#000000',
+      backgroundColor: '#ffffff',
       padding: { x: 20, y: 10 }
     }).setOrigin(0.5).setInteractive();
 
     button.on('pointerover', () => {
-      button.setStyle({ backgroundColor: '#5aa3ff' });
+      button.setStyle({ backgroundColor: '#dddddd' });
     });
 
     button.on('pointerout', () => {
-      button.setStyle({ backgroundColor: '#4a90e2' });
+      button.setStyle({ backgroundColor: '#ffffff' });
     });
 
     button.on('pointerdown', callback);

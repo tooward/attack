@@ -30,10 +30,12 @@ type CharacterInfo = {
 };
 
 export default class BotSelectionScene extends Scene {
-  private selectedBotIndex: number = 0;
+  private selectedBotIndex: number = 2; // Default to Aggressor
   private selectedDifficulty: number = 5;
-  private selectedPlayer1CharIndex: number = 0;
-  private selectedPlayer2CharIndex: number = 0;
+  private selectedPlayer1CharIndex: number = 0; // Default to Musashi
+  private selectedPlayer2CharIndex: number = 1; // Default to Kaze (different from player)
+  
+  private characterSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   
   private characters: CharacterInfo[] = [
     { id: 'musashi', name: 'Musashi', spriteKey: 'player_idle', color: 0x4488ff },
@@ -98,9 +100,42 @@ export default class BotSelectionScene extends Scene {
     super({ key: 'BotSelectionScene' });
   }
 
+  preload() {
+    // Load character idle sprites
+    this.load.spritesheet('player_idle', 'assets/player/IDLE.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('kaze_idle', 'assets/enemy2/IDLE.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('tetsuo_idle', 'assets/enemy4/IDLE.png', { frameWidth: 96, frameHeight: 96 });
+  }
+
   create() {
     const width = this.sys.game.config.width as number;
     const height = this.sys.game.config.height as number;
+
+    // Create animations if they don't exist
+    if (!this.anims.exists('player_idle_anim')) {
+      this.anims.create({
+        key: 'player_idle_anim',
+        frames: this.anims.generateFrameNumbers('player_idle', { start: 0, end: -1 }),
+        frameRate: 8,
+        repeat: -1
+      });
+    }
+    if (!this.anims.exists('kaze_idle_anim')) {
+      this.anims.create({
+        key: 'kaze_idle_anim',
+        frames: this.anims.generateFrameNumbers('kaze_idle', { start: 0, end: -1 }),
+        frameRate: 8,
+        repeat: -1
+      });
+    }
+    if (!this.anims.exists('tetsuo_idle_anim')) {
+      this.anims.create({
+        key: 'tetsuo_idle_anim',
+        frames: this.anims.generateFrameNumbers('tetsuo_idle', { start: 0, end: -1 }),
+        frameRate: 8,
+        repeat: -1
+      });
+    }
 
     // Background
     this.add.rectangle(0, 0, width, height, 0x1a1a1a).setOrigin(0);
@@ -115,9 +150,6 @@ export default class BotSelectionScene extends Scene {
     // Character selection section
     this.createCharacterSelection(width, height);
 
-    // Bot selection area
-    this.createBotCards(width, height);
-
     // Difficulty slider
     this.createDifficultySlider(width, height);
 
@@ -130,45 +162,76 @@ export default class BotSelectionScene extends Scene {
 
   private createCharacterSelection(width: number, height: number) {
     // Section title
-    this.add.text(width / 2, 60, 'Select Characters', {
-      fontSize: `${height * 0.028}px`,
+    this.add.text(width / 2, 50, 'Select Characters', {
+      fontSize: '20px',
       color: '#aaaaaa'
     }).setOrigin(0.5);
 
     // Player 1 selection (left side)
-    this.createCharacterSelector(width / 2 - 200, 100, 'Player 1', true);
+    this.createCharacterSelector(width / 2 - 200, 120, 'PLAYER 1', true);
     
     // Player 2 selection (right side)
-    this.createCharacterSelector(width / 2 + 200, 100, 'Opponent', false);
+    this.createCharacterSelector(width / 2 + 200, 120, 'OPPONENT', false);
     
     // VS text in middle
-    this.add.text(width / 2, 120, 'VS', {
+    this.add.text(width / 2, 150, 'VS', {
       fontSize: '32px',
       color: '#ffff00',
       fontStyle: 'bold'
     }).setOrigin(0.5);
+    
+    // Bot selector under opponent (right side)
+    this.createBotSelector(width / 2 + 200, 280);
   }
 
   private createCharacterSelector(x: number, y: number, label: string, isPlayer1: boolean) {
-    const height = this.sys.game.config.height as number;
     const charIndex = isPlayer1 ? this.selectedPlayer1CharIndex : this.selectedPlayer2CharIndex;
     const char = this.characters[charIndex];
 
-    // Label
-    this.add.text(x, y, label, {
-      fontSize: `${height * 0.022}px`,
-      color: '#ffffff',
-      fontStyle: 'bold'
+    // Label above
+    this.add.text(x, y - 20, label, {
+      fontSize: '14px',
+      color: '#aaaaaa'
     }).setOrigin(0.5);
 
-    // Character name with color
-    const nameText = this.add.text(x, y + 25, char.name, {
-      fontSize: `${height * 0.025}px`,
-      color: `#${char.color.toString(16).padStart(6, '0')}`
+    // Character box
+    const box = this.add.rectangle(x, y + 50, 150, 120, 0x1a1a1a);
+    
+    // Character sprite with idle animation
+    let scale = 1;
+    let yOffset = 0; // Y offset to align bottoms
+    switch (char.id) {
+      case 'musashi':
+        scale = 2.5;
+        yOffset = 20; // Adjust Musashi up
+        break;
+      case 'kaze':
+        scale = 2.0;
+        yOffset = 0;
+        break;
+      case 'tetsuo':
+        scale = 2.5;
+        yOffset = 0;
+        break;
+    }
+    
+    const sprite = this.add.sprite(x, y + 40 - yOffset, char.spriteKey);
+    sprite.setScale(scale);
+    const animKey = `${char.spriteKey}_anim`;
+    if (this.anims.exists(animKey)) {
+      sprite.play(animKey);
+    }
+    this.characterSprites.set(isPlayer1 ? 'p1' : 'p2', sprite);
+
+    // Character name below sprite
+    const nameText = this.add.text(x, y + 110, char.name, {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontStyle: 'bold'
     }).setOrigin(0.5).setName(isPlayer1 ? 'p1CharName' : 'p2CharName');
 
     // Left arrow
-    this.add.text(x - 60, y + 25, '◀', {
+    this.add.text(x - 80, y + 50, '◀', {
       fontSize: '24px',
       color: '#ffffff'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
@@ -177,7 +240,7 @@ export default class BotSelectionScene extends Scene {
       .on('pointerdown', () => this.changeCharacter(isPlayer1, -1));
 
     // Right arrow
-    this.add.text(x + 60, y + 25, '▶', {
+    this.add.text(x + 80, y + 50, '▶', {
       fontSize: '24px',
       color: '#ffffff'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
@@ -192,88 +255,131 @@ export default class BotSelectionScene extends Scene {
       const char = this.characters[this.selectedPlayer1CharIndex];
       const nameText = this.children.getByName('p1CharName') as Phaser.GameObjects.Text;
       nameText.setText(char.name);
-      nameText.setColor(`#${char.color.toString(16).padStart(6, '0')}`);
+      
+      // Update sprite
+      const sprite = this.characterSprites.get('p1');
+      if (sprite) {
+        sprite.setTexture(char.spriteKey);
+        const animKey = `${char.spriteKey}_anim`;
+        if (this.anims.exists(animKey)) {
+          sprite.play(animKey);
+        }
+        let scale = 1;
+        let yOffset = 0;
+        switch (char.id) {
+          case 'musashi':
+            scale = 2.5;
+            yOffset = 20;
+            break;
+          case 'kaze':
+            scale = 2.0;
+            yOffset = 0;
+            break;
+          case 'tetsuo':
+            scale = 2.5;
+            yOffset = 0;
+            break;
+        }
+        sprite.setScale(scale);
+        sprite.y = 120 + 40 - yOffset; // Recalculate Y position
+      }
     } else {
       this.selectedPlayer2CharIndex = (this.selectedPlayer2CharIndex + delta + this.characters.length) % this.characters.length;
       const char = this.characters[this.selectedPlayer2CharIndex];
       const nameText = this.children.getByName('p2CharName') as Phaser.GameObjects.Text;
       nameText.setText(char.name);
-      nameText.setColor(`#${char.color.toString(16).padStart(6, '0')}`);
+      
+      // Update sprite
+      const sprite = this.characterSprites.get('p2');
+      if (sprite) {
+        sprite.setTexture(char.spriteKey);
+        const animKey = `${char.spriteKey}_anim`;
+        if (this.anims.exists(animKey)) {
+          sprite.play(animKey);
+        }
+        let scale = 1;
+        let yOffset = 0;
+        switch (char.id) {
+          case 'musashi':
+            scale = 2.5;
+            yOffset = 20;
+            break;
+          case 'kaze':
+            scale = 2.0;
+            yOffset = 0;
+            break;
+          case 'tetsuo':
+            scale = 2.5;
+            yOffset = 0;
+            break;
+        }
+        sprite.setScale(scale);
+        sprite.y = 120 + 40 - yOffset; // Recalculate Y position
+      }
     }
   }
 
-  private createBotCards(width: number, height: number) {
-    // Section title
-    this.add.text(width / 2, 165, 'Select Opponent AI', {
-      fontSize: `${height * 0.028}px`,
-      color: '#aaaaaa'
-    }).setOrigin(0.5);
+  private createBotSelector(x: number, y: number) {
+    const bot = this.bots[this.selectedBotIndex];
 
-    const cardWidth = 180;
-    const cardHeight = 240;
-    const spacing = 20;
-    const startX = (width - (cardWidth * 5 + spacing * 4)) / 2;
-    const startY = 200;
+    // Bot display box (smaller, no border)
+    const box = this.add.rectangle(x, y + 40, 250, 80, 0x1a1a1a);
+    box.setName('botBox');
 
-    this.bots.forEach((bot, index) => {
-      const x = startX + index * (cardWidth + spacing);
-      const isSelected = index === this.selectedBotIndex;
+    // Bot name
+    const nameText = this.add.text(x, y + 15, bot.name, {
+      fontSize: '14px',
+      color: `#${bot.color.toString(16).padStart(6, '0')}`,
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setName('botName');
 
-      // Card background
-      const card = this.add.rectangle(x, startY, cardWidth, cardHeight, 0x000000)
-        .setOrigin(0, 0)
-        .setStrokeStyle(isSelected ? 4 : 2, 0xffffff)
-        .setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => this.selectBot(index));
+    // Bot description (truncated - first 2 lines only)
+    const lines = bot.description.split('\n');
+    const truncatedDescription = lines.slice(0, 2).join('\n');
+    const descText = this.add.text(x, y + 40, truncatedDescription, {
+      fontSize: '10px',
+      color: '#cccccc',
+      align: 'center',
+      wordWrap: { width: 230 }
+    }).setOrigin(0.5).setName('botDesc');
 
-      // Bot name
-      this.add.text(x + cardWidth / 2, startY + 20, bot.name, {
-        fontSize: `${height * 0.025}px`,
-        color: '#fff',
-        fontStyle: 'bold',
-        wordWrap: { width: cardWidth - 20 }
-      }).setOrigin(0.5, 0);
+    // Left arrow
+    this.add.text(x - 135, y + 40, '◀', {
+      fontSize: '20px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+      .on('pointerover', function(this: Phaser.GameObjects.Text) { this.setColor('#ffff00'); })
+      .on('pointerout', function(this: Phaser.GameObjects.Text) { this.setColor('#ffffff'); })
+      .on('pointerdown', () => this.changeBot(-1));
 
-      // Style
-      this.add.text(x + cardWidth / 2, startY + 50, bot.style, {
-        fontSize: `${height * 0.017}px`,
-        color: '#ddd',
-        wordWrap: { width: cardWidth - 20 },
-        align: 'center'
-      }).setOrigin(0.5, 0);
+    // Right arrow
+    this.add.text(x + 135, y + 40, '▶', {
+      fontSize: '20px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+      .on('pointerover', function(this: Phaser.GameObjects.Text) { this.setColor('#ffff00'); })
+      .on('pointerout', function(this: Phaser.GameObjects.Text) { this.setColor('#ffffff'); })
+      .on('pointerdown', () => this.changeBot(1));
+  }
 
-      // Description
-      this.add.text(x + 10, startY + 80, bot.description, {
-        fontSize: `${height * 0.020}px`,
-        color: '#ccc',
-        wordWrap: { width: cardWidth - 20 }
-      }).setOrigin(0, 0);
-
-      // Stats
-      const statsY = startY + 180;
-      this.add.text(x + 10, statsY, `Block: ${bot.blockRate}`, {
-        fontSize: `${height * 0.015}px`,
-        color: '#aaa'
-      }).setOrigin(0, 0);
-
-      this.add.text(x + 10, statsY + 20, `Anti-Air: ${bot.antiAir}`, {
-        fontSize: `${height * 0.015}px`,
-        color: '#aaa'
-      }).setOrigin(0, 0);
-
-      this.add.text(x + 10, statsY + 40, `Difficulty: ${bot.difficultyRange}`, {
-        fontSize: `${height * 0.015}px`,
-        color: '#aaa'
-      }).setOrigin(0, 0);
-
-      // Store card reference for updates
-      card.setData('index', index);
-      card.setData('bot', bot);
-    });
+  private changeBot(delta: number) {
+    this.selectedBotIndex = (this.selectedBotIndex + delta + this.bots.length) % this.bots.length;
+    const bot = this.bots[this.selectedBotIndex];
+    
+    // Update name
+    const nameText = this.children.getByName('botName') as Phaser.GameObjects.Text;
+    nameText.setText(bot.name);
+    nameText.setColor(`#${bot.color.toString(16).padStart(6, '0')}`);
+    
+    // Update description
+    const lines = bot.description.split('\n');
+    const truncatedDescription = lines.slice(0, 2).join('\n');
+    const descText = this.children.getByName('botDesc') as Phaser.GameObjects.Text;
+    descText.setText(truncatedDescription);
   }
 
   private createDifficultySlider(width: number, height: number) {
-    const sliderY = 480;
+    const sliderY = 450;
     const sliderWidth = 350;
     const sliderX = width / 2;
 
@@ -332,68 +438,33 @@ export default class BotSelectionScene extends Scene {
   }
 
   private createActionButtons(width: number, height: number) {
-    const buttonY = 570;
+    const buttonY = 530;
 
     // Start button
     const startButton = this.add.text(width / 2 - 120, buttonY, 'Start Match', {
       fontSize: `${height * 0.035}px`,
-      color: '#fff',
+      color: '#000',
       padding: { x: 30, y: 15 },
-      backgroundColor: '#4CAF50'
+      backgroundColor: '#ffffff'
     })
     .setOrigin(0.5)
     .setInteractive({ useHandCursor: true })
-    .on('pointerover', () => startButton.setStyle({ backgroundColor: '#66BB6A' }))
-    .on('pointerout', () => startButton.setStyle({ backgroundColor: '#4CAF50' }))
+    .on('pointerover', () => startButton.setStyle({ backgroundColor: '#dddddd' }))
+    .on('pointerout', () => startButton.setStyle({ backgroundColor: '#ffffff' }))
     .on('pointerdown', () => this.startMatch());
 
     // Back button
     const backButton = this.add.text(width / 2 + 120, buttonY, 'Back', {
       fontSize: `${height * 0.035}px`,
-      color: '#fff',
+      color: '#000',
       padding: { x: 30, y: 15 },
-      backgroundColor: '#666'
+      backgroundColor: '#ffffff'
     })
     .setOrigin(0.5)
     .setInteractive({ useHandCursor: true })
-    .on('pointerover', () => backButton.setStyle({ backgroundColor: '#888' }))
-    .on('pointerout', () => backButton.setStyle({ backgroundColor: '#666' }))
+    .on('pointerover', () => backButton.setStyle({ backgroundColor: '#dddddd' }))
+    .on('pointerout', () => backButton.setStyle({ backgroundColor: '#ffffff' }))
     .on('pointerdown', () => this.goBack());
-  }
-
-  private selectBot(index: number) {
-    if (this.selectedBotIndex === index) return;
-
-    this.selectedBotIndex = index;
-
-    // Update card highlights with animation
-    this.children.getAll().forEach((child) => {
-      if (child instanceof Phaser.GameObjects.Rectangle && child.getData('index') !== undefined) {
-        const cardIndex = child.getData('index');
-        const bot = child.getData('bot');
-        const isSelected = cardIndex === index;
-        
-        // Stop any existing tweens on this card
-        this.tweens.killTweensOf(child);
-        
-        child.setAlpha(isSelected ? 1 : 0.6);
-        child.setStrokeStyle(isSelected ? 4 : 2, 0xffffff);
-        
-        // Add pulse animation to selected card
-        if (isSelected) {
-          this.tweens.add({
-            targets: child,
-            scaleX: 1.05,
-            scaleY: 1.05,
-            duration: 200,
-            yoyo: true,
-            ease: 'Sine.easeInOut'
-          });
-        } else {
-          child.setScale(1);
-        }
-      }
-    });
   }
 
   private startMatch() {
@@ -431,13 +502,11 @@ export default class BotSelectionScene extends Scene {
   private setupKeyboardControls() {
     // Left/Right arrow keys to change bot
     this.input.keyboard?.on('keydown-LEFT', () => {
-      const newIndex = (this.selectedBotIndex - 1 + this.bots.length) % this.bots.length;
-      this.selectBot(newIndex);
+      this.changeBot(-1);
     });
 
     this.input.keyboard?.on('keydown-RIGHT', () => {
-      const newIndex = (this.selectedBotIndex + 1) % this.bots.length;
-      this.selectBot(newIndex);
+      this.changeBot(1);
     });
 
     // Plus/Minus or Up/Down to adjust difficulty
@@ -477,7 +546,7 @@ export default class BotSelectionScene extends Scene {
       // Update slider handle position
       const handle = this.children.getByName('difficultyHandle') as Phaser.GameObjects.Arc;
       const width = this.sys.game.config.width as number;
-      const sliderWidth = 500;
+      const sliderWidth = 350;
       const sliderX = width / 2;
       const handleX = sliderX - sliderWidth / 2 + (this.selectedDifficulty - 0.5) * (sliderWidth / 10);
       handle.setX(handleX);

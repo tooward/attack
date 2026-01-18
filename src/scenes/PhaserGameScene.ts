@@ -87,6 +87,8 @@ export default class PhaserGameScene extends Scene {
   private characterSelectOverlay?: Phaser.GameObjects.Container;
   private selectedP1Index: number = 0;
   private selectedP2Index: number = 0;
+  private selectedBotTypeIndex: number = 2; // Default to aggressor
+  private selectedDifficultyLevel: number = 5; // Default difficulty
   
   // Information display area constants
   private readonly INFO_DISPLAY_Y = 505;
@@ -142,6 +144,26 @@ export default class PhaserGameScene extends Scene {
     super({ key: 'PhaserGameScene' });
   }
 
+  /**
+   * Phaser lifecycle: called when scene is started (before create)
+   */
+  init(): void {
+    console.log('=== PhaserGameScene INIT ===');
+    console.log('Initializing scene state...');
+    
+    // Reset state flags
+    this.isPaused = false;
+    this.isRoundOver = false;
+    this.currentMenu = null;
+    
+    // Reset collections
+    this.lastHitFrames = new Map();
+    this.lastMoveFrames = new Map();
+    this.hitFreezeFrames = 0;
+    
+    console.log('Scene state reset complete');
+  }
+
   preload(): void {
     // Load player sprite sheets (96x96 frames)
     this.load.spritesheet('player_idle', 'assets/player/IDLE.png', { frameWidth: 96, frameHeight: 96 });
@@ -195,6 +217,31 @@ export default class PhaserGameScene extends Scene {
   }
 
   create(): void {
+    console.log('=== PhaserGameScene CREATE ===');
+    console.log('Initializing game scene...');
+    
+    // Load settings from registry or localStorage
+    let gameSettings = this.registry.get('settings');
+    if (!gameSettings) {
+      const saved = localStorage.getItem('gameSettings');
+      if (saved) {
+        try {
+          gameSettings = JSON.parse(saved);
+        } catch (e) {
+          console.error('Failed to load settings:', e);
+        }
+      }
+    }
+    
+    // Apply settings
+    if (gameSettings) {
+      // Set debug mode based on showHitboxes setting
+      if (gameSettings.showHitboxes !== undefined) {
+        this.debugMode = gameSettings.showHitboxes;
+        console.log(`Hitbox Debug from settings: ${this.debugMode ? 'ON' : 'OFF'}`);
+      }
+    }
+    
     // Check if this is an online match
     const onlineMatchData = this.registry.get('onlineMatch');
     if (onlineMatchData) {
@@ -449,6 +496,13 @@ export default class PhaserGameScene extends Scene {
       fontSize: '14px',
       color: '#00ff00',
     });
+    
+    // Apply FPS visibility from settings
+    if (gameSettings && gameSettings.showFPS !== undefined) {
+      this.fpsText.setVisible(gameSettings.showFPS);
+    } else {
+      this.fpsText.setVisible(false); // Hidden by default
+    }
 
     // Instructions removed to reduce clutter
     this.instructionsText = this.add.text(500, 560, '', {
@@ -907,18 +961,7 @@ export default class PhaserGameScene extends Scene {
   }
 
   update(time: number, delta: number): void {
-    // Skip game logic when paused
-    if (this.isPaused) {
-      return;
-    }
-    
-    // Toggle hitbox debug (F10)
-    if (Phaser.Input.Keyboard.JustDown(this.debugToggleKey)) {
-      this.debugMode = !this.debugMode;
-      console.log(`Hitbox Debug: ${this.debugMode ? 'ON' : 'OFF'} (F10 to toggle)`);
-    }
-    
-    // Toggle pause menu
+    // Always check pause key, even when paused
     if (Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
       // Close moves menu if open
       if (this.movesOverlay) {
@@ -931,6 +974,17 @@ export default class PhaserGameScene extends Scene {
       // Toggle pause
       this.togglePauseMenu();
       return;
+    }
+    
+    // Skip game logic when paused
+    if (this.isPaused) {
+      return;
+    }
+    
+    // Toggle hitbox debug (F10)
+    if (Phaser.Input.Keyboard.JustDown(this.debugToggleKey)) {
+      this.debugMode = !this.debugMode;
+      console.log(`Hitbox Debug: ${this.debugMode ? 'ON' : 'OFF'} (F10 to toggle)`);
     }
     
     // Toggle menu (F1)
@@ -1235,6 +1289,29 @@ export default class PhaserGameScene extends Scene {
 
     // Tick core engine (this is where the magic happens)
     this.gameState = tick(this.gameState, inputs, this.characterDefs);
+
+    // Detect if any fighter has fallen off screen
+    if (this.gameState.entities) {
+      for (const fighter of this.gameState.entities) {
+        const screenHeight = this.sys.game.config.height as number;
+        const groundLevel = this.gameState.arena?.groundLevel || (screenHeight * 0.75);
+        
+        // Check if fighter has fallen far below ground level
+        if (fighter.position.y > groundLevel + 200) {
+          console.error(`[OFF SCREEN] ${fighter.id} (${fighter.characterId}) fell off screen!`);
+          console.error(`  Position: (${fighter.position.x.toFixed(1)}, ${fighter.position.y.toFixed(1)})`);
+          console.error(`  Velocity: (${fighter.velocity.x.toFixed(1)}, ${fighter.velocity.y.toFixed(1)})`);
+          console.error(`  Status: ${fighter.status}, isGrounded: ${fighter.isGrounded}`);
+          console.error(`  Health: ${fighter.health}, Frame: ${this.gameState.frame}`);
+          console.error(`  Ground level: ${groundLevel}`);
+          
+          // Reset position to ground
+          fighter.position.y = groundLevel;
+          fighter.velocity.y = 0;
+          fighter.isGrounded = true;
+        }
+      }
+    }
 
     // Apply visual effects
     this.applyScreenShake();
@@ -1707,24 +1784,26 @@ export default class PhaserGameScene extends Scene {
    * Reset fighter positions to starting positions
    */
   private resetFighterPositions(): void {
-    const config = {
-      entities: [
-        { characterId: 'musashi', id: 'player1', teamId: 0, startPosition: { x: 300, y: 500 } },
-        { characterId: 'musashi', id: 'player2', teamId: 1, startPosition: { x: 700, y: 500 } },
-      ],
-      arena: this.gameState.arena,
-      roundsToWin: 2,
-      roundTimeSeconds: 60,
-    };
+    const startPositions = [
+      { x: 300, y: 500 },
+      { x: 700, y: 500 }
+    ];
 
     this.gameState.entities.forEach((fighter, index) => {
-      fighter.position = { ...config.entities[index].startPosition };
+      fighter.position = { ...startPositions[index] };
       fighter.velocity = { x: 0, y: 0 };
       fighter.status = 'idle' as any;
       fighter.currentMove = null;
       fighter.moveFrame = 0;
       fighter.stunFramesRemaining = 0;
       fighter.invincibleFrames = 0;
+      fighter.isGrounded = true;
+      
+      // Update sprite position
+      const sprite = this.fighterSprites.get(fighter.id);
+      if (sprite) {
+        sprite.setPosition(fighter.position.x, fighter.position.y);
+      }
     });
 
     console.log('Positions reset');
@@ -1738,6 +1817,13 @@ export default class PhaserGameScene extends Scene {
       fighter.health = fighter.maxHealth;
       fighter.comboCount = 0;
       fighter.comboScaling = 1.0;
+      fighter.superMeter = 0;
+      
+      // Update sprite display by syncing with fighter state
+      const sprite = this.fighterSprites.get(fighter.id);
+      if (sprite) {
+        sprite.sync(fighter);
+      }
     });
 
     console.log('Health reset');
@@ -2543,6 +2629,22 @@ export default class PhaserGameScene extends Scene {
     replayBtn.on('pointerover', () => replayBtn.setFillStyle(0x6699ff));
     replayBtn.on('pointerout', () => replayBtn.setFillStyle(0x4488ff));
     replayBtn.on('pointerdown', () => {
+      // Clean up win overlay and match end UI before restarting
+      if (this.winOverlay) {
+        this.tweens.killTweensOf(this.winOverlay);
+        this.winOverlay.destroy();
+        this.winOverlay = null;
+      }
+      if (this.tieOverlay) {
+        this.tweens.killTweensOf(this.tieOverlay);
+        this.tieOverlay.destroy();
+        this.tieOverlay = null;
+      }
+      if (this.matchEndContainer) {
+        this.tweens.killTweensOf(this.matchEndContainer);
+        this.matchEndContainer.destroy();
+        this.matchEndContainer = null;
+      }
       this.scene.restart();
     });
     this.matchEndContainer.add(replayBtn);
@@ -2821,6 +2923,14 @@ export default class PhaserGameScene extends Scene {
   private togglePauseMenu(): void {
     if (this.pauseMenu) {
       // Resume game
+      // Find and destroy the overlay rectangle (not in container)
+      this.children.list.forEach((child: Phaser.GameObjects.GameObject) => {
+        if (child instanceof Phaser.GameObjects.Rectangle && 
+            child.depth === 2999) {
+          child.destroy();
+        }
+      });
+      
       this.pauseMenu.destroy();
       this.pauseMenu = undefined;
       this.isPaused = false;
@@ -2840,17 +2950,16 @@ export default class PhaserGameScene extends Scene {
       this.instructionsText.setVisible(false);
     }
 
-    // Create dark overlay
+    // Create dark overlay (positioned absolutely to cover entire screen)
     const overlay = this.add.rectangle(
       0, 0,
       this.cameras.main.width,
       this.cameras.main.height,
       0x000000, 0.7
-    ).setOrigin(0);
+    ).setOrigin(0).setDepth(2999);
 
     // Create menu container
     this.pauseMenu = this.add.container(500, 300);
-    this.pauseMenu.add(overlay);
     this.pauseMenu.setDepth(3000);
 
     // Title
@@ -2865,9 +2974,8 @@ export default class PhaserGameScene extends Scene {
     const options = [
       { text: 'Resume', action: () => this.togglePauseMenu() },
       { text: 'Show Moves List', action: () => this.showMovesFromPause() },
-      { text: 'Change Characters', action: () => this.showCharacterSelect() },
+      { text: 'Change Setup', action: () => this.showCharacterSelect() },
       { text: 'Reset Match', action: () => this.resetMatch() },
-      { text: 'Change Opponent', action: () => this.changeOpponent() },
       { text: 'Main Menu', action: () => this.returnToMainMenu() }
     ];
 
@@ -2929,32 +3037,38 @@ export default class PhaserGameScene extends Scene {
   /**
    * Show character select overlay
    */
-  private showCharacterSelect(): void {
-    // Close pause menu first
-    this.togglePauseMenu();
+  private showCharacterSelect(isRefresh: boolean = false): void {
+    // Close pause menu first (only on initial show)
+    if (!isRefresh) {
+      this.togglePauseMenu();
+    }
     
-    // Initialize character indices based on current characters
-    const p1CharId = this.registry.get('player1Character') || 'musashi';
-    const p2CharId = this.registry.get('player2Character') || 'musashi';
-    this.selectedP1Index = this.characterOptions.findIndex(c => c.id === p1CharId);
-    this.selectedP2Index = this.characterOptions.findIndex(c => c.id === p2CharId);
-    if (this.selectedP1Index === -1) this.selectedP1Index = 0;
-    if (this.selectedP2Index === -1) this.selectedP2Index = 0;
+    // Initialize character indices based on current characters (only on initial show)
+    if (!isRefresh) {
+      const p1CharId = this.registry.get('player1Character') || 'musashi';
+      const p2CharId = this.registry.get('player2Character') || 'musashi';
+      this.selectedP1Index = this.characterOptions.findIndex(c => c.id === p1CharId);
+      this.selectedP2Index = this.characterOptions.findIndex(c => c.id === p2CharId);
+      if (this.selectedP1Index === -1) this.selectedP1Index = 0;
+      if (this.selectedP2Index === -1) this.selectedP2Index = 0;
+    }
     
-    // Create overlay
+    console.log(`showCharacterSelect - P1 index: ${this.selectedP1Index}, P2 index: ${this.selectedP2Index}`);
+    
+    // Create dark overlay (positioned absolutely to cover entire screen)
     const overlay = this.add.rectangle(
       0, 0,
       this.cameras.main.width,
       this.cameras.main.height,
       0x000000, 0.8
-    ).setOrigin(0);
+    ).setOrigin(0).setDepth(2999);
     
+    // Create container for UI elements
     this.characterSelectOverlay = this.add.container(500, 300);
-    this.characterSelectOverlay.add(overlay);
     this.characterSelectOverlay.setDepth(3000);
     
     // Title
-    const title = this.add.text(0, -200, 'CHANGE CHARACTERS', {
+    const title = this.add.text(0, -220, 'TRAINING SETUP', {
       fontSize: '28px',
       color: '#ffff00',
       fontStyle: 'bold'
@@ -2962,23 +3076,26 @@ export default class PhaserGameScene extends Scene {
     this.characterSelectOverlay.add(title);
     
     // P1 selector (left)
-    this.createCharacterSelector(-200, -100, 'PLAYER 1', true);
+    this.createCharacterSelector(-200, -120, 'PLAYER 1', true);
     
     // P2 selector (right)
-    this.createCharacterSelector(200, -100, 'OPPONENT', false);
+    this.createCharacterSelector(200, -120, 'OPPONENT', false);
     
     // VS text
-    const vsText = this.add.text(0, -50, 'VS', {
+    const vsText = this.add.text(0, -70, 'VS', {
       fontSize: '32px',
       color: '#ffff00',
       fontStyle: 'bold'
     }).setOrigin(0.5);
     this.characterSelectOverlay.add(vsText);
     
+    // Bot configuration section
+    this.createBotConfiguration();
+    
     // Confirm button
-    const confirmBtn = this.add.rectangle(0, 180, 200, 50, 0x44ff44);
+    const confirmBtn = this.add.rectangle(0, 200, 200, 50, 0x44ff44);
     confirmBtn.setInteractive({ useHandCursor: true });
-    const confirmText = this.add.text(0, 180, 'CONFIRM', {
+    const confirmText = this.add.text(0, 200, 'CONFIRM', {
       fontSize: '20px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -2992,9 +3109,9 @@ export default class PhaserGameScene extends Scene {
     this.characterSelectOverlay.add(confirmText);
     
     // Cancel button
-    const cancelBtn = this.add.rectangle(0, 240, 200, 50, 0xff4444);
+    const cancelBtn = this.add.rectangle(0, 260, 200, 50, 0xff4444);
     cancelBtn.setInteractive({ useHandCursor: true });
-    const cancelText = this.add.text(0, 240, 'CANCEL', {
+    const cancelText = this.add.text(0, 260, 'CANCEL', {
       fontSize: '20px',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -3006,6 +3123,133 @@ export default class PhaserGameScene extends Scene {
     
     this.characterSelectOverlay.add(cancelBtn);
     this.characterSelectOverlay.add(cancelText);
+  }
+
+  /**
+   * Create bot configuration controls
+   */
+  private createBotConfiguration(): void {
+    // Position under the opponent selector (200, -120) + offset down
+    const container = this.add.container(200, 30);
+    
+    // Bot type label (above control)
+    const botLabel = this.add.text(0, -15, 'BOT TYPE', {
+      fontSize: '12px',
+      color: '#aaaaaa'
+    }).setOrigin(0.5);
+    container.add(botLabel);
+    
+    // Get current bot type from registry
+    const currentBotType = this.registry.get('botType') || 'aggressor';
+    const botTypes = [
+      { id: 'tutorial', name: 'Tutorial' },
+      { id: 'guardian', name: 'Guardian' },
+      { id: 'aggressor', name: 'Aggressor' },
+      { id: 'tactician', name: 'Tactician' },
+      { id: 'wildcard', name: 'Wildcard' }
+    ];
+    
+    // Find current index
+    if (!this.selectedBotTypeIndex) {
+      this.selectedBotTypeIndex = botTypes.findIndex(b => b.id === currentBotType);
+      if (this.selectedBotTypeIndex === -1) this.selectedBotTypeIndex = 2; // Default to aggressor
+    }
+    
+    const currentBot = botTypes[this.selectedBotTypeIndex];
+    
+    // Bot type display
+    const botNameBox = this.add.rectangle(0, 10, 150, 30, 0x333333);
+    container.add(botNameBox);
+    
+    const botNameText = this.add.text(0, 10, currentBot.name, {
+      fontSize: '14px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    container.add(botNameText);
+    
+    // Left arrow
+    const botLeftArrow = this.add.text(-80, 10, '◀', {
+      fontSize: '18px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    botLeftArrow.setInteractive({ useHandCursor: true });
+    botLeftArrow.on('pointerover', () => botLeftArrow.setColor('#ffff00'));
+    botLeftArrow.on('pointerout', () => botLeftArrow.setColor('#ffffff'));
+    botLeftArrow.on('pointerdown', (pointer: Phaser.Input.Pointer, localX: number, localY: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.selectedBotTypeIndex = (this.selectedBotTypeIndex - 1 + botTypes.length) % botTypes.length;
+      this.refreshCharacterSelect();
+    });
+    container.add(botLeftArrow);
+    
+    // Right arrow
+    const botRightArrow = this.add.text(80, 10, '▶', {
+      fontSize: '18px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    botRightArrow.setInteractive({ useHandCursor: true });
+    botRightArrow.on('pointerover', () => botRightArrow.setColor('#ffff00'));
+    botRightArrow.on('pointerout', () => botRightArrow.setColor('#ffffff'));
+    botRightArrow.on('pointerdown', (pointer: Phaser.Input.Pointer, localX: number, localY: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.selectedBotTypeIndex = (this.selectedBotTypeIndex + 1) % botTypes.length;
+      this.refreshCharacterSelect();
+    });
+    container.add(botRightArrow);
+    
+    // Difficulty label (above control)
+    const diffLabel = this.add.text(0, 40, 'DIFFICULTY', {
+      fontSize: '12px',
+      color: '#aaaaaa'
+    }).setOrigin(0.5);
+    container.add(diffLabel);
+    
+    // Get current difficulty
+    if (!this.selectedDifficultyLevel) {
+      this.selectedDifficultyLevel = this.registry.get('botDifficulty') || 5;
+    }
+    
+    // Difficulty display
+    const diffBox = this.add.rectangle(0, 65, 150, 30, 0x333333);
+    container.add(diffBox);
+    
+    const diffText = this.add.text(0, 65, `Level ${this.selectedDifficultyLevel}`, {
+      fontSize: '14px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    container.add(diffText);
+    
+    // Difficulty left arrow
+    const diffLeftArrow = this.add.text(-80, 65, '◀', {
+      fontSize: '18px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    diffLeftArrow.setInteractive({ useHandCursor: true });
+    diffLeftArrow.on('pointerover', () => diffLeftArrow.setColor('#ffff00'));
+    diffLeftArrow.on('pointerout', () => diffLeftArrow.setColor('#ffffff'));
+    diffLeftArrow.on('pointerdown', (pointer: Phaser.Input.Pointer, localX: number, localY: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.selectedDifficultyLevel = Math.max(1, this.selectedDifficultyLevel - 1);
+      this.refreshCharacterSelect();
+    });
+    container.add(diffLeftArrow);
+    
+    // Difficulty right arrow
+    const diffRightArrow = this.add.text(80, 65, '▶', {
+      fontSize: '18px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    diffRightArrow.setInteractive({ useHandCursor: true });
+    diffRightArrow.on('pointerover', () => diffRightArrow.setColor('#ffff00'));
+    diffRightArrow.on('pointerout', () => diffRightArrow.setColor('#ffffff'));
+    diffRightArrow.on('pointerdown', (pointer: Phaser.Input.Pointer, localX: number, localY: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.selectedDifficultyLevel = Math.min(10, this.selectedDifficultyLevel + 1);
+      this.refreshCharacterSelect();
+    });
+    container.add(diffRightArrow);
+    
+    this.characterSelectOverlay!.add(container);
   }
 
   /**
@@ -3025,11 +3269,38 @@ export default class PhaserGameScene extends Scene {
     const currentIndex = isP1 ? this.selectedP1Index : this.selectedP2Index;
     const character = this.characterOptions[currentIndex];
     
-    const charBox = this.add.rectangle(0, 0, 150, 100, character.color);
+    console.log(`Creating selector for ${label}, index: ${currentIndex}, character: ${character.name}`);
+    
+    // Background box
+    const charBox = this.add.rectangle(0, 0, 150, 120, 0x222222);
     container.add(charBox);
     
-    const charName = this.add.text(0, 0, character.name, {
-      fontSize: '18px',
+    // Character sprite with idle animation
+    let spriteKey = '';
+    let scale = 1;
+    switch (character.id) {
+      case 'musashi':
+        spriteKey = 'player_idle';
+        scale = 1;
+        break;
+      case 'kaze':
+        spriteKey = 'kaze_idle';
+        scale = 0.8;
+        break;
+      case 'tetsuo':
+        spriteKey = 'tetsuo_idle';
+        scale = 1;
+        break;
+    }
+    
+    const charSprite = this.add.sprite(0, -10, spriteKey);
+    charSprite.setScale(scale);
+    charSprite.play(`${spriteKey}_anim`);
+    container.add(charSprite);
+    
+    // Character name below sprite
+    const charName = this.add.text(0, 50, character.name, {
+      fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold'
     }).setOrigin(0.5);
@@ -3043,11 +3314,15 @@ export default class PhaserGameScene extends Scene {
     leftArrow.setInteractive({ useHandCursor: true });
     leftArrow.on('pointerover', () => leftArrow.setColor('#ffff00'));
     leftArrow.on('pointerout', () => leftArrow.setColor('#ffffff'));
-    leftArrow.on('pointerdown', () => {
+    leftArrow.on('pointerdown', (pointer: Phaser.Input.Pointer, localX: number, localY: number, event: Phaser.Types.Input.EventData) => {
+      console.log(`Left arrow clicked for ${label}`);
+      event.stopPropagation(); // Prevent event bubbling
       if (isP1) {
         this.selectedP1Index = (this.selectedP1Index - 1 + this.characterOptions.length) % this.characterOptions.length;
+        console.log(`P1 index changed to: ${this.selectedP1Index}`);
       } else {
         this.selectedP2Index = (this.selectedP2Index - 1 + this.characterOptions.length) % this.characterOptions.length;
+        console.log(`P2 index changed to: ${this.selectedP2Index}`);
       }
       this.refreshCharacterSelect();
     });
@@ -3061,11 +3336,15 @@ export default class PhaserGameScene extends Scene {
     rightArrow.setInteractive({ useHandCursor: true });
     rightArrow.on('pointerover', () => rightArrow.setColor('#ffff00'));
     rightArrow.on('pointerout', () => rightArrow.setColor('#ffffff'));
-    rightArrow.on('pointerdown', () => {
+    rightArrow.on('pointerdown', (pointer: Phaser.Input.Pointer, localX: number, localY: number, event: Phaser.Types.Input.EventData) => {
+      console.log(`Right arrow clicked for ${label}`);
+      event.stopPropagation(); // Prevent event bubbling
       if (isP1) {
         this.selectedP1Index = (this.selectedP1Index + 1) % this.characterOptions.length;
+        console.log(`P1 index changed to: ${this.selectedP1Index}`);
       } else {
         this.selectedP2Index = (this.selectedP2Index + 1) % this.characterOptions.length;
+        console.log(`P2 index changed to: ${this.selectedP2Index}`);
       }
       this.refreshCharacterSelect();
     });
@@ -3078,15 +3357,30 @@ export default class PhaserGameScene extends Scene {
    * Refresh character select overlay
    */
   private refreshCharacterSelect(): void {
-    // Rebuild the overlay
-    this.closeCharacterSelect();
-    this.showCharacterSelect();
+    // Destroy and rebuild the entire overlay to update character displays
+    const wasOpen = this.characterSelectOverlay !== undefined;
+    if (wasOpen) {
+      this.characterSelectOverlay?.destroy();
+      this.characterSelectOverlay = undefined;
+      // Small delay to ensure cleanup before recreating
+      this.time.delayedCall(10, () => {
+        this.showCharacterSelect(true); // Pass true to indicate this is a refresh
+      });
+    }
   }
 
   /**
    * Close character select overlay
    */
   private closeCharacterSelect(): void {
+    // Find and destroy the overlay rectangle (not in container)
+    this.children.list.forEach((child: Phaser.GameObjects.GameObject) => {
+      if (child instanceof Phaser.GameObjects.Rectangle && 
+          child.depth === 2999) {
+        child.destroy();
+      }
+    });
+    
     this.characterSelectOverlay?.destroy();
     this.characterSelectOverlay = undefined;
   }
@@ -3098,9 +3392,15 @@ export default class PhaserGameScene extends Scene {
     const p1Char = this.characterOptions[this.selectedP1Index].id;
     const p2Char = this.characterOptions[this.selectedP2Index].id;
     
+    // Map bot type indices to bot type strings
+    const botTypes = ['tutorial', 'guardian', 'aggressor', 'tactician', 'wildcard'];
+    const selectedBotType = botTypes[this.selectedBotTypeIndex];
+    
     // Store in registry
     this.registry.set('player1Character', p1Char);
     this.registry.set('player2Character', p2Char);
+    this.registry.set('botType', selectedBotType);
+    this.registry.set('botDifficulty', this.selectedDifficultyLevel);
     
     // Close overlay
     this.closeCharacterSelect();
@@ -3130,6 +3430,105 @@ export default class PhaserGameScene extends Scene {
    * Return to main menu
    */
   private returnToMainMenu(): void {
+    console.log('=== RETURNING TO MAIN MENU ===');
+    console.log('Stopping PhaserGameScene and starting MenuScene...');
+    
+    // Use scene.start() which automatically stops the current scene
+    // This ensures proper cleanup before starting the new scene
     this.scene.start('MenuScene');
+  }
+
+  /**
+   * Phaser lifecycle: called when scene is stopped
+   */
+  shutdown(): void {
+    console.log('=== PhaserGameScene SHUTDOWN ===');
+    
+    // Clean up online manager
+    if (this.onlineManager) {
+      console.log('Destroying online manager');
+      this.onlineManager.destroy();
+      this.onlineManager = undefined;
+    }
+    
+    // Clean up ML bot
+    if (this.mlBot) {
+      console.log('Cleaning up ML bot');
+      this.mlBot = undefined;
+    }
+    
+    // Clean up TensorFlow resources
+    if (this.neuralPolicy) {
+      console.log('Cleaning up neural policy');
+      this.neuralPolicy = undefined as any;
+    }
+    
+    // Clean up touch controls
+    if (this.touchControls) {
+      console.log('Destroying touch controls');
+      this.touchControls.destroy();
+      this.touchControls = undefined;
+    }
+    
+    // Clean up UI overlays
+    if (this.pauseMenu) {
+      this.pauseMenu.destroy();
+      this.pauseMenu = undefined;
+    }
+    if (this.helpOverlay) {
+      this.helpOverlay.destroy();
+      this.helpOverlay = undefined;
+    }
+    if (this.movesOverlay) {
+      this.movesOverlay.destroy();
+      this.movesOverlay = undefined;
+    }
+    if (this.characterSelectOverlay) {
+      this.characterSelectOverlay.destroy();
+      this.characterSelectOverlay = undefined;
+    }
+    if (this.movesButton) {
+      this.movesButton.destroy();
+      this.movesButton = undefined;
+    }
+    if (this.winOverlay) {
+      this.winOverlay.destroy();
+      this.winOverlay = undefined;
+    }
+    if (this.tieOverlay) {
+      this.tieOverlay.destroy();
+      this.tieOverlay = undefined;
+    }
+    if (this.roundAnnouncement) {
+      this.roundAnnouncement.destroy();
+      this.roundAnnouncement = undefined;
+    }
+    if (this.fightAnnouncement) {
+      this.fightAnnouncement.destroy();
+      this.fightAnnouncement = undefined;
+    }
+    
+    // Clean up fighter sprites
+    if (this.fighterSprites) {
+      console.log('Destroying fighter sprites');
+      this.fighterSprites.forEach(sprite => sprite.destroy());
+      this.fighterSprites.clear();
+    }
+    
+    // Clean up projectile sprites
+    if (this.projectileSprites) {
+      console.log('Destroying projectile sprites');
+      this.projectileSprites.forEach(sprite => sprite.destroy());
+      this.projectileSprites.clear();
+    }
+    
+    // Clean up particle emitters
+    if (this.hitSparks) {
+      console.log('Destroying particle emitters');
+      this.hitSparks.forEach(emitter => emitter.remove());
+      this.hitSparks = [];
+    }
+    
+    console.log('=== PhaserGameScene shutdown complete ===');
   }
 }

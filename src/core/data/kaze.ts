@@ -123,19 +123,19 @@ const LIGHT_KICK: MoveDefinition = {
     [
       4,
       [
-        { x: 45, y: 40, width: 35, height: 25 },
+        { x: 45, y: -38, width: 35, height: 25 },
       ],
     ],
     [
       5,
       [
-        { x: 50, y: 40, width: 40, height: 25 },
+        { x: 50, y: -38, width: 40, height: 25 },
       ],
     ],
     [
       6,
       [
-        { x: 48, y: 40, width: 38, height: 25 },
+        { x: 48, y: -38, width: 38, height: 25 },
       ],
     ],
   ]),
@@ -168,25 +168,25 @@ const HEAVY_KICK: MoveDefinition = {
     [
       7,
       [
-        { x: 50, y: 30, width: 45, height: 32 },
+        { x: 50, y: -50, width: 45, height: 32 },
       ],
     ],
     [
       8,
       [
-        { x: 55, y: 30, width: 48, height: 32 },
+        { x: 55, y: -50, width: 48, height: 32 },
       ],
     ],
     [
       9,
       [
-        { x: 55, y: 30, width: 48, height: 32 },
+        { x: 55, y: -50, width: 48, height: 32 },
       ],
     ],
     [
       10,
       [
-        { x: 52, y: 30, width: 45, height: 32 },
+        { x: 52, y: -50, width: 45, height: 32 },
       ],
     ],
   ]),

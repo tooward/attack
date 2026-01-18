@@ -39,19 +39,19 @@ const LIGHT_PUNCH: MoveDefinition = {
     [
       5,
       [
-        { x: 42, y: 20, width: 35, height: 22 },
+        { x: 42, y: -60, width: 35, height: 22 },
       ],
     ],
     [
       6,
       [
-        { x: 48, y: 20, width: 40, height: 22 },
+        { x: 48, y: -60, width: 40, height: 22 },
       ],
     ],
     [
       7,
       [
-        { x: 45, y: 20, width: 38, height: 22 },
+        { x: 45, y: -60, width: 38, height: 22 },
       ],
     ],
   ]),
@@ -84,31 +84,31 @@ const HEAVY_PUNCH: MoveDefinition = {
     [
       10,
       [
-        { x: 52, y: 16, width: 45, height: 35 },
+        { x: 52, y: -60, width: 45, height: 35 },
       ],
     ],
     [
       11,
       [
-        { x: 58, y: 16, width: 50, height: 35 },
+        { x: 58, y: -60, width: 50, height: 35 },
       ],
     ],
     [
       12,
       [
-        { x: 58, y: 16, width: 50, height: 35 },
+        { x: 58, y: -60, width: 50, height: 35 },
       ],
     ],
     [
       13,
       [
-        { x: 55, y: 16, width: 48, height: 35 },
+        { x: 55, y: -60, width: 48, height: 35 },
       ],
     ],
     [
       14,
       [
-        { x: 52, y: 16, width: 45, height: 35 },
+        { x: 52, y: -60, width: 45, height: 35 },
       ],
     ],
   ]),
@@ -141,25 +141,25 @@ const LIGHT_KICK: MoveDefinition = {
     [
       6,
       [
-        { x: 48, y: 42, width: 40, height: 28 },
+        { x: 48, y: -38, width: 40, height: 28 },
       ],
     ],
     [
       7,
       [
-        { x: 53, y: 42, width: 45, height: 28 },
+        { x: 53, y: -38, width: 45, height: 28 },
       ],
     ],
     [
       8,
       [
-        { x: 53, y: 42, width: 45, height: 28 },
+        { x: 53, y: -38, width: 45, height: 28 },
       ],
     ],
     [
       9,
       [
-        { x: 50, y: 42, width: 42, height: 28 },
+        { x: 50, y: -38, width: 42, height: 28 },
       ],
     ],
   ]),
@@ -192,31 +192,31 @@ const HEAVY_KICK: MoveDefinition = {
     [
       12,
       [
-        { x: 55, y: 32, width: 50, height: 38 },
+        { x: 55, y: -50, width: 50, height: 38 },
       ],
     ],
     [
       13,
       [
-        { x: 60, y: 32, width: 55, height: 38 },
+        { x: 60, y: -50, width: 55, height: 38 },
       ],
     ],
     [
       14,
       [
-        { x: 60, y: 32, width: 55, height: 38 },
+        { x: 60, y: -50, width: 55, height: 38 },
       ],
     ],
     [
       15,
       [
-        { x: 60, y: 32, width: 55, height: 38 },
+        { x: 60, y: -50, width: 55, height: 38 },
       ],
     ],
     [
       16,
       [
-        { x: 58, y: 32, width: 52, height: 38 },
+        { x: 58, y: -50, width: 52, height: 38 },
       ],
     ],
   ]),

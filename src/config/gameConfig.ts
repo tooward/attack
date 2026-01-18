@@ -7,7 +7,7 @@ import { MultiplayerMenuScene } from '../scenes/MultiplayerMenuScene.js';
 import InventoryScene from '../scenes/InventoryScene.js';
 import TradeScene from '../scenes/TradeScene.js';
 import PhaserGameScene from '../scenes/PhaserGameScene.js';
-import CharacterSelectScene from '../scenes/CharacterSelectScene.js';
+// CharacterSelectScene removed - consolidated with Practice Mode via BotSelectionScene
 import SettingsScene from '../scenes/SettingsScene.js';
 import BotSelectionScene from '../scenes/BotSelectionScene.js';
 import CharacterTestScene from '../scenes/CharacterTestScene.js';
@@ -36,7 +36,7 @@ export const config = {
     // Define scenes in loading order
     // PhaserGameScene is the new fighting game scene
     // Old GameScene is for side-scrolling adventure (future)
-    scene: [BootScene, MenuScene, CharacterSelectScene, BotSelectionScene, SettingsScene, MultiplayerMenuScene, PhaserGameScene, CharacterTestScene, GameScene, UIScene, InventoryScene, TradeScene],
+    scene: [BootScene, MenuScene, BotSelectionScene, SettingsScene, MultiplayerMenuScene, PhaserGameScene, CharacterTestScene, GameScene, UIScene, InventoryScene, TradeScene],
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,

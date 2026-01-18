@@ -42,7 +42,7 @@ export default class SettingsScene extends Scene {
     const titleText = this.add.text(centerX, 50, 'SETTINGS', {
       fontSize: '48px',
       fontStyle: 'bold',
-      color: '#00ff00',
+      color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 6,
     });
@@ -81,20 +81,12 @@ export default class SettingsScene extends Scene {
     yPos += 50;
 
     // Hitbox Toggle (Training Mode)
-    this.createToggle('showHitboxes', 'Show Hitboxes (Training)', centerX, yPos, this.settings.showHitboxes);
+    this.createToggle('showHitboxes', 'Show Hitboxes', centerX, yPos, this.settings.showHitboxes);
     yPos += 80;
 
     // Buttons
     this.createButton(centerX - 100, 520, 'SAVE', () => this.saveAndExit());
     this.createButton(centerX + 100, 520, 'CANCEL', () => this.cancel());
-
-    // Instructions
-    const instructionText = this.add.text(centerX, 560, 
-      'Press ENTER to save or ESC to cancel', {
-      fontSize: '14px',
-      color: '#888888',
-    });
-    instructionText.setOrigin(0.5);
 
     // Keyboard shortcuts
     this.input.keyboard!.on('keydown-ENTER', () => this.saveAndExit());
@@ -103,27 +95,26 @@ export default class SettingsScene extends Scene {
 
   private createSlider(key: string, label: string, x: number, y: number, value: number): void {
     // Label
-    this.add.text(x - 250, y, label, {
-      fontSize: '18px',
+    this.add.text(x - 280, y, label, {
+      fontSize: '16px',
       color: '#ffffff',
     });
 
     // Value display
-    const valueText = this.add.text(x + 250, y, `${Math.round(value * 100)}%`, {
-      fontSize: '18px',
-      color: '#00ff00',
+    const valueText = this.add.text(x + 220, y, `${Math.round(value * 100)}%`, {
+      fontSize: '16px',
+      color: '#ffffff',
     });
 
     // Slider bar background
-    const barBg = this.add.rectangle(x, y, 300, 8, 0x333333);
+    const barBg = this.add.rectangle(x, y, 280, 6, 0x333333);
     
     // Slider bar fill
-    const barFill = this.add.rectangle(x - 150, y, value * 300, 8, 0x00ff00);
+    const barFill = this.add.rectangle(x - 140, y, value * 280, 6, 0xffffff);
     barFill.setOrigin(0, 0.5);
 
     // Slider handle
-    const handle = this.add.circle(x - 150 + value * 300, y, 12, 0xffffff);
-    handle.setStrokeStyle(2, 0x00ff00);
+    const handle = this.add.circle(x - 140 + value * 280, y, 10, 0xffffff);
     handle.setInteractive({ useHandCursor: true });
     this.input.setDraggable(handle);
 
@@ -132,11 +123,11 @@ export default class SettingsScene extends Scene {
 
     // Drag event
     handle.on('drag', (pointer: Phaser.Input.Pointer, dragX: number) => {
-      const sliderX = Math.max(x - 150, Math.min(x + 150, dragX));
+      const sliderX = Math.max(x - 140, Math.min(x + 140, dragX));
       handle.x = sliderX;
       
-      const newValue = (sliderX - (x - 150)) / 300;
-      barFill.width = newValue * 300;
+      const newValue = (sliderX - (x - 140)) / 280;
+      barFill.width = newValue * 280;
       valueText.setText(`${Math.round(newValue * 100)}%`);
       
       // Update settings
@@ -152,7 +143,7 @@ export default class SettingsScene extends Scene {
     });
 
     // Toggle box
-    const box = this.add.rectangle(x + 150, y, 50, 30, value ? 0x00aa00 : 0x666666);
+    const box = this.add.rectangle(x + 150, y, 50, 30, value ? 0xffffff : 0x666666);
     box.setStrokeStyle(2, 0xffffff);
     box.setInteractive({ useHandCursor: true });
 
@@ -161,7 +152,7 @@ export default class SettingsScene extends Scene {
       x + 150 + (value ? 10 : -10), 
       y, 
       10, 
-      0xffffff
+      value ? 0x000000 : 0xffffff
     );
 
     // Click to toggle
@@ -169,20 +160,21 @@ export default class SettingsScene extends Scene {
       const newValue = !(this.settings as any)[key];
       (this.settings as any)[key] = newValue;
       
-      box.setFillStyle(newValue ? 0x00aa00 : 0x666666);
+      box.setFillStyle(newValue ? 0xffffff : 0x666666);
+      indicator.setFillStyle(newValue ? 0x000000 : 0xffffff);
       indicator.x = x + 150 + (newValue ? 10 : -10);
     });
   }
 
   private createButton(x: number, y: number, text: string, onClick: () => void): void {
-    const bg = this.add.rectangle(0, 0, 140, 50, 0x00aa00);
+    const bg = this.add.rectangle(0, 0, 140, 50, 0xffffff);
     bg.setInteractive({ useHandCursor: true });
-    bg.setStrokeStyle(2, 0x00ff00);
+    bg.setStrokeStyle(2, 0xffffff);
 
     const label = this.add.text(0, 0, text, {
       fontSize: '20px',
       fontStyle: 'bold',
-      color: '#ffffff',
+      color: '#000000',
     });
     label.setOrigin(0.5);
 
@@ -190,22 +182,22 @@ export default class SettingsScene extends Scene {
 
     // Hover effects
     bg.on('pointerover', () => {
-      bg.setFillStyle(0x00cc00);
+      bg.setFillStyle(0xdddddd);
       label.setScale(1.1);
     });
 
     bg.on('pointerout', () => {
-      bg.setFillStyle(0x00aa00);
+      bg.setFillStyle(0xffffff);
       label.setScale(1);
     });
 
     bg.on('pointerdown', () => {
-      bg.setFillStyle(0x008800);
+      bg.setFillStyle(0xaaaaaa);
       label.setScale(0.95);
     });
 
     bg.on('pointerup', () => {
-      bg.setFillStyle(0x00cc00);
+      bg.setFillStyle(0xdddddd);
       label.setScale(1.1);
       onClick();
     });

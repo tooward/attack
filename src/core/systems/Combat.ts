@@ -123,7 +123,7 @@ export function checkHit(
     return null;
   }
 
-  console.log(`Checking hit: ${attacker.id} (${attacker.hitboxes.length} hitboxes) vs ${defender.id} (${defender.hurtboxes.length} hurtboxes)`);
+  // console.log(`Checking hit: ${attacker.id} (${attacker.hitboxes.length} hitboxes) vs ${defender.id} (${defender.hurtboxes.length} hurtboxes)`);
 
   // Check for any hitbox-hurtbox overlap
   for (const hitbox of attacker.hitboxes) {
@@ -138,7 +138,7 @@ export function checkHit(
           defender.position
         )
       ) {
-        console.log(`HIT! ${attacker.id} hit ${defender.id}`);
+        // console.log(`HIT! ${attacker.id} hit ${defender.id}`);
         // Hit detected - need move definition to get properties
         return {
           attackerId: attacker.id,
@@ -178,7 +178,7 @@ export function resolveHit(
 ): [FighterState, FighterState] {
   const wasBlocked = defender.status === FighterStatus.BLOCK;
 
-  console.log(`resolveHit called: ${attacker.id} -> ${defender.id}, damage=${move.damage}, blocked=${wasBlocked}, defender health=${defender.health}`);
+  // console.log(`resolveHit called: ${attacker.id} -> ${defender.id}, damage=${move.damage}, blocked=${wasBlocked}, defender health=${defender.health}`);
 
   if (wasBlocked) {
     // Blocked hit
