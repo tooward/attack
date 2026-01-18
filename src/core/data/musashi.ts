@@ -15,10 +15,10 @@ import {
   ProjectileDefinition
 } from '../interfaces/types';
 
-// Hurtboxes
-const STANDING_HURTBOX: Rect = { x: 0, y: 0, width: 60, height: 80 };
-const CROUCHING_HURTBOX: Rect = { x: 0, y: 20, width: 60, height: 60 };
-const AIRBORNE_HURTBOX: Rect = { x: -10, y: -10, width: 80, height: 100 };
+// Hurtboxes (positioned above ground - negative Y goes up, X centered at 0)
+const STANDING_HURTBOX: Rect = { x: 0, y: -80, width: 60, height: 80 };
+const CROUCHING_HURTBOX: Rect = { x: 0, y: -60, width: 60, height: 60 };
+const AIRBORNE_HURTBOX: Rect = { x: 0, y: -100, width: 80, height: 100 };
 
 // Move Definitions
 const LIGHT_PUNCH: MoveDefinition = {
@@ -40,13 +40,13 @@ const LIGHT_PUNCH: MoveDefinition = {
     [
       4,
       [
-        { x: 40, y: 20, width: 30, height: 20 }, // Frame 4 (startup complete)
+        { x: 40, y: -60, width: 30, height: 20 }, // Frame 4 (startup complete)
       ],
     ],
     [
       5,
       [
-        { x: 45, y: 20, width: 35, height: 20 }, // Frame 5 (extended)
+        { x: 45, y: -60, width: 35, height: 20 }, // Frame 5 (extended)
       ],
     ],
     [

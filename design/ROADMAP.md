@@ -156,7 +156,7 @@ Both tracks can proceed in parallel with these synchronization points:
 
 ### Next: Character System (Week 1-4)
 **Focus:** Add 3 unique characters with distinct playstyles
-- **Week 1:** Character data structure and stats system
+- **Week 1:** Character data structure and stats system + **Sprite mapping**
 - **Week 2:** Motion input detection (QCF, DP, charge moves)
 - **Week 3:** Special moves implementation (projectiles, invincibility, armor)
 - **Week 4:** Character-specific balance and ML training integration
@@ -168,7 +168,17 @@ Both tracks can proceed in parallel with these synchronization points:
 - 9 matchup training (3x3)
 - Updated user manual
 
-**See:** [design/CHARACTER-SYSTEM-PLAN.md](CHARACTER-SYSTEM-PLAN.md) for detailed implementation.
+**⚠️ KNOWN ISSUES:**
+- **Placeholder sprites:** Current sprite references use wrong/placeholder images
+  - Need to map enemy2/ → Kaze, enemy4/ → Tetsuo
+  - Missing DEFEND/BLOCK sprites for Kaze and Tetsuo
+  - Missing Hadoken projectile sprite for Musashi
+  - Missing unique special move animations
+  - See [SPRITE-MAPPING-PLAN.md](SPRITE-MAPPING-PLAN.md) for details
+
+**See:** 
+- [design/CHARACTER-SYSTEM-PLAN.md](CHARACTER-SYSTEM-PLAN.md) for detailed implementation
+- [design/SPRITE-MAPPING-PLAN.md](SPRITE-MAPPING-PLAN.md) for sprite asset mapping
 
 ---
 

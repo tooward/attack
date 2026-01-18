@@ -2,9 +2,9 @@ import { Scene } from 'phaser';
 import Player from '../entities/Player.js';
 import Explosion from '../entities/Explosion.js';
 import Bot from '../entities/Bot.js';
-import BotTrader from '../entities/BotTrader.js';
+// import BotTrader from '../entities/BotTrader.js'; // RPG mode only
 import InventoryManager from '../data/InventoryManager';
-import Coin from '../entities/Coin.js';
+// import Coin from '../entities/Coin.js'; // RPG mode only
 
 export default class BootScene extends Scene {
     constructor() {
@@ -50,11 +50,11 @@ export default class BootScene extends Scene {
         // Load bot assets using the static method from Bot class
         Bot.preload(this);
         
-        // Load trader assets using the static method from BotTrader class
-        BotTrader.preload(this);
+        // Load trader assets using the static method from BotTrader class (RPG mode only)
+        // BotTrader.preload(this);
         
-        // Load coin sprite
-        Coin.preload(this);
+        // Load coin sprite (RPG mode only)
+        // Coin.preload(this);
     }
 
     async create() {
@@ -62,7 +62,7 @@ export default class BootScene extends Scene {
         Player.createAnims(this);
         Explosion.createAnims(this);
         Bot.createAnims(this);
-        BotTrader.createAnims(this);
+        // BotTrader.createAnims(this); // RPG mode only
         
         // Initialize and load inventory items
         const inventoryManager = InventoryManager.getInstance();

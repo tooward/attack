@@ -14,10 +14,10 @@ import {
   MotionButton
 } from '../interfaces/types';
 
-// Hurtboxes (larger/wider than others - tank archetype)
-const STANDING_HURTBOX: Rect = { x: 0, y: 0, width: 70, height: 85 };
-const CROUCHING_HURTBOX: Rect = { x: 0, y: 25, width: 70, height: 60 };
-const AIRBORNE_HURTBOX: Rect = { x: -12, y: -12, width: 95, height: 110 };
+// Hurtboxes (larger/wider than others - tank archetype, X centered at 0)
+const STANDING_HURTBOX: Rect = { x: 0, y: -85, width: 70, height: 85 };
+const CROUCHING_HURTBOX: Rect = { x: 0, y: -60, width: 70, height: 60 };
+const AIRBORNE_HURTBOX: Rect = { x: 0, y: -110, width: 95, height: 110 };
 
 // Basic moves (slower than others, higher damage)
 const LIGHT_PUNCH: MoveDefinition = {

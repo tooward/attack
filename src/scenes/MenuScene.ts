@@ -65,22 +65,22 @@ export default class MenuScene extends Scene {
         .on('pointerdown', () => this.startMultiplayer())
         .setAlpha(0); // Hide initially
         
-        // Character Test button (initially invisible)
-        const characterTestButton = this.add.text(width / 2, height * 0.71, 'Character Test Lab', {
-            fontSize: `${height * 0.035}px`,
-            color: '#0ff',
-            padding: { x: 20, y: 10 },
-            backgroundColor: '#001'
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-        .on('pointerover', () => characterTestButton.setStyle({ color: '#ff0' }))
-        .on('pointerout', () => characterTestButton.setStyle({ color: '#0ff' }))
-        .on('pointerdown', () => this.startCharacterTest())
-        .setAlpha(0); // Hide initially
+        // Character Test button - DEPRECATED: Functionality moved to Practice Mode
+        // const characterTestButton = this.add.text(width / 2, height * 0.71, 'Character Test Lab', {
+        //     fontSize: `${height * 0.035}px`,
+        //     color: '#0ff',
+        //     padding: { x: 20, y: 10 },
+        //     backgroundColor: '#001'
+        // })
+        // .setOrigin(0.5)
+        // .setInteractive({ useHandCursor: true })
+        // .on('pointerover', () => characterTestButton.setStyle({ color: '#ff0' }))
+        // .on('pointerout', () => characterTestButton.setStyle({ color: '#0ff' }))
+        // .on('pointerdown', () => this.startCharacterTest())
+        // .setAlpha(0); // Hide initially
         
         // Settings button (initially invisible)
-        const settingsButton = this.add.text(width / 2, height * 0.83, 'Settings', {
+        const settingsButton = this.add.text(width / 2, height * 0.71, 'Settings', {
             fontSize: `${height * 0.04}px`,
             color: '#fff',
             padding: { x: 20, y: 10 },
@@ -95,7 +95,7 @@ export default class MenuScene extends Scene {
 
         // Show all buttons immediately (sun animation disabled)
         this.tweens.add({
-            targets: [this.startButton, practiceButton, multiplayerButton, characterTestButton, settingsButton],
+            targets: [this.startButton, practiceButton, multiplayerButton, settingsButton],
             alpha: 1,
             duration: 500,
             ease: 'Power2'
@@ -174,10 +174,11 @@ export default class MenuScene extends Scene {
         this.scene.start('MultiplayerMenuScene');
     }
 
-    startCharacterTest() {
-        // Launch Character Test Lab for balance testing
-        this.scene.start('CharacterTestScene');
-    }
+    // DEPRECATED: Character Test Lab functionality moved to Practice Mode (ESC menu)
+    // startCharacterTest() {
+    //     // Launch Character Test Lab for balance testing
+    //     this.scene.start('CharacterTestScene');
+    // }
     
     openSettings() {
         // Open settings menu

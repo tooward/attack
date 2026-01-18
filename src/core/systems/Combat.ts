@@ -50,6 +50,48 @@ export function rectsOverlap(
 }
 
 /**
+ * Check overlap between hitbox (uses facing) and hurtbox (centered)
+ */
+export function rectsOverlapMixed(
+  hitbox: Rect,
+  hitboxPos: { x: number; y: number },
+  hitboxFacing: number,
+  hurtbox: Rect,
+  hurtboxPos: { x: number; y: number }
+): boolean {
+  // Hitbox uses facing direction
+  const r1 = {
+    x: hitboxPos.x + (hitboxFacing === 1 ? hitbox.x : -hitbox.x - hitbox.width),
+    y: hitboxPos.y + hitbox.y,
+    width: hitbox.width,
+    height: hitbox.height,
+  };
+
+  // Hurtbox is centered (x=0 means centered, offset by -width/2)
+  const r2 = {
+    x: hurtboxPos.x + hurtbox.x - hurtbox.width / 2,
+    y: hurtboxPos.y + hurtbox.y,
+    width: hurtbox.width,
+    height: hurtbox.height,
+  };
+
+  console.log(`Hitbox: x=${r1.x.toFixed(0)}, y=${r1.y.toFixed(0)}, w=${r1.width}, h=${r1.height}`);
+  console.log(`Hurtbox: x=${r2.x.toFixed(0)}, y=${r2.y.toFixed(0)}, w=${r2.width}, h=${r2.height}`);
+
+  // AABB collision check
+  const overlaps = (
+    r1.x < r2.x + r2.width &&
+    r1.x + r1.width > r2.x &&
+    r1.y < r2.y + r2.height &&
+    r1.y + r1.height > r2.y
+  );
+  
+  console.log(`Overlap result: ${overlaps}`);
+  
+  return overlaps;
+}
+
+/**
  * Check if attacker's hitbox hits defender's hurtbox
  */
 export function checkHit(
@@ -81,19 +123,22 @@ export function checkHit(
     return null;
   }
 
+  console.log(`Checking hit: ${attacker.id} (${attacker.hitboxes.length} hitboxes) vs ${defender.id} (${defender.hurtboxes.length} hurtboxes)`);
+
   // Check for any hitbox-hurtbox overlap
   for (const hitbox of attacker.hitboxes) {
     for (const hurtbox of defender.hurtboxes) {
+      // Hitboxes use facing direction, hurtboxes are centered
       if (
-        rectsOverlap(
+        rectsOverlapMixed(
           hitbox,
           attacker.position,
           attacker.facing,
           hurtbox,
-          defender.position,
-          defender.facing
+          defender.position
         )
       ) {
+        console.log(`HIT! ${attacker.id} hit ${defender.id}`);
         // Hit detected - need move definition to get properties
         return {
           attackerId: attacker.id,
@@ -132,6 +177,8 @@ export function resolveHit(
   currentFrame: number
 ): [FighterState, FighterState] {
   const wasBlocked = defender.status === FighterStatus.BLOCK;
+
+  console.log(`resolveHit called: ${attacker.id} -> ${defender.id}, damage=${move.damage}, blocked=${wasBlocked}, defender health=${defender.health}`);
 
   if (wasBlocked) {
     // Blocked hit

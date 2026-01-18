@@ -14,10 +14,10 @@ import {
   MotionButton
 } from '../interfaces/types';
 
-// Hurtboxes (smaller/thinner than Musashi - rushdown archetype)
-const STANDING_HURTBOX: Rect = { x: 0, y: 0, width: 55, height: 78 };
-const CROUCHING_HURTBOX: Rect = { x: 0, y: 22, width: 55, height: 56 };
-const AIRBORNE_HURTBOX: Rect = { x: -8, y: -8, width: 70, height: 95 };
+// Hurtboxes (smaller/thinner than Musashi - rushdown archetype, X centered at 0)
+const STANDING_HURTBOX: Rect = { x: 0, y: -78, width: 55, height: 78 };
+const CROUCHING_HURTBOX: Rect = { x: 0, y: -56, width: 55, height: 56 };
+const AIRBORNE_HURTBOX: Rect = { x: 0, y: -95, width: 70, height: 95 };
 
 // Basic moves (faster than Musashi, lower damage)
 const LIGHT_PUNCH: MoveDefinition = {
@@ -39,13 +39,13 @@ const LIGHT_PUNCH: MoveDefinition = {
     [
       3,
       [
-        { x: 35, y: 18, width: 28, height: 18 },
+        { x: 35, y: -60, width: 28, height: 18 },
       ],
     ],
     [
       4,
       [
-        { x: 40, y: 18, width: 30, height: 18 },
+        { x: 40, y: -60, width: 30, height: 18 },
       ],
     ],
   ]),
@@ -78,19 +78,19 @@ const HEAVY_PUNCH: MoveDefinition = {
     [
       6,
       [
-        { x: 45, y: 14, width: 38, height: 28 },
+        { x: 45, y: -64, width: 38, height: 28 },
       ],
     ],
     [
       7,
       [
-        { x: 50, y: 14, width: 42, height: 28 },
+        { x: 50, y: -64, width: 42, height: 28 },
       ],
     ],
     [
       8,
       [
-        { x: 48, y: 14, width: 40, height: 28 },
+        { x: 48, y: -64, width: 40, height: 28 },
       ],
     ],
   ]),
@@ -225,19 +225,19 @@ const AIR_PUNCH: MoveDefinition = {
     [
       5,
       [
-        { x: 42, y: -8, width: 36, height: 28 },
+        { x: 45, y: -38, width: 35, height: 25 },
       ],
     ],
     [
       6,
       [
-        { x: 42, y: -8, width: 36, height: 28 },
+        { x: 50, y: -38, width: 40, height: 25 },
       ],
     ],
     [
       7,
       [
-        { x: 40, y: -8, width: 34, height: 28 },
+        { x: 48, y: -38, width: 38, height: 25 },
       ],
     ],
   ]),

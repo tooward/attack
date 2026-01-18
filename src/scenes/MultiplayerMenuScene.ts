@@ -208,7 +208,7 @@ export class MultiplayerMenuScene extends Phaser.Scene {
     }
     
     // Return to main menu
-    this.scene.start('MainMenuScene');
+    this.scene.start('MenuScene');
   }
 
   private updateUI() {
@@ -313,7 +313,7 @@ export class MultiplayerMenuScene extends Phaser.Scene {
         title.destroy();
         message.destroy();
         okButton.destroy();
-        this.scene.start('MainMenuScene');
+        this.scene.start('MenuScene');
       }
     );
   }

@@ -129,15 +129,16 @@ function getProjectileWorldHitbox(projectile: ProjectileState): Rect {
 }
 
 /**
- * Get world-space hurtbox for fighter
+ * Get world-space hurtbox for fighter (centered positioning)
  */
 function getFighterWorldHurtbox(fighter: FighterState): Rect | null {
   if (fighter.hurtboxes.length === 0) return null;
   
   // Use first hurtbox (assuming single hurtbox per fighter)
   const hurtbox = fighter.hurtboxes[0];
+  // Hurtboxes are centered (x=0 means centered, offset by -width/2)
   return {
-    x: fighter.position.x + hurtbox.x,
+    x: fighter.position.x + hurtbox.x - hurtbox.width / 2,
     y: fighter.position.y + hurtbox.y,
     width: hurtbox.width,
     height: hurtbox.height,

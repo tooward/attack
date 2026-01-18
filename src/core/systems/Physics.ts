@@ -5,7 +5,7 @@
  * NOT a general physics engine - tailored for fighting game mechanics.
  */
 
-import { FighterState, Vector2, ArenaConfig } from '../interfaces/types';
+import { FighterState, Vector2, ArenaConfig, FighterStatus } from '../interfaces/types';
 
 // Physics constants
 const GRAVITY = 0.8;           // Pixels per frame^2
@@ -69,12 +69,14 @@ export function checkGrounded(
   const isOnGround = fighter.position.y >= groundLevel;
 
   if (isOnGround && !fighter.isGrounded) {
-    // Landing
+    // Landing - reset status to IDLE if jumping
+    const newStatus = fighter.status === FighterStatus.JUMP ? FighterStatus.IDLE : fighter.status;
     return {
       ...fighter,
       position: { ...fighter.position, y: groundLevel },
       velocity: { ...fighter.velocity, y: 0 },
       isGrounded: true,
+      status: newStatus,
     };
   } else if (!isOnGround && fighter.isGrounded) {
     // Leaving ground

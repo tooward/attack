@@ -9,6 +9,8 @@ import { Scene } from 'phaser';
 import { GameState, CharacterDefinition, InputFrame, FighterState, InputAction } from '../core/interfaces/types';
 import { createInitialState, tick, startNextRound } from '../core/Game';
 import { MUSASHI } from '../core/data/musashi';
+import { KAZE } from '../core/data/kaze';
+import { TETSUO } from '../core/data/tetsuo';
 import { FighterSprite } from '../phaser/FighterSprite';
 import { InputHandler } from '../phaser/InputHandler';
 import { AudioManager } from '../phaser/AudioManager';
@@ -51,6 +53,7 @@ export default class PhaserGameScene extends Scene {
   private touchControls?: TouchControlsOverlay;
   private inputDebugText?: Phaser.GameObjects.Text;
   private debugKey!: Phaser.Input.Keyboard.Key;
+  private debugToggleKey!: Phaser.Input.Keyboard.Key;
   private botSwitchKey!: Phaser.Input.Keyboard.Key;
   private trainingModeKey!: Phaser.Input.Keyboard.Key;
   private resetPositionKey!: Phaser.Input.Keyboard.Key;
@@ -69,8 +72,25 @@ export default class PhaserGameScene extends Scene {
   private instructionsText?: Phaser.GameObjects.Text;
   private currentMenu: 'main' | 'moves' | null = null;
   private botShortName: string = '';
-  private currentMenu: 'main' | 'moves' | null = null;
-  private botShortName: string = '';
+  
+  // Pause menu
+  private pauseMenu?: Phaser.GameObjects.Container;
+  private isPaused: boolean = false;
+  private pauseKey!: Phaser.Input.Keyboard.Key;
+  
+  // Character selection (for in-match switching)
+  private characterOptions = [
+    { id: 'musashi', name: 'MUSASHI', color: 0x4488ff },
+    { id: 'kaze', name: 'KAZE', color: 0xff8844 },
+    { id: 'tetsuo', name: 'TETSUO', color: 0x44ff88 }
+  ];
+  private characterSelectOverlay?: Phaser.GameObjects.Container;
+  private selectedP1Index: number = 0;
+  private selectedP2Index: number = 0;
+  
+  // Information display area constants
+  private readonly INFO_DISPLAY_Y = 505;
+  private readonly INFO_DISPLAY_HEIGHT = 85;
 
   // AI
   private aiBot!: RandomBot | PersonalityBot | NeuralBot | ScriptedBot;
@@ -137,7 +157,7 @@ export default class PhaserGameScene extends Scene {
     this.load.spritesheet('player_hurt', 'assets/player/HURT.png', { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('player_death', 'assets/player/DEATH.png', { frameWidth: 96, frameHeight: 96 });
     
-    // Load enemy sprite sheets (64x64 frames)
+    // Load enemy sprite sheets (64x64 frames) - legacy
     this.load.spritesheet('enemy_idle', 'assets/enemy/IDLE.png', { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet('enemy_run', 'assets/enemy/RUN.png', { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet('enemy_jump', 'assets/enemy/JUMP.png', { frameWidth: 64, frameHeight: 64 });
@@ -148,6 +168,30 @@ export default class PhaserGameScene extends Scene {
     this.load.spritesheet('enemy_defence', 'assets/enemy/DEFENCE.png', { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet('enemy_hurt', 'assets/enemy/HURT.png', { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet('enemy_death', 'assets/enemy/DEATH.png', { frameWidth: 64, frameHeight: 64 });
+    
+    // Load Kaze sprite sheets (enemy2 folder, 128x64 frames - 8 frames per animation)
+    this.load.spritesheet('kaze_idle', 'assets/enemy2/IDLE.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_run', 'assets/enemy2/RUN.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_jump', 'assets/enemy2/JUMP.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_dash', 'assets/enemy2/DASH.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_attack1', 'assets/enemy2/ATTACK 1.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_attack2', 'assets/enemy2/ATTACK 2.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_attack3', 'assets/enemy2/ATTACK 3.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_dash_attack', 'assets/enemy2/DASH ATTACK.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_hurt', 'assets/enemy2/HURT.png', { frameWidth: 128, frameHeight: 64 });
+    this.load.spritesheet('kaze_death', 'assets/enemy2/DEATH.png', { frameWidth: 128, frameHeight: 64 });
+    
+    // Load Tetsuo sprite sheets (enemy4 folder, 96x96 frames)
+    this.load.spritesheet('tetsuo_idle', 'assets/enemy4/IDLE.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('tetsuo_run', 'assets/enemy4/RUN.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('tetsuo_jump', 'assets/enemy4/JUMP.png', { frameWidth: 96, frameHeight: 96 });
+    // this.load.spritesheet('tetsuo_dash', 'assets/enemy4/DASH.png', { frameWidth: 96, frameHeight: 96 }); // File missing
+    this.load.spritesheet('tetsuo_attack1', 'assets/enemy4/ATTACK 1.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('tetsuo_attack2', 'assets/enemy4/ATTACK 2.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('tetsuo_attack3', 'assets/enemy4/ATTACK 3.png', { frameWidth: 96, frameHeight: 96 });
+    // this.load.spritesheet('tetsuo_dash_attack', 'assets/enemy4/DASH ATTACK.png', { frameWidth: 96, frameHeight: 96 }); // File missing
+    this.load.spritesheet('tetsuo_hurt', 'assets/enemy4/HURT.png', { frameWidth: 96, frameHeight: 96 });
+    this.load.spritesheet('tetsuo_death', 'assets/enemy4/DEATH.png', { frameWidth: 96, frameHeight: 96 });
   }
 
   create(): void {
@@ -162,19 +206,26 @@ export default class PhaserGameScene extends Scene {
     this.createAnimations();
 
     // Initialize character definitions
-    this.characterDefs = new Map([['musashi', MUSASHI]]);
+    this.characterDefs = new Map([
+      ['musashi', MUSASHI],
+      ['kaze', KAZE],
+      ['tetsuo', TETSUO]
+    ]);
 
     // Initialize core game state
+    const player1Character = this.registry.get('player1Character') || 'musashi';
+    const player2Character = this.registry.get('player2Character') || 'musashi';
+    
     const config = {
       entities: [
         {
-          characterId: 'musashi',
+          characterId: player1Character,
           id: 'player1',
           teamId: 0,
           startPosition: { x: 300, y: 500 },
         },
         {
-          characterId: 'musashi',
+          characterId: player2Character,
           id: 'player2',
           teamId: 1,
           startPosition: { x: 700, y: 500 },
@@ -290,6 +341,7 @@ export default class PhaserGameScene extends Scene {
     }
     
     this.debugKey = this.input.keyboard!.addKey('F1');
+    this.debugToggleKey = this.input.keyboard!.addKey('F10');
     this.botSwitchKey = this.input.keyboard!.addKey('F2');
     this.helpKey = this.input.keyboard!.addKey('F1'); // Reusing F1 for help menu
     this.movesKey = this.input.keyboard!.addKey('F2'); // Reusing F2 for moves
@@ -297,6 +349,7 @@ export default class PhaserGameScene extends Scene {
     this.resetPositionKey = this.input.keyboard!.addKey('F4');
     this.resetHealthKey = this.input.keyboard!.addKey('F6');
     this.infiniteMeterKey = this.input.keyboard!.addKey('F5');
+    this.pauseKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     // Initialize AI bots (skip for online matches)
     if (!this.isOnlineMatch) {
@@ -377,6 +430,15 @@ export default class PhaserGameScene extends Scene {
     });
     this.roundText.setOrigin(0.5, 0);
 
+    // Add visual ground line
+    const groundLine = this.add.graphics();
+    groundLine.lineStyle(2, 0x555555, 0.5);
+    groundLine.beginPath();
+    groundLine.moveTo(0, 500);
+    groundLine.lineTo(1000, 500);
+    groundLine.strokePath();
+    groundLine.setDepth(5);
+
     this.timeText = this.add.text(500, 50, '', {
       fontSize: '20px',
       color: '#ffff00',
@@ -388,17 +450,14 @@ export default class PhaserGameScene extends Scene {
       color: '#00ff00',
     });
 
-    // Instructions text at bottom showing available keys
-    this.instructionsText = this.add.text(500, 560, 
-      'F1: Help | F2: Special Moves', {
+    // Instructions removed to reduce clutter
+    this.instructionsText = this.add.text(500, 560, '', {
       fontSize: '11px',
       color: '#888888',
       align: 'center',
     });
     this.instructionsText.setOrigin(0.5, 1);
-    if (this.touchControls) {
-      this.instructionsText.setVisible(false);
-    }
+    this.instructionsText.setVisible(false);
 
     // Difficulty and Style indicators (for ML bot)
     this.difficultyText = this.add.text(850, 560, 
@@ -417,7 +476,7 @@ export default class PhaserGameScene extends Scene {
     this.styleText.setOrigin(0, 1);
     this.styleText.setVisible(false);
 
-    // Input display for both players
+    // Input display for both players (hidden to reduce clutter)
     this.inputDisplayTexts = new Map();
     this.inputDisplayTexts.set('player1', this.add.text(150, 540, '', {
       fontSize: '20px',
@@ -425,7 +484,7 @@ export default class PhaserGameScene extends Scene {
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 3,
-    }).setOrigin(0.5, 1));
+    }).setOrigin(0.5, 1).setVisible(false));
 
     this.inputDisplayTexts.set('player2', this.add.text(850, 540, '', {
       fontSize: '20px',
@@ -433,7 +492,7 @@ export default class PhaserGameScene extends Scene {
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 3,
-    }).setOrigin(0.5, 1));
+    }).setOrigin(0.5, 1).setVisible(false));
 
     // Initialize match end UI
     this.matchEndContainer = null;
@@ -611,6 +670,148 @@ export default class PhaserGameScene extends Scene {
       frameRate: 10,
       repeat: 0
     });
+    
+    // Kaze animations (fast rushdown fighter)
+    this.anims.create({
+      key: 'kaze_idle_anim',
+      frames: this.anims.generateFrameNumbers('kaze_idle', { start: 0, end: -1 }),
+      frameRate: 8,
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'kaze_run_anim',
+      frames: this.anims.generateFrameNumbers('kaze_run', { start: 0, end: -1 }),
+      frameRate: 14, // Faster than others (rushdown archetype)
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'kaze_jump_anim',
+      frames: this.anims.generateFrameNumbers('kaze_jump', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'kaze_dash_anim',
+      frames: this.anims.generateFrameNumbers('kaze_dash', { start: 0, end: -1 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'kaze_attack1_anim',
+      frames: this.anims.generateFrameNumbers('kaze_attack1', { start: 0, end: -1 }),
+      frameRate: 18, // Faster attacks
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'kaze_attack2_anim',
+      frames: this.anims.generateFrameNumbers('kaze_attack2', { start: 0, end: -1 }),
+      frameRate: 16,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'kaze_attack3_anim',
+      frames: this.anims.generateFrameNumbers('kaze_attack3', { start: 0, end: -1 }),
+      frameRate: 17,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'kaze_dash_attack_anim',
+      frames: this.anims.generateFrameNumbers('kaze_dash_attack', { start: 0, end: -1 }),
+      frameRate: 16,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'kaze_hurt_anim',
+      frames: this.anims.generateFrameNumbers('kaze_hurt', { start: 0, end: -1 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'kaze_death_anim',
+      frames: this.anims.generateFrameNumbers('kaze_death', { start: 0, end: -1 }),
+      frameRate: 10,
+      repeat: 0
+    });
+    
+    // Tetsuo animations (slow grappler)
+    this.anims.create({
+      key: 'tetsuo_idle_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_idle', { start: 0, end: -1 }),
+      frameRate: 6, // Slower, heavier idle
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'tetsuo_run_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_run', { start: 0, end: -1 }),
+      frameRate: 10, // Slower run (grappler archetype)
+      repeat: -1
+    });
+
+    this.anims.create({
+      key: 'tetsuo_jump_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_jump', { start: 0, end: -1 }),
+      frameRate: 8,
+      repeat: 0
+    });
+
+    // this.anims.create({
+    //   key: 'tetsuo_dash_anim',
+    //   frames: this.anims.generateFrameNumbers('tetsuo_dash', { start: 0, end: -1 }),
+    //   frameRate: 12,
+    //   repeat: 0
+    // }); // Sprite file missing
+
+    this.anims.create({
+      key: 'tetsuo_attack1_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_attack1', { start: 0, end: -1 }),
+      frameRate: 12, // Slower but heavier attacks
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'tetsuo_attack2_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_attack2', { start: 0, end: -1 }),
+      frameRate: 11,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'tetsuo_attack3_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_attack3', { start: 0, end: -1 }),
+      frameRate: 13,
+      repeat: 0
+    });
+
+    // this.anims.create({
+    //   key: 'tetsuo_dash_attack_anim',
+    //   frames: this.anims.generateFrameNumbers('tetsuo_dash_attack', { start: 0, end: -1 }),
+    //   frameRate: 14,
+    //   repeat: 0
+    // }); // Sprite file missing
+
+    this.anims.create({
+      key: 'tetsuo_hurt_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_hurt', { start: 0, end: -1 }),
+      frameRate: 10,
+      repeat: 0
+    });
+
+    this.anims.create({
+      key: 'tetsuo_death_anim',
+      frames: this.anims.generateFrameNumbers('tetsuo_death', { start: 0, end: -1 }),
+      frameRate: 8, // Slower death (heavy fall)
+      repeat: 0
+    });
   }
 
   /**
@@ -701,11 +902,37 @@ export default class PhaserGameScene extends Scene {
         this.onlineManager.destroy();
       }
       this.registry.remove('onlineMatch');
-      this.scene.start('MainMenuScene');
+      this.scene.start('MenuScene');
     });
   }
 
   update(time: number, delta: number): void {
+    // Skip game logic when paused
+    if (this.isPaused) {
+      return;
+    }
+    
+    // Toggle hitbox debug (F10)
+    if (Phaser.Input.Keyboard.JustDown(this.debugToggleKey)) {
+      this.debugMode = !this.debugMode;
+      console.log(`Hitbox Debug: ${this.debugMode ? 'ON' : 'OFF'} (F10 to toggle)`);
+    }
+    
+    // Toggle pause menu
+    if (Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
+      // Close moves menu if open
+      if (this.movesOverlay) {
+        this.toggleMovesMenu();
+      }
+      // Close help menu if open
+      if (this.helpOverlay) {
+        this.toggleHelpMenu();
+      }
+      // Toggle pause
+      this.togglePauseMenu();
+      return;
+    }
+    
     // Toggle menu (F1)
     if (Phaser.Input.Keyboard.JustDown(this.helpKey)) {
       if (this.currentMenu === 'moves') {
@@ -1349,11 +1576,29 @@ export default class PhaserGameScene extends Scene {
   private drawDebugOverlays(): void {
     this.debugGraphics.clear();
 
+    // Draw ground level reference line
+    this.debugGraphics.lineStyle(2, 0x00ff00, 1.0);
+    this.debugGraphics.beginPath();
+    this.debugGraphics.moveTo(0, this.gameState.arena.groundLevel);
+    this.debugGraphics.lineTo(1000, this.gameState.arena.groundLevel);
+    this.debugGraphics.strokePath();
+
     for (const fighter of this.gameState.entities) {
-      // Draw hurtboxes (blue)
+      // Draw fighter position marker (yellow cross at fighter.position.y)
+      this.debugGraphics.lineStyle(2, 0xffff00, 1.0);
+      const posX = fighter.position.x;
+      const posY = fighter.position.y;
+      this.debugGraphics.beginPath();
+      this.debugGraphics.moveTo(posX - 10, posY);
+      this.debugGraphics.lineTo(posX + 10, posY);
+      this.debugGraphics.moveTo(posX, posY - 10);
+      this.debugGraphics.lineTo(posX, posY + 10);
+      this.debugGraphics.strokePath();
+      
+      // Draw hurtboxes (blue) - centered on character, not affected by facing
       this.debugGraphics.lineStyle(2, 0x0000ff, 0.8);
       for (const box of fighter.hurtboxes) {
-        const worldX = fighter.position.x + box.x * fighter.facing;
+        const worldX = fighter.position.x + box.x - box.width / 2;
         const worldY = fighter.position.y + box.y;
         this.debugGraphics.strokeRect(worldX, worldY, box.width, box.height);
       }
@@ -1369,16 +1614,16 @@ export default class PhaserGameScene extends Scene {
       // Draw state info text
       const debugText = [
         `${fighter.id}`,
+        `Pos: ${fighter.position.x.toFixed(0)}, ${fighter.position.y.toFixed(0)}`,
         `Status: ${fighter.status}`,
         `Move: ${fighter.currentMove || 'none'}`,
         `Frame: ${fighter.moveFrame}`,
-        `Combo: ${fighter.comboCount}`,
-        `Stun: ${fighter.stunFramesRemaining}`,
+        `Grounded: ${fighter.isGrounded}`,
       ].join('\n');
 
       const textObj = this.add.text(
         fighter.position.x,
-        fighter.position.y - 120,
+        fighter.position.y - 140,
         debugText,
         {
           fontSize: '10px',
@@ -2448,28 +2693,28 @@ export default class PhaserGameScene extends Scene {
 
     // Position below ground line
     const centerX = 500;
-    const baseY = 505;
+    const baseY = this.INFO_DISPLAY_Y;
     
     // Controls list in compact 3-column format
     const leftControls = [
-      'Arrow Keys - Move',
+      '← → - Walk Left/Right',
+      '↑ - Jump (+ direction for arc)',
       'Z - Light Attack',
-      'X - Heavy Attack',
-      'C - Special Move'
+      'X - Heavy Attack'
     ];
     
     const middleControls = [
+      'C - Special Move',
       'V - Block',
-      'ESC - Pause',
-      'F1 - Help Menu',
+      'ESC - Pause Menu',
       'F2 - Special Moves'
     ];
     
     const rightControls = [
-      'F3 - Switch Bot',
-      'F4 - Reset Position',
-      'F5 - Infinite Meter',
-      'F6 - Reset Health'
+      'Pause Menu (ESC):',
+      '- Change Characters',
+      '- Reset Match',
+      '- Change Opponent'
     ];
 
     const leftText = this.add.text(-280, 0, leftControls.join('\n'), {
@@ -2519,7 +2764,7 @@ export default class PhaserGameScene extends Scene {
 
     // Position below ground line
     const centerX = 500;
-    const baseY = 505;
+    const baseY = this.INFO_DISPLAY_Y;
     
     // Header with return instruction
     const header = this.add.text(0, 0, this.touchControls ? 'SPECIAL MOVES (Tap to close)' : 'SPECIAL MOVES (F1: Back)', {
@@ -2568,5 +2813,323 @@ export default class PhaserGameScene extends Scene {
     this.movesOverlay = this.add.container(centerX, baseY, [header, leftText, rightText]);
     this.movesOverlay.setDepth(2000);
     this.currentMenu = 'moves';
+  }
+
+  /**
+   * Toggle pause menu (ESC key)
+   */
+  private togglePauseMenu(): void {
+    if (this.pauseMenu) {
+      // Resume game
+      this.pauseMenu.destroy();
+      this.pauseMenu = undefined;
+      this.isPaused = false;
+      
+      // Show instructions again
+      if (this.instructionsText) {
+        this.instructionsText.setVisible(!this.touchControls);
+      }
+      return;
+    }
+
+    // Pause game
+    this.isPaused = true;
+    
+    // Hide instructions
+    if (this.instructionsText) {
+      this.instructionsText.setVisible(false);
+    }
+
+    // Create dark overlay
+    const overlay = this.add.rectangle(
+      0, 0,
+      this.cameras.main.width,
+      this.cameras.main.height,
+      0x000000, 0.7
+    ).setOrigin(0);
+
+    // Create menu container
+    this.pauseMenu = this.add.container(500, 300);
+    this.pauseMenu.add(overlay);
+    this.pauseMenu.setDepth(3000);
+
+    // Title
+    const title = this.add.text(0, -150, 'PRACTICE MENU', {
+      fontSize: '32px',
+      color: '#ffff00',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    this.pauseMenu.add(title);
+
+    // Menu options
+    const options = [
+      { text: 'Resume', action: () => this.togglePauseMenu() },
+      { text: 'Show Moves List', action: () => this.showMovesFromPause() },
+      { text: 'Change Characters', action: () => this.showCharacterSelect() },
+      { text: 'Reset Match', action: () => this.resetMatch() },
+      { text: 'Change Opponent', action: () => this.changeOpponent() },
+      { text: 'Main Menu', action: () => this.returnToMainMenu() }
+    ];
+
+    const startY = -50;
+    const spacing = 60;
+
+    options.forEach((option, index) => {
+      const y = startY + (index * spacing);
+      
+      // Background button
+      const btn = this.add.rectangle(0, y, 300, 50, 0x333333);
+      btn.setInteractive({ useHandCursor: true });
+      
+      // Text
+      const text = this.add.text(0, y, option.text, {
+        fontSize: '20px',
+        color: '#ffffff'
+      }).setOrigin(0.5);
+      
+      // Hover effects
+      btn.on('pointerover', () => {
+        btn.setFillStyle(0x555555);
+        text.setColor('#ffff00');
+      });
+      
+      btn.on('pointerout', () => {
+        btn.setFillStyle(0x333333);
+        text.setColor('#ffffff');
+      });
+      
+      btn.on('pointerdown', () => {
+        option.action();
+      });
+      
+      this.pauseMenu!.add(btn);
+      this.pauseMenu!.add(text);
+    });
+
+    // ESC hint
+    const hint = this.add.text(0, 250, 'ESC to Resume', {
+      fontSize: '14px',
+      color: '#888888'
+    }).setOrigin(0.5);
+    this.pauseMenu!.add(hint);
+  }
+
+  /**
+   * Show moves list from pause menu
+   */
+  private showMovesFromPause(): void {
+    // Close pause menu
+    this.togglePauseMenu();
+    // Open moves overlay (use existing toggleMovesMenu)
+    if (!this.movesOverlay) {
+      this.toggleMovesMenu();
+    }
+  }
+
+  /**
+   * Show character select overlay
+   */
+  private showCharacterSelect(): void {
+    // Close pause menu first
+    this.togglePauseMenu();
+    
+    // Initialize character indices based on current characters
+    const p1CharId = this.registry.get('player1Character') || 'musashi';
+    const p2CharId = this.registry.get('player2Character') || 'musashi';
+    this.selectedP1Index = this.characterOptions.findIndex(c => c.id === p1CharId);
+    this.selectedP2Index = this.characterOptions.findIndex(c => c.id === p2CharId);
+    if (this.selectedP1Index === -1) this.selectedP1Index = 0;
+    if (this.selectedP2Index === -1) this.selectedP2Index = 0;
+    
+    // Create overlay
+    const overlay = this.add.rectangle(
+      0, 0,
+      this.cameras.main.width,
+      this.cameras.main.height,
+      0x000000, 0.8
+    ).setOrigin(0);
+    
+    this.characterSelectOverlay = this.add.container(500, 300);
+    this.characterSelectOverlay.add(overlay);
+    this.characterSelectOverlay.setDepth(3000);
+    
+    // Title
+    const title = this.add.text(0, -200, 'CHANGE CHARACTERS', {
+      fontSize: '28px',
+      color: '#ffff00',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    this.characterSelectOverlay.add(title);
+    
+    // P1 selector (left)
+    this.createCharacterSelector(-200, -100, 'PLAYER 1', true);
+    
+    // P2 selector (right)
+    this.createCharacterSelector(200, -100, 'OPPONENT', false);
+    
+    // VS text
+    const vsText = this.add.text(0, -50, 'VS', {
+      fontSize: '32px',
+      color: '#ffff00',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    this.characterSelectOverlay.add(vsText);
+    
+    // Confirm button
+    const confirmBtn = this.add.rectangle(0, 180, 200, 50, 0x44ff44);
+    confirmBtn.setInteractive({ useHandCursor: true });
+    const confirmText = this.add.text(0, 180, 'CONFIRM', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    
+    confirmBtn.on('pointerover', () => confirmBtn.setFillStyle(0x66ff66));
+    confirmBtn.on('pointerout', () => confirmBtn.setFillStyle(0x44ff44));
+    confirmBtn.on('pointerdown', () => this.applyCharacterChanges());
+    
+    this.characterSelectOverlay.add(confirmBtn);
+    this.characterSelectOverlay.add(confirmText);
+    
+    // Cancel button
+    const cancelBtn = this.add.rectangle(0, 240, 200, 50, 0xff4444);
+    cancelBtn.setInteractive({ useHandCursor: true });
+    const cancelText = this.add.text(0, 240, 'CANCEL', {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    
+    cancelBtn.on('pointerover', () => cancelBtn.setFillStyle(0xff6666));
+    cancelBtn.on('pointerout', () => cancelBtn.setFillStyle(0xff4444));
+    cancelBtn.on('pointerdown', () => this.closeCharacterSelect());
+    
+    this.characterSelectOverlay.add(cancelBtn);
+    this.characterSelectOverlay.add(cancelText);
+  }
+
+  /**
+   * Create character selector component
+   */
+  private createCharacterSelector(x: number, y: number, label: string, isP1: boolean): void {
+    const container = this.add.container(x, y);
+    
+    // Label
+    const labelText = this.add.text(0, -80, label, {
+      fontSize: '16px',
+      color: '#aaaaaa'
+    }).setOrigin(0.5);
+    container.add(labelText);
+    
+    // Current character display
+    const currentIndex = isP1 ? this.selectedP1Index : this.selectedP2Index;
+    const character = this.characterOptions[currentIndex];
+    
+    const charBox = this.add.rectangle(0, 0, 150, 100, character.color);
+    container.add(charBox);
+    
+    const charName = this.add.text(0, 0, character.name, {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    container.add(charName);
+    
+    // Left arrow
+    const leftArrow = this.add.text(-80, 0, '◀', {
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    leftArrow.setInteractive({ useHandCursor: true });
+    leftArrow.on('pointerover', () => leftArrow.setColor('#ffff00'));
+    leftArrow.on('pointerout', () => leftArrow.setColor('#ffffff'));
+    leftArrow.on('pointerdown', () => {
+      if (isP1) {
+        this.selectedP1Index = (this.selectedP1Index - 1 + this.characterOptions.length) % this.characterOptions.length;
+      } else {
+        this.selectedP2Index = (this.selectedP2Index - 1 + this.characterOptions.length) % this.characterOptions.length;
+      }
+      this.refreshCharacterSelect();
+    });
+    container.add(leftArrow);
+    
+    // Right arrow
+    const rightArrow = this.add.text(80, 0, '▶', {
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    rightArrow.setInteractive({ useHandCursor: true });
+    rightArrow.on('pointerover', () => rightArrow.setColor('#ffff00'));
+    rightArrow.on('pointerout', () => rightArrow.setColor('#ffffff'));
+    rightArrow.on('pointerdown', () => {
+      if (isP1) {
+        this.selectedP1Index = (this.selectedP1Index + 1) % this.characterOptions.length;
+      } else {
+        this.selectedP2Index = (this.selectedP2Index + 1) % this.characterOptions.length;
+      }
+      this.refreshCharacterSelect();
+    });
+    container.add(rightArrow);
+    
+    this.characterSelectOverlay!.add(container);
+  }
+
+  /**
+   * Refresh character select overlay
+   */
+  private refreshCharacterSelect(): void {
+    // Rebuild the overlay
+    this.closeCharacterSelect();
+    this.showCharacterSelect();
+  }
+
+  /**
+   * Close character select overlay
+   */
+  private closeCharacterSelect(): void {
+    this.characterSelectOverlay?.destroy();
+    this.characterSelectOverlay = undefined;
+  }
+
+  /**
+   * Apply character changes and restart match
+   */
+  private applyCharacterChanges(): void {
+    const p1Char = this.characterOptions[this.selectedP1Index].id;
+    const p2Char = this.characterOptions[this.selectedP2Index].id;
+    
+    // Store in registry
+    this.registry.set('player1Character', p1Char);
+    this.registry.set('player2Character', p2Char);
+    
+    // Close overlay
+    this.closeCharacterSelect();
+    
+    // Restart scene to apply changes
+    this.scene.restart();
+  }
+
+  /**
+   * Reset match positions and health
+   */
+  private resetMatch(): void {
+    // Reset positions and health
+    this.resetFighterPositions();
+    this.resetFighterHealth();
+    this.togglePauseMenu();
+  }
+
+  /**
+   * Change opponent - return to bot selection
+   */
+  private changeOpponent(): void {
+    this.scene.start('BotSelectionScene');
+  }
+
+  /**
+   * Return to main menu
+   */
+  private returnToMainMenu(): void {
+    this.scene.start('MenuScene');
   }
 }

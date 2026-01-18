@@ -18,7 +18,13 @@ This is a javascript game that uses the the latest version 3.88.2 of the Phaser 
 ## Exhibition/Practice Mode
 - Accessible via "Practice Mode" button on main menu
 - 5 bot personalities with 10 difficulty levels each
+- **In-match pause menu (ESC)** for training tools:
+  - Change characters without leaving match
+  - Reset match positions and health
+  - View move list
+  - Change opponent or return to main menu
 - Full keyboard navigation support (arrow keys, enter, escape, +/-)
+- Move list display (F2 quick toggle)
 - Post-match options include Replay, Change Opponent, and Main Menu
 - Visual feedback with card animations and color coding
 
@@ -27,3 +33,4 @@ This is a javascript game that uses the the latest version 3.88.2 of the Phaser 
 - Avoid apologizing or making conciliatory statements.
 - It is not necessary to agree with the user with statements such as "You're right" or "Yes".
 - Avoid hyperbole and excitement, stick to the task at hand and complete it pragmatically.
+- When I show you a failure first try to recreate the issue with a unit test. Then respond with a proposed fix and after we agree, fix the issue.

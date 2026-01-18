@@ -22,9 +22,24 @@ interface BotInfo {
   color: number;
 }
 
+type CharacterInfo = {
+  id: string;
+  name: string;
+  spriteKey: string;
+  color: number;
+};
+
 export default class BotSelectionScene extends Scene {
   private selectedBotIndex: number = 0;
   private selectedDifficulty: number = 5;
+  private selectedPlayer1CharIndex: number = 0;
+  private selectedPlayer2CharIndex: number = 0;
+  
+  private characters: CharacterInfo[] = [
+    { id: 'musashi', name: 'Musashi', spriteKey: 'player_idle', color: 0x4488ff },
+    { id: 'kaze', name: 'Kaze', spriteKey: 'kaze_idle', color: 0xff8844 },
+    { id: 'tetsuo', name: 'Tetsuo', spriteKey: 'tetsuo_idle', color: 0x44ff88 }
+  ];
   
   private bots: BotInfo[] = [
     {
@@ -91,11 +106,14 @@ export default class BotSelectionScene extends Scene {
     this.add.rectangle(0, 0, width, height, 0x1a1a1a).setOrigin(0);
 
     // Title
-    this.add.text(width / 2, 40, 'Practice Mode - Select Opponent', {
+    this.add.text(width / 2, 30, 'Practice Mode', {
       fontSize: `${height * 0.045}px`,
       color: '#fff',
       fontStyle: 'bold'
     }).setOrigin(0.5);
+
+    // Character selection section
+    this.createCharacterSelection(width, height);
 
     // Bot selection area
     this.createBotCards(width, height);
@@ -106,31 +124,105 @@ export default class BotSelectionScene extends Scene {
     // Action buttons
     this.createActionButtons(width, height);
 
-    // Controls hint
-    this.add.text(width / 2, height - 20, 'Arrow Keys: Navigate | Enter: Start | Esc: Back | +/-: Adjust Difficulty', {
-      fontSize: `${height * 0.018}px`,
-      color: '#888'
-    }).setOrigin(0.5);
-
     // Setup keyboard controls
     this.setupKeyboardControls();
   }
 
+  private createCharacterSelection(width: number, height: number) {
+    // Section title
+    this.add.text(width / 2, 60, 'Select Characters', {
+      fontSize: `${height * 0.028}px`,
+      color: '#aaaaaa'
+    }).setOrigin(0.5);
+
+    // Player 1 selection (left side)
+    this.createCharacterSelector(width / 2 - 200, 100, 'Player 1', true);
+    
+    // Player 2 selection (right side)
+    this.createCharacterSelector(width / 2 + 200, 100, 'Opponent', false);
+    
+    // VS text in middle
+    this.add.text(width / 2, 120, 'VS', {
+      fontSize: '32px',
+      color: '#ffff00',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+  }
+
+  private createCharacterSelector(x: number, y: number, label: string, isPlayer1: boolean) {
+    const height = this.sys.game.config.height as number;
+    const charIndex = isPlayer1 ? this.selectedPlayer1CharIndex : this.selectedPlayer2CharIndex;
+    const char = this.characters[charIndex];
+
+    // Label
+    this.add.text(x, y, label, {
+      fontSize: `${height * 0.022}px`,
+      color: '#ffffff',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+
+    // Character name with color
+    const nameText = this.add.text(x, y + 25, char.name, {
+      fontSize: `${height * 0.025}px`,
+      color: `#${char.color.toString(16).padStart(6, '0')}`
+    }).setOrigin(0.5).setName(isPlayer1 ? 'p1CharName' : 'p2CharName');
+
+    // Left arrow
+    this.add.text(x - 60, y + 25, '◀', {
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+      .on('pointerover', function(this: Phaser.GameObjects.Text) { this.setColor('#ffff00'); })
+      .on('pointerout', function(this: Phaser.GameObjects.Text) { this.setColor('#ffffff'); })
+      .on('pointerdown', () => this.changeCharacter(isPlayer1, -1));
+
+    // Right arrow
+    this.add.text(x + 60, y + 25, '▶', {
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+      .on('pointerover', function(this: Phaser.GameObjects.Text) { this.setColor('#ffff00'); })
+      .on('pointerout', function(this: Phaser.GameObjects.Text) { this.setColor('#ffffff'); })
+      .on('pointerdown', () => this.changeCharacter(isPlayer1, 1));
+  }
+
+  private changeCharacter(isPlayer1: boolean, delta: number) {
+    if (isPlayer1) {
+      this.selectedPlayer1CharIndex = (this.selectedPlayer1CharIndex + delta + this.characters.length) % this.characters.length;
+      const char = this.characters[this.selectedPlayer1CharIndex];
+      const nameText = this.children.getByName('p1CharName') as Phaser.GameObjects.Text;
+      nameText.setText(char.name);
+      nameText.setColor(`#${char.color.toString(16).padStart(6, '0')}`);
+    } else {
+      this.selectedPlayer2CharIndex = (this.selectedPlayer2CharIndex + delta + this.characters.length) % this.characters.length;
+      const char = this.characters[this.selectedPlayer2CharIndex];
+      const nameText = this.children.getByName('p2CharName') as Phaser.GameObjects.Text;
+      nameText.setText(char.name);
+      nameText.setColor(`#${char.color.toString(16).padStart(6, '0')}`);
+    }
+  }
+
   private createBotCards(width: number, height: number) {
+    // Section title
+    this.add.text(width / 2, 165, 'Select Opponent AI', {
+      fontSize: `${height * 0.028}px`,
+      color: '#aaaaaa'
+    }).setOrigin(0.5);
+
     const cardWidth = 180;
-    const cardHeight = 280;
+    const cardHeight = 240;
     const spacing = 20;
     const startX = (width - (cardWidth * 5 + spacing * 4)) / 2;
-    const startY = 120;
+    const startY = 200;
 
     this.bots.forEach((bot, index) => {
       const x = startX + index * (cardWidth + spacing);
       const isSelected = index === this.selectedBotIndex;
 
       // Card background
-      const card = this.add.rectangle(x, startY, cardWidth, cardHeight, bot.color, isSelected ? 1 : 0.3)
+      const card = this.add.rectangle(x, startY, cardWidth, cardHeight, 0x000000)
         .setOrigin(0, 0)
-        .setStrokeStyle(isSelected ? 4 : 2, isSelected ? 0xffffff : 0x666666)
+        .setStrokeStyle(isSelected ? 4 : 2, 0xffffff)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => this.selectBot(index));
 
@@ -152,7 +244,7 @@ export default class BotSelectionScene extends Scene {
 
       // Description
       this.add.text(x + 10, startY + 80, bot.description, {
-        fontSize: `${height * 0.015}px`,
+        fontSize: `${height * 0.020}px`,
         color: '#ccc',
         wordWrap: { width: cardWidth - 20 }
       }).setOrigin(0, 0);
@@ -182,34 +274,34 @@ export default class BotSelectionScene extends Scene {
 
   private createDifficultySlider(width: number, height: number) {
     const sliderY = 480;
-    const sliderWidth = 500;
+    const sliderWidth = 350;
     const sliderX = width / 2;
 
     // Label
-    this.add.text(sliderX, sliderY - 40, `Difficulty: ${this.selectedDifficulty}`, {
-      fontSize: `${height * 0.032}px`,
+    this.add.text(sliderX, sliderY - 30, `Difficulty: ${this.selectedDifficulty}`, {
+      fontSize: `${height * 0.028}px`,
       color: '#fff',
       fontStyle: 'bold'
     }).setOrigin(0.5).setName('difficultyLabel');
 
     // Slider track
-    const track = this.add.rectangle(sliderX, sliderY, sliderWidth, 8, 0x444444).setOrigin(0.5);
+    const track = this.add.rectangle(sliderX, sliderY, sliderWidth, 6, 0x444444).setOrigin(0.5);
 
     // Slider notches (1-10)
     for (let i = 1; i <= 10; i++) {
       const notchX = sliderX - sliderWidth / 2 + (i - 0.5) * (sliderWidth / 10);
-      this.add.rectangle(notchX, sliderY, 2, 16, 0x666666).setOrigin(0.5);
+      this.add.rectangle(notchX, sliderY, 2, 12, 0x666666).setOrigin(0.5);
       
       // Number labels
-      this.add.text(notchX, sliderY + 20, i.toString(), {
-        fontSize: `${height * 0.018}px`,
+      this.add.text(notchX, sliderY + 15, i.toString(), {
+        fontSize: `${height * 0.016}px`,
         color: '#888'
       }).setOrigin(0.5);
     }
 
     // Slider handle
     const handleX = sliderX - sliderWidth / 2 + (this.selectedDifficulty - 0.5) * (sliderWidth / 10);
-    const handle = this.add.circle(handleX, sliderY, 12, 0xffffff)
+    const handle = this.add.circle(handleX, sliderY, 10, 0xffffff)
       .setInteractive({ useHandCursor: true, draggable: true })
       .setName('difficultyHandle');
 
@@ -284,8 +376,8 @@ export default class BotSelectionScene extends Scene {
         // Stop any existing tweens on this card
         this.tweens.killTweensOf(child);
         
-        child.setAlpha(isSelected ? 1 : 0.3);
-        child.setStrokeStyle(isSelected ? 4 : 2, isSelected ? 0xffffff : 0x666666);
+        child.setAlpha(isSelected ? 1 : 0.6);
+        child.setStrokeStyle(isSelected ? 4 : 2, 0xffffff);
         
         // Add pulse animation to selected card
         if (isSelected) {
@@ -306,18 +398,34 @@ export default class BotSelectionScene extends Scene {
 
   private startMatch() {
     const selectedBot = this.bots[this.selectedBotIndex];
+    const player1Char = this.characters[this.selectedPlayer1CharIndex];
+    const player2Char = this.characters[this.selectedPlayer2CharIndex];
     
     // Store selection in registry for the game scene to use
     this.registry.set('exhibitionMode', true);
     this.registry.set('botType', selectedBot.type);
     this.registry.set('botDifficulty', this.selectedDifficulty);
+    this.registry.set('player1Character', player1Char.id);
+    this.registry.set('player2Character', player2Char.id);
     
     // Start the game scene with exhibition mode
-    this.scene.start('GameScene');
+    this.scene.start('PhaserGameScene');
   }
 
   private goBack() {
     this.scene.start('MenuScene');
+  }
+
+  shutdown() {
+    // Clean up keyboard event listeners when scene is stopped
+    this.input.keyboard?.off('keydown-LEFT');
+    this.input.keyboard?.off('keydown-RIGHT');
+    this.input.keyboard?.off('keydown-PLUS');
+    this.input.keyboard?.off('keydown-MINUS');
+    this.input.keyboard?.off('keydown-UP');
+    this.input.keyboard?.off('keydown-DOWN');
+    this.input.keyboard?.off('keydown-ENTER');
+    this.input.keyboard?.off('keydown-ESC');
   }
 
   private setupKeyboardControls() {

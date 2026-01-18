@@ -13,6 +13,7 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   private nameText: Phaser.GameObjects.Text;
   private currentAnimation: string = '';
   private teamId: number;
+  private characterId: string; // Store character ID for sprite selection
   
   // Health bar animation
   private displayedHealth: number = 100;
@@ -22,16 +23,35 @@ export class FighterSprite extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, fighter: FighterState, displayName?: string) {
     super(scene, fighter.position.x, fighter.position.y);
 
-    console.log(`[FighterSprite] Constructor called for ${fighter.id}, team ${fighter.teamId}`);
     this.teamId = fighter.teamId;
+    this.characterId = fighter.characterId;
     
-    // Create sprite based on team (player vs enemy) - use frame 0 initially
-    const spritePrefix = fighter.teamId === 0 ? 'player' : 'enemy';
-    this.sprite = new Phaser.GameObjects.Sprite(scene, 0, -10, `${spritePrefix}_idle`, 0);
+    // Create sprite based on character ID
+    // Map character IDs to sprite prefixes
+    let spritePrefix: string;
+    let spriteYOffset: number; // Character-specific vertical offset to align with hurtboxes
+    switch (fighter.characterId) {
+      case 'musashi':
+        spritePrefix = 'player'; // Musashi uses player sprites (96x96)
+        spriteYOffset = 30; // Aligned
+        break;
+      case 'kaze':
+        spritePrefix = 'kaze'; // Kaze uses enemy2 sprites (64x64)
+        spriteYOffset = 10; // Kaze sprites sit lower, less offset needed
+        break;
+      case 'tetsuo':
+        spritePrefix = 'tetsuo'; // Tetsuo uses enemy4 sprites (64x64)
+        spriteYOffset = 50; // Tetsuo sprites have more padding, more offset needed
+        break;
+      default:
+        spritePrefix = 'player'; // Fallback
+        spriteYOffset = 30;
+    }
+    
+    this.sprite = new Phaser.GameObjects.Sprite(scene, 0, spriteYOffset, `${spritePrefix}_idle`, 0);
     this.sprite.setOrigin(0.5, 1.0); // Anchor to bottom center for ground alignment
     this.sprite.setScale(2); // Make sprites larger
     this.add(this.sprite);
-    console.log(`[FighterSprite] Sprite image created and added to container`);
 
     // Create health bar
     this.healthBar = new Phaser.GameObjects.Graphics(scene);
@@ -82,7 +102,13 @@ export class FighterSprite extends Phaser.GameObjects.Container {
     this.setPosition(fighter.position.x, fighter.position.y);
 
     // Update facing (flip sprite horizontally)
-    this.sprite.setScale(fighter.facing * 2, 2);
+    // Note: enemy2 (Kaze) sprites naturally face LEFT, so flip logic is inverted
+    const shouldFlip = fighter.characterId === 'kaze' 
+      ? fighter.facing === 1  // Kaze: flip when facing right (since sprites face left)
+      : fighter.facing === -1; // Others: flip when facing left (sprites face right)
+    
+    this.sprite.setFlipX(shouldFlip);
+    this.sprite.setScale(2, 2);
 
     // Update animation based on status
     this.updateVisuals(fighter);
@@ -131,7 +157,22 @@ export class FighterSprite extends Phaser.GameObjects.Container {
    * Update visual representation based on fighter state
    */
   private updateVisuals(fighter: FighterState): void {
-    const spritePrefix = this.teamId === 0 ? 'player' : 'enemy';
+    // Map character IDs to sprite prefixes
+    let spritePrefix: string;
+    switch (fighter.characterId) {
+      case 'musashi':
+        spritePrefix = 'player';
+        break;
+      case 'kaze':
+        spritePrefix = 'kaze';
+        break;
+      case 'tetsuo':
+        spritePrefix = 'tetsuo';
+        break;
+      default:
+        spritePrefix = 'player';
+    }
+    
     let animKey = '';
 
     // Determine animation from status
@@ -142,8 +183,12 @@ export class FighterSprite extends Phaser.GameObjects.Container {
 
       case FighterStatus.WALK_FORWARD:
       case FighterStatus.WALK_BACKWARD:
-        // Use walk for player, run for enemy (since enemy doesn't have walk)
-        animKey = this.teamId === 0 ? `${spritePrefix}_walk_anim` : `${spritePrefix}_run_anim`;
+        // Musashi has walk animation, Kaze and Tetsuo use run
+        if (fighter.characterId === 'musashi') {
+          animKey = `${spritePrefix}_walk_anim`;
+        } else {
+          animKey = `${spritePrefix}_run_anim`;
+        }
         break;
 
       case FighterStatus.JUMP:
@@ -157,21 +202,31 @@ export class FighterSprite extends Phaser.GameObjects.Container {
 
       case FighterStatus.ATTACK:
         // Map attack moves to animation keys
-        if (fighter.currentMove === 'lightPunch' || fighter.currentMove === 'crLightPunch') {
+        if (fighter.currentMove === 'light_punch' || fighter.currentMove === 'cr_light_punch') {
           animKey = `${spritePrefix}_attack1_anim`;
-        } else if (fighter.currentMove === 'heavyPunch' || fighter.currentMove === 'crHeavyPunch') {
+        } else if (fighter.currentMove === 'heavy_punch' || fighter.currentMove === 'cr_heavy_punch') {
           animKey = `${spritePrefix}_attack2_anim`;
-        } else if (fighter.currentMove === 'lightKick' || fighter.currentMove === 'heavyKick') {
+        } else if (fighter.currentMove === 'light_kick' || fighter.currentMove === 'heavy_kick') {
           animKey = `${spritePrefix}_attack3_anim`;
         } else if (fighter.currentMove === 'hadoken' || fighter.currentMove === 'shoryuken') {
-          animKey = this.teamId === 0 ? `${spritePrefix}_special_anim` : `${spritePrefix}_dash_anim`;
+          // Musashi specials use special animation, others use dash attack
+          if (fighter.characterId === 'musashi') {
+            animKey = `${spritePrefix}_special_anim`;
+          } else {
+            animKey = `${spritePrefix}_dash_attack_anim`;
+          }
         } else {
           animKey = `${spritePrefix}_attack1_anim`;
         }
         break;
 
       case FighterStatus.BLOCK:
-        animKey = this.teamId === 0 ? `${spritePrefix}_defend_anim` : `${spritePrefix}_defence_anim`;
+        // Musashi has defend sprite, others use idle + visual effect (placeholder)
+        if (fighter.characterId === 'musashi') {
+          animKey = `${spritePrefix}_defend_anim`;
+        } else {
+          animKey = `${spritePrefix}_idle_anim`; // Placeholder for missing DEFEND sprite
+        }
         break;
 
       case FighterStatus.HITSTUN:
@@ -179,7 +234,12 @@ export class FighterSprite extends Phaser.GameObjects.Container {
         break;
 
       case FighterStatus.BLOCKSTUN:
-        animKey = this.teamId === 0 ? `${spritePrefix}_defend_anim` : `${spritePrefix}_defence_anim`;
+        // Same as BLOCK
+        if (fighter.characterId === 'musashi') {
+          animKey = `${spritePrefix}_defend_anim`;
+        } else {
+          animKey = `${spritePrefix}_idle_anim`; // Placeholder
+        }
         break;
 
       default:
@@ -188,8 +248,12 @@ export class FighterSprite extends Phaser.GameObjects.Container {
 
     // Only update animation if it changed
     if (animKey !== this.currentAnimation) {
-      this.sprite.play(animKey);
-      this.currentAnimation = animKey;
+      if (this.scene.anims.exists(animKey)) {
+        this.sprite.play(animKey);
+        this.currentAnimation = animKey;
+      } else {
+        console.warn(`[FighterSprite] Animation not found: ${animKey}`);
+      }
     }
   }
 

@@ -402,8 +402,9 @@ export class SpecialMoveExecutor {
     };
 
     for (const hurtbox of fighter.hurtboxes) {
+      // Hurtboxes are centered (x=0 means centered, offset by -width/2)
       const hurtRect = {
-        x: fighter.position.x + hurtbox.x,
+        x: fighter.position.x + hurtbox.x - hurtbox.width / 2,
         y: fighter.position.y + hurtbox.y,
         width: hurtbox.width,
         height: hurtbox.height,

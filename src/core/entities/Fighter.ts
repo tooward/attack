@@ -179,6 +179,13 @@ function processInput(
 ): FighterState {
   const actions = input.actions;
 
+  // Don't process ground movement input while jumping or in hitstun/blockstun
+  if (fighter.status === FighterStatus.JUMP ||
+      fighter.status === FighterStatus.HITSTUN ||
+      fighter.status === FighterStatus.BLOCKSTUN) {
+    return { ...fighter, invincibleFrames };
+  }
+
   // Check for special moves first (higher priority than normal attacks)
   if (inputBuffer) {
     // Super Combo: Double Quarter-Circle Forward + Punch (236236P)
@@ -235,12 +242,21 @@ function processInput(
     };
   }
 
-  // Jump
+  // Jump (preserve horizontal momentum for forward/backward arcs)
   if (actions.has(InputAction.UP) && fighter.isGrounded) {
+    let jumpVelocityX = fighter.velocity.x;
+    
+    // Apply jump direction if holding left/right
+    if (actions.has(InputAction.RIGHT)) {
+      jumpVelocityX = 4; // Forward jump
+    } else if (actions.has(InputAction.LEFT)) {
+      jumpVelocityX = -4; // Backward jump
+    }
+    
     return {
       ...fighter,
       status: FighterStatus.JUMP,
-      velocity: { x: fighter.velocity.x, y: -15 }, // Jump velocity
+      velocity: { x: jumpVelocityX, y: -15 }, // Jump with horizontal momentum
       isGrounded: false,
       invincibleFrames,
     };
@@ -263,10 +279,10 @@ function processInput(
   if (fighter.isGrounded) {
     if (actions.has(InputAction.RIGHT)) {
       newStatus = fighter.facing === 1 ? FighterStatus.WALK_FORWARD : FighterStatus.WALK_BACKWARD;
-      newVelocityX = 3; // Walk speed
+      newVelocityX = 5; // Walk speed (increased for better responsiveness)
     } else if (actions.has(InputAction.LEFT)) {
       newStatus = fighter.facing === 1 ? FighterStatus.WALK_BACKWARD : FighterStatus.WALK_FORWARD;
-      newVelocityX = -3;
+      newVelocityX = -5;
     }
   }
 
@@ -509,6 +525,19 @@ export function updateFacing(
     return fighter;
   }
 
+  // When moving, face movement direction
+  if (fighter.status === FighterStatus.WALK_FORWARD || 
+      fighter.status === FighterStatus.WALK_BACKWARD) {
+    const movingRight = fighter.velocity.x > 0;
+    const newFacing = movingRight ? 1 : -1;
+    
+    if (newFacing !== fighter.facing) {
+      return { ...fighter, facing: newFacing };
+    }
+    return fighter;
+  }
+
+  // Otherwise, face opponent
   const shouldFaceRight = opponentX > fighter.position.x;
   const newFacing = shouldFaceRight ? 1 : -1;
 

@@ -230,10 +230,10 @@ export default class SettingsScene extends Scene {
     this.registry.set('settings', this.settings);
     
     // Return to menu
-    this.scene.start('MainMenuScene');
+    this.scene.start('MenuScene');
   }
 
   private cancel(): void {
-    this.scene.start('MainMenuScene');
+    this.scene.start('MenuScene');
   }
 }

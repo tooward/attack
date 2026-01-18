@@ -16,7 +16,7 @@ import {
   CharacterDefinition,
   ProjectileState,
 } from './interfaces/types';
-import { updateFighterState, regenerateEnergy, regenerateSuperMeter } from './entities/Fighter';
+import { updateFighterState, regenerateEnergy, regenerateSuperMeter, updateFacing } from './entities/Fighter';
 import { stepAllPhysics } from './systems/Physics';
 import { scanForHits, updateHurtboxes, checkComboTimeout } from './systems/Combat';
 import { createInputBuffer, addInput, InputBuffer } from './systems/InputBuffer';
@@ -36,7 +36,9 @@ export function createInitialState(config: GameConfig): GameState {
     // Transform
     position: { ...entityConfig.startPosition },
     velocity: { x: 0, y: 0 },
-    facing: entityConfig.teamId === 0 ? 1 : -1, // Player faces right, enemy left
+    // Initial facing: both face each other (will be updated by updateFacing in tick)
+    // Team 0 on left faces right (1), Team 1 on right faces left (-1)
+    facing: entityConfig.teamId === 0 ? 1 : -1,
     
     // Resources (will be populated from character definition)
     health: 100,
@@ -217,6 +219,13 @@ export function tick(
   // 3. Apply physics to all fighters
   newState.entities = stepAllPhysics(newState.entities, newState.arena);
 
+  // 3a. Update facing directions (fighters face their opponent)
+  if (newState.entities.length === 2) {
+    const [fighter1, fighter2] = newState.entities;
+    newState.entities[0] = updateFacing(fighter1, fighter2.position.x);
+    newState.entities[1] = updateFacing(fighter2, fighter1.position.x);
+  }
+
   // 3b. Process command grabs (after physics, before combat)
   if (characterDefs) {
     SpecialMoveExecutor.processCommandGrabs(newState, characterDefs);
@@ -325,16 +334,28 @@ function checkRoundEnd(state: GameState): GameState {
     teamHealths.set(entity.teamId, current + entity.health);
   }
 
+  // Debug log team healths
+  const anyZeroHealth = state.entities.some(e => e.health <= 0);
+  if (anyZeroHealth) {
+    console.log('=== POTENTIAL KO DETECTED ===');
+    console.log('Entity healths:', state.entities.map(e => ({ id: e.id, team: e.teamId, health: e.health })));
+    console.log('Team healths:', Array.from(teamHealths.entries()));
+  }
+
   // If any team has 0 health, round is over
   for (const [teamId, health] of teamHealths) {
     if (health <= 0) {
+      console.log(`Team ${teamId} eliminated with health ${health}`);
       // Find the winning team
       const winningTeam = [...teamHealths.entries()].find(
         ([id, hp]) => id !== teamId && hp > 0
       );
+      console.log('Winning team:', winningTeam);
       if (winningTeam) {
         const winner = state.entities.find(e => e.teamId === winningTeam[0]);
+        console.log('Winner:', winner);
         if (winner) {
+          console.log('=== ROUND OVER - WINNER:', winner.id, '===');
           return {
             ...state,
             round: { ...state.round, winner: winner.id },
